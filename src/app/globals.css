@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --sky: #4ba0d8;
+  --ocean: #346990;
+  --lemon: #f7f5ac;
+  --mist: #eef5fb;
+  --midnight: #1c2f43;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--mist);
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(75, 160, 216, 0.16), transparent 34rem),
+    linear-gradient(180deg, #eef5fb 0%, #ffffff 58%, #eef5fb 100%);
+  color: var(--midnight);
+  font-family:
+    Inter,
+    Aptos,
+    "SF Pro Display",
+    "SF Pro Text",
+    "Segoe UI",
+    system-ui,
+    sans-serif;
+  letter-spacing: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  letter-spacing: 0;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: rgba(247, 245, 172, 0.75);
+}
+
+@layer components {
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-harbor-sky focus-visible:ring-offset-2 focus-visible:ring-offset-white;
+  }
+
+  .panel {
+    @apply min-w-0 rounded-lg border border-harbor-ocean/10 bg-white/90 shadow-soft backdrop-blur;
+  }
+
+  .field {
+    @apply focus-ring w-full rounded-lg border border-harbor-ocean/15 bg-white px-3 py-2.5 text-sm text-harbor-midnight outline-none transition placeholder:text-harbor-midnight/35;
+  }
+
+  .label {
+    @apply text-xs font-medium uppercase tracking-[0.08em] text-harbor-ocean;
+  }
+
+  .primary-button {
+    @apply focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-harbor-midnight px-4 py-2.5 text-sm font-medium text-white shadow-line transition hover:bg-harbor-ocean disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .secondary-button {
+    @apply focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-harbor-ocean/15 bg-white px-4 py-2.5 text-sm font-medium text-harbor-midnight shadow-line transition hover:border-harbor-sky/60 hover:bg-harbor-mist;
+  }
+
+  .ghost-button {
+    @apply focus-ring inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-harbor-ocean transition hover:bg-harbor-sky/10 hover:text-harbor-midnight;
+  }
+
+  .pill {
+    @apply inline-flex items-center rounded-full border border-harbor-ocean/10 bg-harbor-mist px-2.5 py-1 text-xs font-medium text-harbor-ocean;
+  }
+}

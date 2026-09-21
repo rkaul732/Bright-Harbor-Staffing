@@ -1,0 +1,33 @@
+"use client";
+
+import { useFormStatus } from "react-dom";
+import { Loader2 } from "lucide-react";
+import { cn } from "@/shared/lib/cn";
+
+export function SubmitButton({
+  children,
+  className,
+  variant = "primary"
+}: {
+  children: React.ReactNode;
+  className?: string;
+  variant?: "primary" | "secondary" | "ghost";
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className={cn(
+        variant === "primary" && "primary-button",
+        variant === "secondary" && "secondary-button",
+        variant === "ghost" && "ghost-button",
+        className
+      )}
+    >
+      {pending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+      {pending ? "Working..." : children}
+    </button>
+  );
+}
