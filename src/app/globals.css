@@ -23,9 +23,7 @@ html {
 body {
   min-height: 100%;
   margin: 0;
-  background:
-    radial-gradient(circle at top left, rgba(75, 160, 216, 0.16), transparent 34rem),
-    linear-gradient(180deg, #eef5fb 0%, #ffffff 58%, #eef5fb 100%);
+  background: linear-gradient(180deg, #f8fbfd 0%, #ffffff 48%, #eef5fb 100%);
   color: var(--midnight);
   font-family:
     Inter,
@@ -61,11 +59,11 @@ a {
   }
 
   .panel {
-    @apply min-w-0 rounded-lg border border-harbor-ocean/10 bg-white/90 shadow-soft backdrop-blur;
+    @apply min-w-0 rounded-lg border border-harbor-ocean/10 bg-white/95 shadow-line backdrop-blur;
   }
 
   .field {
-    @apply focus-ring w-full rounded-lg border border-harbor-ocean/15 bg-white px-3 py-2.5 text-sm text-harbor-midnight outline-none transition placeholder:text-harbor-midnight/35;
+    @apply focus-ring w-full rounded-lg border border-harbor-ocean/15 bg-white px-3 py-2 text-sm text-harbor-midnight outline-none transition placeholder:text-harbor-midnight/35;
   }
 
   .label {
@@ -73,11 +71,11 @@ a {
   }
 
   .primary-button {
-    @apply focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-harbor-midnight px-4 py-2.5 text-sm font-medium text-white shadow-line transition hover:bg-harbor-ocean disabled:cursor-not-allowed disabled:opacity-60;
+    @apply focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-harbor-midnight px-3.5 py-2 text-sm font-medium text-white shadow-line transition hover:bg-harbor-ocean disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .secondary-button {
-    @apply focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-harbor-ocean/15 bg-white px-4 py-2.5 text-sm font-medium text-harbor-midnight shadow-line transition hover:border-harbor-sky/60 hover:bg-harbor-mist;
+    @apply focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-harbor-ocean/15 bg-white px-3.5 py-2 text-sm font-medium text-harbor-midnight shadow-line transition hover:border-harbor-sky/60 hover:bg-harbor-mist;
   }
 
   .ghost-button {

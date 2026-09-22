@@ -110,7 +110,7 @@ async function getUserForAction(roleHint?: AppRole) {
 
 async function getWorkerProgramsForAction(userId: string) {
   if (!isSupabaseConfigured()) {
-    return ["Anchor", "Beacon", "Bayside"] satisfies ProgramName[];
+    return ["Beacon/ Anchor", "Bayside"] satisfies ProgramName[];
   }
 
   const supabase = await createSupabaseServerClient();
@@ -225,6 +225,7 @@ export async function updateWorkerProfileAction(
     .map((item) => item.trim())
     .filter(Boolean);
   const phone = asString(formData.get("phone"));
+  const fullName = asString(formData.get("full_name")) || user.full_name;
   const preferredContact = asString(formData.get("preferred_contact"));
   const photo = formData.get("photo");
 
@@ -261,6 +262,7 @@ export async function updateWorkerProfileAction(
   await supabase
     .from("users")
     .update({
+      full_name: fullName,
       phone: phone || null,
       avatar_url: photoUrl
     })
@@ -565,6 +567,7 @@ export async function updateTimeOffRequestStatusAction(
 ): Promise<ActionState> {
   const requestId = asString(formData.get("request_id"));
   const status = asString(formData.get("status")) as RequestStatus;
+  const reviewComment = asString(formData.get("review_comment"));
   const user = await getUserForAction(asString(formData.get("role")) === "admin" ? "admin" : "supervisor");
 
   if (!["approved", "declined", "cancelled"].includes(status)) {
@@ -589,7 +592,8 @@ export async function updateTimeOffRequestStatusAction(
     .update({
       status: status as "approved" | "declined" | "cancelled",
       reviewed_by: user.id,
-      reviewed_at: new Date().toISOString()
+      reviewed_at: new Date().toISOString(),
+      review_comment: reviewComment || null
     })
     .eq("id", requestId);
 
@@ -608,6 +612,7 @@ export async function updateRequestStatusAction(
   const requestId = asString(formData.get("request_id"));
   const shiftId = asString(formData.get("shift_id"));
   const status = asString(formData.get("status")) as RequestStatus;
+  const reviewComment = asString(formData.get("review_comment"));
   const user = await getUserForAction(asString(formData.get("role")) === "admin" ? "admin" : "supervisor");
 
   if (!["approved", "declined", "cancelled"].includes(status)) {
@@ -628,7 +633,8 @@ export async function updateRequestStatusAction(
     .update({
       status: status as "approved" | "declined" | "cancelled",
       reviewed_by: user.id,
-      reviewed_at: new Date().toISOString()
+      reviewed_at: new Date().toISOString(),
+      review_comment: reviewComment || null
     })
     .eq("id", requestId);
 

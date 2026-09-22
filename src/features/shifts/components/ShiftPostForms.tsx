@@ -20,19 +20,42 @@ import type { AppRole, ProgramName } from "@/shared/types/domain";
 
 const initialState = { ok: false, message: "" };
 
+function calculateShiftHours(startTime: string, endTime: string) {
+  if (!startTime || !endTime) return null;
+  const [startHours, startMinutes] = startTime.split(":").map(Number);
+  const [endHours, endMinutes] = endTime.split(":").map(Number);
+
+  if (
+    !Number.isFinite(startHours) ||
+    !Number.isFinite(startMinutes) ||
+    !Number.isFinite(endHours) ||
+    !Number.isFinite(endMinutes)
+  ) {
+    return null;
+  }
+
+  const start = startHours * 60 + startMinutes;
+  let end = endHours * 60 + endMinutes;
+  if (end <= start) end += 24 * 60;
+  return Math.round(((end - start) / 60) * 100) / 100;
+}
+
 export function EmployeeCoveragePostForm({
   programNames
 }: {
   programNames: ProgramName[];
 }) {
   const [state, formAction] = useActionState(employeePostShiftAction, initialState);
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const eligibleProgramNames = programNames.filter((program) =>
     SHIFT_EXCHANGE_PROGRAMS.includes(program)
   );
+  const hours = calculateShiftHours(startTime, endTime);
 
   return (
     <form action={formAction} className="space-y-4">
-      <div className="rounded-lg border border-harbor-sky/20 bg-harbor-mist p-3 text-sm leading-6 text-harbor-midnight/70">
+      <div className="rounded-lg border border-harbor-sky/20 bg-harbor-mist/70 p-3 text-sm leading-6 text-harbor-midnight/70">
         Employee postings use a fixed ${FIXED_STANDARD_PAY_RATE.toFixed(2)} hourly
         rate. Emergency status is reserved for supervisors and admins.
       </div>
@@ -65,19 +88,40 @@ export function EmployeeCoveragePostForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="label">Start time</span>
-          <input name="start_time" type="time" className="field mt-1.5" required />
+          <input
+            name="start_time"
+            type="time"
+            value={startTime}
+            onChange={(event) => setStartTime(event.target.value)}
+            className="field mt-1.5"
+            required
+          />
         </label>
         <label className="block">
           <span className="label">End time</span>
-          <input name="end_time" type="time" className="field mt-1.5" required />
+          <input
+            name="end_time"
+            type="time"
+            value={endTime}
+            onChange={(event) => setEndTime(event.target.value)}
+            className="field mt-1.5"
+            required
+          />
         </label>
       </div>
+      <div className="rounded-lg border border-harbor-ocean/10 bg-white px-3 py-2.5">
+        <p className="label">Hours requested off</p>
+        <p className="mt-1 text-lg font-medium text-harbor-midnight">
+          {hours === null ? "Enter start and end times" : `${hours.toFixed(hours % 1 === 0 ? 0 : 2)} hours`}
+        </p>
+      </div>
+
       <label className="block">
-        <span className="label">Reason for coverage</span>
+        <span className="label">Reason for posting this shift</span>
         <textarea
           name="details"
           className="field mt-1.5 min-h-24"
-          placeholder="Briefly share why this shift is being put up for coverage."
+          placeholder="Briefly share why you are posting this shift for coverage."
           required
         />
       </label>

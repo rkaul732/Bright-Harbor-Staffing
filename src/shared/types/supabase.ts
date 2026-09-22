@@ -9,17 +9,45 @@ export type Json =
 type AppRole = "employee" | "supervisor" | "admin";
 type ProfileStatus = "pending" | "approved" | "suspended";
 type ProgramName =
-  | "Anchor"
-  | "Beacon"
-  | "Bayside"
-  | "Beach"
+  "Community Resources for Emergency Support and Treatment (CREST)"
+  | "Crisis Diversion"
+  | "Involuntary Outpatient Commitment"
+  | "PACT I"
+  | "PACT II"
+  | "Access"
+  | "LEAP (Arrive Together, On POINT, Barricaded Subjects)"
+  | "Outpatient Services"
+  | "Intensive Family Support Services"
+  | "Oasis"
+  | "Integrated System of Care (ISC)"
+  | "Intensive Outpatient"
+  | "Level I Outpatient"
+  | "Medication Assisted Treatment (MAT)"
+  | "Shore Haven"
+  | "Building Empowerment to Achieve Community Housing (BEACH)"
+  | "Beacon/ Anchor"
   | "Chelsea"
-  | "Wave"
-  | "Code Red/Code Blue"
-  | "Access Center"
-  | "Administration"
-  | "Outpatient"
-  | "School Based";
+  | "Supportive Housing Assistance to Reach Excellence (SHARE)"
+  | "Wellness Assistance Valuing Excellence (WAVE)"
+  | "Progressive Assistance to Transition from Homelessness (PATH)"
+  | "Housing Supports Program (HSP)"
+  | "TIDES"
+  | "Bayside"
+  | "Empowering Mind, Body and Recovery after Challenging Experiences (EMBRACE)"
+  | "Intensive In Community Services (IIC)"
+  | "Children & Families Outpatient Services"
+  | "Healing through Outpatient Perinatal Education & Support (HOPES)"
+  | "Keeping Families Together - OCEAN"
+  | "Keeping Families Together - MONMOUTH"
+  | "Supervised Visits"
+  | "Directions"
+  | "Youth Electronic Monitoring"
+  | "Youth Recovery Services (YRS)"
+  | "Family Crisis Intervention Unit (FCIU)"
+  | "REAL Team"
+  | "The NOOK"
+  | "Ocean Academy"
+  | "SOLAS";
 type ShiftCategory = "standard" | "emergency";
 type ShiftStatus = "open" | "covered" | "cancelled" | "draft";
 type RequestStatus =
@@ -115,6 +143,7 @@ type RequestRow = {
   routed_at: string;
   reviewed_by: string | null;
   reviewed_at: string | null;
+  review_comment: string | null;
   created_at: string;
 };
 
@@ -129,6 +158,7 @@ type TimeOffRequestRow = {
   status: RequestStatus;
   reviewed_by: string | null;
   reviewed_at: string | null;
+  review_comment: string | null;
   created_at: string;
 };
 

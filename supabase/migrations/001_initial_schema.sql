@@ -31,8 +31,8 @@ create table public.worker_profiles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null unique references public.users(id) on delete cascade,
   status public.profile_status not null default 'pending',
-  program_name text not null default 'Anchor',
-  program_names text[] not null default array['Anchor']::text[],
+  program_name text not null default 'Community Resources for Emergency Support and Treatment (CREST)',
+  program_names text[] not null default array['Community Resources for Emergency Support and Treatment (CREST)']::text[],
   availability jsonb not null default '[]'::jsonb,
   skills public.skill_name[] not null default '{}',
   account_information jsonb not null default '{}'::jsonb,
@@ -77,7 +77,7 @@ create table public.shift_posts (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   details text,
-  program_name text not null default 'Anchor',
+  program_name text not null default 'Community Resources for Emergency Support and Treatment (CREST)',
   location_id uuid references public.locations(id),
   location_name text not null,
   shift_date date not null,
@@ -123,6 +123,7 @@ create table public.requests (
   routed_at timestamptz not null default now(),
   reviewed_by uuid references public.users(id),
   reviewed_at timestamptz,
+  review_comment text,
   created_at timestamptz not null default now(),
   unique (shift_id, requestor_id)
 );
@@ -138,6 +139,7 @@ create table public.time_off_requests (
   status public.request_status not null default 'pending_supervisor_approval',
   reviewed_by uuid references public.users(id),
   reviewed_at timestamptz,
+  review_comment text,
   created_at timestamptz not null default now(),
   constraint time_off_date_order check (end_date >= start_date)
 );
@@ -309,13 +311,13 @@ begin
     insert into public.worker_profiles (user_id, program_name, program_names)
     values (
       new.id,
-      coalesce(new.raw_user_meta_data ->> 'program_name', 'Anchor'),
+      coalesce(new.raw_user_meta_data ->> 'program_name', 'Community Resources for Emergency Support and Treatment (CREST)'),
       case
         when jsonb_typeof(new.raw_user_meta_data -> 'program_names') = 'array'
         then array(
           select jsonb_array_elements_text(new.raw_user_meta_data -> 'program_names')
         )
-        else array[coalesce(new.raw_user_meta_data ->> 'program_name', 'Anchor')]
+        else array[coalesce(new.raw_user_meta_data ->> 'program_name', 'Community Resources for Emergency Support and Treatment (CREST)')]
       end
     )
     on conflict (user_id) do nothing;
@@ -481,14 +483,6 @@ with check (
       select 1
       from public.worker_profiles wp
       where wp.user_id = auth.uid()
-        and wp.program_names && array[
-          'Anchor',
-          'Beacon',
-          'Beach',
-          'Chelsea',
-          'Wave',
-          'Code Red/Code Blue'
-        ]::text[]
         and shift_posts.program_name = any(wp.program_names)
     )
   )
@@ -535,14 +529,6 @@ with check (
     select 1
     from public.worker_profiles wp
     where wp.user_id = auth.uid()
-      and wp.program_names && array[
-        'Anchor',
-        'Beacon',
-        'Beach',
-        'Chelsea',
-        'Wave',
-        'Code Red/Code Blue'
-      ]::text[]
       and exists (
         select 1
         from public.shift_posts sp

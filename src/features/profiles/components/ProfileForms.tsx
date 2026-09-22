@@ -27,6 +27,17 @@ export function WorkerProfileForm({ data }: { data: DashboardData }) {
 
   return (
     <form action={formAction} className="space-y-4">
+      <label className="block">
+        <span className="label">Full name</span>
+        <input
+          name="full_name"
+          defaultValue={data.currentUser.full_name}
+          className="field mt-1.5"
+          placeholder="Full name"
+          required
+        />
+      </label>
+
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="label">Phone</span>
@@ -69,12 +80,12 @@ export function WorkerProfileForm({ data }: { data: DashboardData }) {
       </fieldset>
 
       <label className="block">
-        <span className="label">Availability</span>
+        <span className="label">Regular work schedule</span>
         <input
           name="availability"
           defaultValue={profile?.availability.join(", ") ?? ""}
           className="field mt-1.5"
-          placeholder="Weeknights, weekends, overnights"
+          placeholder="Monday-Friday 9-5, weekends, overnights"
         />
       </label>
 

@@ -1,16 +1,16 @@
 "use client";
 
+import { useState, type ReactNode } from "react";
 import {
   Bookmark,
   CalendarCheck,
   CalendarClock,
-  CalendarDays,
   Clock3,
   ClipboardList,
-  Send
+  Send,
+  X
 } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
-import { MetricCard } from "@/shared/components/MetricCard";
 import { ShiftCard } from "@/shared/components/ShiftCard";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { AdSlots } from "@/shared/components/AdSlots";
@@ -43,6 +43,16 @@ import type {
   TimeOffRequest
 } from "@/shared/types/domain";
 
+type EmployeeModalKey =
+  | "post-shift"
+  | "time-off"
+  | "posted-shifts"
+  | "pickup-requests"
+  | "scheduled-shifts"
+  | "profile"
+  | "saved-shifts"
+  | "program-notices";
+
 function getEmployeeScheduledShifts(data: DashboardData) {
   const approvedShiftIds = data.requests
     .filter(
@@ -64,6 +74,7 @@ function isInSelectedPrograms(
 }
 
 export function EmployeeDashboard({ data }: { data: DashboardData }) {
+  const [activeModal, setActiveModal] = useState<EmployeeModalKey | null>(null);
   const profile = data.workerProfiles.find(
     (workerProfile) => workerProfile.user_id === data.currentUser.id
   );
@@ -162,250 +173,335 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
     }))
   ];
 
-  return (
-    <DashboardShell role="employee" data={data}>
-      <section className="mb-5 grid gap-3 sm:grid-cols-2">
-        <a href="#my-calendar" className="primary-button py-3">
-          <CalendarDays className="h-4 w-4" aria-hidden="true" />
-          My Calendar
-        </a>
-        <a href="#time-off-requests" className="secondary-button py-3">
-          <CalendarCheck className="h-4 w-4" aria-hidden="true" />
-          Time Off Requests
-        </a>
-      </section>
+  const initials = getInitials(data.currentUser.full_name);
 
+  const widgetActions = (
+    <>
+      <WidgetButton
+        icon={CalendarCheck}
+        label="Time Off"
+        count={myTimeOffRequests.length}
+        onClick={() => setActiveModal("time-off")}
+      />
+      {canExchangeShifts ? (
+        <>
+          <WidgetButton
+            icon={ClipboardList}
+            label="Posted"
+            count={myCoveragePosts.length}
+            onClick={() => setActiveModal("posted-shifts")}
+          />
+          <WidgetButton
+            icon={Send}
+            label="Requests"
+            count={pickupRequests.length}
+            onClick={() => setActiveModal("pickup-requests")}
+          />
+          <WidgetButton
+            icon={CalendarClock}
+            label="Scheduled"
+            count={scheduledShifts.length}
+            onClick={() => setActiveModal("scheduled-shifts")}
+          />
+          <WidgetButton
+            icon={Bookmark}
+            label="Saved"
+            count={savedShifts.length}
+            onClick={() => setActiveModal("saved-shifts")}
+          />
+        </>
+      ) : null}
+      {visibleAdSlots.length > 0 ? (
+        <WidgetButton
+          icon={Clock3}
+          label="Notices"
+          count={visibleAdSlots.length}
+          onClick={() => setActiveModal("program-notices")}
+        />
+      ) : null}
+    </>
+  );
+
+  return (
+    <DashboardShell
+      role="employee"
+      data={data}
+      profileAction={
+        <ProfileInitialsButton
+          initials={initials}
+          onClick={() => setActiveModal("profile")}
+        />
+      }
+    >
       {!canExchangeShifts ? (
-        <section className="mb-5 rounded-lg border border-harbor-sky/20 bg-white/85 p-4 text-sm leading-6 text-harbor-midnight/70 shadow-line">
+        <section className="mb-4 rounded-lg border border-harbor-sky/20 bg-white/80 p-3 text-sm leading-6 text-harbor-midnight/70 shadow-line">
           Your selected program access is{" "}
           <span className="font-medium text-harbor-midnight">{programLabel}</span>.
-          Shift posting and pickup are available only when at least one selected
-          program is Anchor, Beacon, Beach, Chelsea, Wave, or Code Red/Code Blue.
+          Choose one or more programs in your profile to unlock shift posting and pickup.
         </section>
       ) : null}
 
-      <div className="mb-5">
-        <MyCalendarBoard
-          events={myCalendarEvents}
-          programNames={selectedProgramNames}
-          availableShifts={canExchangeShifts ? availableShifts : []}
-          showShiftTools={canExchangeShifts}
-        />
-      </div>
+      <MyCalendarBoard
+        events={myCalendarEvents}
+        programNames={selectedProgramNames}
+        availableShifts={canExchangeShifts ? availableShifts : []}
+        showShiftTools={canExchangeShifts}
+        widgetActions={widgetActions}
+        onPostShift={() => setActiveModal("post-shift")}
+      />
 
-      <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Time off requests"
-          value={myTimeOffRequests.length}
-          icon={CalendarCheck}
-          tone="sky"
-        />
-        <MetricCard
-          label="Shifts posted"
-          value={canExchangeShifts ? myCoveragePosts.length : 0}
-          icon={ClipboardList}
-        />
-        <MetricCard
-          label="Pickup requests"
-          value={canExchangeShifts ? pickupRequests.length : 0}
-          icon={Send}
-          tone="lemon"
-        />
-        <MetricCard
-          label="Scheduled shifts"
-          value={canExchangeShifts ? scheduledShifts.length : 0}
-          icon={CalendarClock}
-        />
-      </section>
-
-      <section className="mb-5 grid gap-5 xl:grid-cols-3">
-        <EmployeeListPanel
-          label="Time off requests"
-          emptyTitle="No time off requests"
-          emptyBody="Submitted requests will appear here."
-          icon={CalendarCheck}
-        >
-          {myTimeOffRequests.map((request) => (
-            <TimeOffCard key={request.id} request={request} />
-          ))}
-        </EmployeeListPanel>
-
-        {canExchangeShifts ? (
-          <>
-            <EmployeeListPanel
-              label="Shifts put up for coverage"
-              emptyTitle="No shifts posted"
-              emptyBody="When you need coverage, your posts will appear here."
-              icon={Clock3}
-            >
-              {myCoveragePosts.map((shift) => (
-                <ShiftCard key={shift.id} shift={shift} compact />
-              ))}
-            </EmployeeListPanel>
-
-            <EmployeeListPanel
-              label="Requests to pick up shifts"
-              emptyTitle="No pickup requests"
-              emptyBody="Requests routed for approval will appear here."
-              icon={Send}
-            >
-              {pickupRequests.map((request) => (
-                <PickupRequestCard
-                  key={request.id}
-                  request={request}
-                  shift={visibleShifts.find((shift) => shift.id === request.shift_id)}
-                />
-              ))}
-            </EmployeeListPanel>
-          </>
-        ) : null}
-      </section>
-
-      <div className="grid gap-5 lg:grid-cols-[1fr_21rem]">
-        <div className="min-w-0 space-y-5">
-          <section id="time-off-requests" className="panel scroll-mt-24 p-4 sm:p-5">
-            <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-              <div>
-                <p className="label">Time Off Requests</p>
-                <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
-                  Request time away
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-harbor-midnight/60">
-                  Submit planned time away and track approval status from your
-                  dashboard.
-                </p>
-                <div className="mt-4">
-                  <TimeOffRequestForm programNames={selectedProgramNames} />
-                </div>
-              </div>
-              <div className="min-w-0">
-                <p className="label">My requests</p>
-                <div className="mt-3 space-y-3">
-                  {myTimeOffRequests.length > 0 ? (
-                    myTimeOffRequests.map((request) => (
-                      <TimeOffCard key={request.id} request={request} />
-                    ))
-                  ) : (
-                    <EmptyState
-                      icon={CalendarCheck}
-                      title="No time off requests"
-                      body="Your submitted requests will appear here."
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {canExchangeShifts ? (
-            <section className="grid gap-5 xl:grid-cols-2">
-              <div id="post-shift" className="panel scroll-mt-24 p-4 sm:p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="label">Post Shift</p>
-                    <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
-                      Put one of your shifts up
-                    </h2>
-                  </div>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2 text-sm">
-                  <span className="rounded-full border border-harbor-ocean/10 bg-white px-3 py-2 text-harbor-midnight/72">
-                    Standard: ${FIXED_STANDARD_PAY_RATE.toFixed(2)} hourly
-                  </span>
-                  <span className="rounded-full border border-harbor-lemon bg-harbor-lemon/60 px-3 py-2 text-harbor-midnight/72">
-                    Emergency: ${FIXED_EMERGENCY_PAY_RATE.toFixed(2)} hourly
-                  </span>
-                </div>
-                <div className="mt-4">
-                  <EmployeeCoveragePostForm programNames={selectedProgramNames} />
-                </div>
-              </div>
-
-              <section className="panel p-4 sm:p-5">
-                <p className="label">My shift timeline</p>
-                <div className="mt-4 grid gap-4">
-                  <ShiftColumn title="Previous" shifts={previousShifts} />
-                  <ShiftColumn title="This week" shifts={thisWeekShifts} />
-                  <ShiftColumn title="Upcoming" shifts={upcomingShifts} />
-                </div>
-              </section>
-            </section>
-          ) : null}
+      <EmployeeWidgetModal
+        title="Post Shift"
+        eyebrow="Coverage request"
+        open={activeModal === "post-shift"}
+        onClose={() => setActiveModal(null)}
+      >
+        <div className="mb-4 flex flex-wrap gap-2 text-sm">
+          <span className="rounded-full border border-harbor-ocean/10 bg-white px-3 py-2 text-harbor-midnight/72">
+            Standard: ${FIXED_STANDARD_PAY_RATE.toFixed(2)} hourly
+          </span>
+          <span className="rounded-full border border-harbor-lemon bg-harbor-lemon/60 px-3 py-2 text-harbor-midnight/72">
+            Emergency: ${FIXED_EMERGENCY_PAY_RATE.toFixed(2)} hourly
+          </span>
         </div>
+        <EmployeeCoveragePostForm programNames={selectedProgramNames} />
+      </EmployeeWidgetModal>
 
-        <aside className="min-w-0 space-y-5">
-          <section className="panel p-4 sm:p-5">
-            <p className="label">Employee profile</p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-medium text-harbor-midnight">
-                Program and availability
-              </h2>
-              {profile ? (
-                <StatusBadge value={profile.status} />
-              ) : (
-                <StatusBadge value="pending_supervisor_approval" />
-              )}
-            </div>
-            <p className="mt-2 text-sm text-harbor-midnight/60">
-              Programs: {programLabel}
-            </p>
-            <div className="mt-4">
-              <WorkerProfileForm data={data} />
-            </div>
-          </section>
+      <EmployeeWidgetModal
+        title="Time Off Requests"
+        eyebrow="My requests"
+        open={activeModal === "time-off"}
+        onClose={() => setActiveModal(null)}
+      >
+        <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+          <TimeOffRequestForm programNames={selectedProgramNames} />
+          <WidgetList
+            emptyIcon={CalendarCheck}
+            emptyTitle="No time off requests"
+            emptyBody="Submitted requests will appear here."
+          >
+            {myTimeOffRequests.map((request) => (
+              <TimeOffCard key={request.id} request={request} />
+            ))}
+          </WidgetList>
+        </div>
+      </EmployeeWidgetModal>
 
-          {canExchangeShifts ? (
-            <section className="panel p-4">
-              <p className="label">Saved shifts</p>
-              <div className="mt-3 space-y-3">
-                {savedShifts.length > 0 ? (
-                  savedShifts.map((shift) => (
-                    <ShiftCard key={shift.id} shift={shift} compact />
-                  ))
-                ) : (
-                  <EmptyState
-                    icon={Bookmark}
-                    title="No saved shifts"
-                    body="Saved openings will appear here."
-                  />
-                )}
-              </div>
-            </section>
-          ) : null}
+      <EmployeeWidgetModal
+        title="Shifts Posted"
+        eyebrow="Coverage I put up"
+        open={activeModal === "posted-shifts"}
+        onClose={() => setActiveModal(null)}
+      >
+        <WidgetList
+          emptyIcon={ClipboardList}
+          emptyTitle="No shifts posted"
+          emptyBody="When you need coverage, your posts will appear here."
+        >
+          {myCoveragePosts.map((shift) => (
+            <ShiftCard key={shift.id} shift={shift} compact />
+          ))}
+        </WidgetList>
+      </EmployeeWidgetModal>
 
-          <AdSlots ads={visibleAdSlots} />
-        </aside>
-      </div>
+      <EmployeeWidgetModal
+        title="Pickup Requests"
+        eyebrow="Requests routed for approval"
+        open={activeModal === "pickup-requests"}
+        onClose={() => setActiveModal(null)}
+      >
+        <WidgetList
+          emptyIcon={Send}
+          emptyTitle="No pickup requests"
+          emptyBody="Requests routed for approval will appear here."
+        >
+          {pickupRequests.map((request) => (
+            <PickupRequestCard
+              key={request.id}
+              request={request}
+              shift={visibleShifts.find((shift) => shift.id === request.shift_id)}
+            />
+          ))}
+        </WidgetList>
+      </EmployeeWidgetModal>
+
+      <EmployeeWidgetModal
+        title="Scheduled Shifts"
+        eyebrow="My timeline"
+        open={activeModal === "scheduled-shifts"}
+        onClose={() => setActiveModal(null)}
+      >
+        <div className="grid gap-4 lg:grid-cols-3">
+          <ShiftColumn title="Previous" shifts={previousShifts} />
+          <ShiftColumn title="This week" shifts={thisWeekShifts} />
+          <ShiftColumn title="Upcoming" shifts={upcomingShifts} />
+        </div>
+      </EmployeeWidgetModal>
+
+      <EmployeeWidgetModal
+        title="My Profile"
+        eyebrow="Profile settings"
+        open={activeModal === "profile"}
+        onClose={() => setActiveModal(null)}
+      >
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <StatusBadge value={profile?.status ?? "pending_supervisor_approval"} />
+          <p className="text-sm text-harbor-midnight/60">Programs: {programLabel}</p>
+        </div>
+        <WorkerProfileForm data={data} />
+      </EmployeeWidgetModal>
+
+      <EmployeeWidgetModal
+        title="Saved Shifts"
+        eyebrow="For later"
+        open={activeModal === "saved-shifts"}
+        onClose={() => setActiveModal(null)}
+      >
+        <WidgetList
+          emptyIcon={Bookmark}
+          emptyTitle="No saved shifts"
+          emptyBody="Saved openings will appear here."
+        >
+          {savedShifts.map((shift) => (
+            <ShiftCard key={shift.id} shift={shift} compact />
+          ))}
+        </WidgetList>
+      </EmployeeWidgetModal>
+
+      <EmployeeWidgetModal
+        title="Program Notices"
+        eyebrow="Promoted openings"
+        open={activeModal === "program-notices"}
+        onClose={() => setActiveModal(null)}
+      >
+        <AdSlots ads={visibleAdSlots} />
+      </EmployeeWidgetModal>
     </DashboardShell>
   );
 }
 
-function EmployeeListPanel({
-  label,
-  emptyTitle,
-  emptyBody,
+function getInitials(name: string) {
+  const initials = name
+    .split(" ")
+    .map((part) => part.trim()[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  return initials || "BH";
+}
+
+function ProfileInitialsButton({
+  initials,
+  onClick
+}: {
+  initials: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="focus-ring col-span-2 inline-flex items-center justify-center gap-2 rounded-lg border border-harbor-ocean/15 bg-harbor-midnight px-2.5 py-2 text-sm font-medium text-white shadow-line transition hover:bg-harbor-ocean sm:col-span-1"
+      aria-label="Open My Profile"
+    >
+      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15 text-xs tracking-normal">
+        {initials}
+      </span>
+      <span>My Profile</span>
+    </button>
+  );
+}
+
+function WidgetButton({
   icon: Icon,
+  label,
+  count,
+  onClick
+}: {
+  icon: typeof CalendarClock;
+  label: string;
+  count?: number;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" onClick={onClick} className="secondary-button px-3 py-2">
+      <Icon className="h-4 w-4" aria-hidden="true" />
+      {label}
+      {typeof count === "number" ? (
+        <span className="rounded-full bg-harbor-mist px-2 py-0.5 text-xs text-harbor-ocean">
+          {count}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+function EmployeeWidgetModal({
+  title,
+  eyebrow,
+  open,
+  onClose,
   children
 }: {
-  label: string;
+  title: string;
+  eyebrow: string;
+  open: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-harbor-midnight/35 px-3 py-5 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={`employee-modal-${title}`}
+    >
+      <section className="max-h-[88vh] w-full max-w-5xl overflow-auto rounded-lg border border-white/70 bg-white p-4 shadow-soft sm:p-5">
+        <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex items-start justify-between gap-4 border-b border-harbor-ocean/10 bg-white/95 px-4 py-4 backdrop-blur sm:-mx-5 sm:-mt-5 sm:px-5">
+          <div>
+            <p className="label">{eyebrow}</p>
+            <h2
+              id={`employee-modal-${title}`}
+              className="mt-1 text-xl font-medium text-harbor-midnight"
+            >
+              {title}
+            </h2>
+          </div>
+          <button type="button" onClick={onClose} className="ghost-button px-2" aria-label="Close">
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        {children}
+      </section>
+    </div>
+  );
+}
+
+function WidgetList({
+  emptyIcon,
+  emptyTitle,
+  emptyBody,
+  children
+}: {
+  emptyIcon: typeof CalendarClock;
   emptyTitle: string;
   emptyBody: string;
-  icon: typeof CalendarClock;
-  children: React.ReactNode[];
+  children: ReactNode[];
 }) {
   const items = children.filter(Boolean);
 
   return (
-    <section className="panel p-4">
-      <p className="label">{label}</p>
-      <div className="mt-3 max-h-[26rem] space-y-3 overflow-auto pr-1">
-        {items.length > 0 ? (
-          items
-        ) : (
-          <EmptyState icon={Icon} title={emptyTitle} body={emptyBody} />
-        )}
-      </div>
-    </section>
+    <div className="grid gap-3 xl:grid-cols-2">
+      {items.length > 0 ? (
+        items
+      ) : (
+        <EmptyState icon={emptyIcon} title={emptyTitle} body={emptyBody} />
+      )}
+    </div>
   );
 }
 
@@ -426,6 +522,12 @@ function TimeOffCard({ request }: { request: TimeOffRequest }) {
       <p className="mt-3 text-sm leading-6 text-harbor-midnight/65">
         {request.reason}
       </p>
+      {request.review_comment ? (
+        <p className="mt-3 rounded-lg bg-harbor-mist p-3 text-sm leading-6 text-harbor-midnight/70">
+          <span className="font-medium text-harbor-midnight">Admin comment:</span>{" "}
+          {request.review_comment}
+        </p>
+      ) : null}
     </article>
   );
 }
@@ -453,6 +555,12 @@ function PickupRequestCard({
       <p className="mt-3 text-xs text-harbor-midnight/60">
         Routed to {request.supervisor_email}
       </p>
+      {request.review_comment ? (
+        <p className="mt-3 rounded-lg bg-harbor-mist p-3 text-sm leading-6 text-harbor-midnight/70">
+          <span className="font-medium text-harbor-midnight">Admin comment:</span>{" "}
+          {request.review_comment}
+        </p>
+      ) : null}
     </article>
   );
 }

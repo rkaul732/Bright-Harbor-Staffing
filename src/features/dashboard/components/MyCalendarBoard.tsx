@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   CalendarDays,
   CalendarPlus,
@@ -77,12 +77,16 @@ export function MyCalendarBoard({
   events,
   programNames,
   availableShifts = [],
-  showShiftTools = false
+  showShiftTools = false,
+  widgetActions,
+  onPostShift
 }: {
   events: MyCalendarEvent[];
   programNames: ProgramName[];
   availableShifts?: ShiftPost[];
   showShiftTools?: boolean;
+  widgetActions?: ReactNode;
+  onPostShift?: () => void;
 }) {
   const [mode, setMode] = useState<CalendarMode>("month");
   const [monthDate, setMonthDate] = useState(() => new Date());
@@ -124,12 +128,19 @@ export function MyCalendarBoard({
             </h2>
           </div>
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+            {widgetActions}
             {showShiftTools ? (
               <>
-                <a href="#post-shift" className="secondary-button px-3 py-2">
-                  <CalendarPlus className="h-4 w-4" aria-hidden="true" />
-                  Post Shift
-                </a>
+                {onPostShift ? (
+                  <button
+                    type="button"
+                    onClick={onPostShift}
+                    className="secondary-button px-3 py-2"
+                  >
+                    <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+                    Post Shift
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => {

@@ -30,7 +30,7 @@ export function AuthPanel({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [programName, setProgramName] = useState<ProgramName>(PROGRAMS[0]);
+  const [programNames, setProgramNames] = useState<ProgramName[]>([PROGRAMS[0]]);
   const [message, setMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -42,6 +42,11 @@ export function AuthPanel({
 
     if (!email.includes("@") || password.length < 6) {
       setMessage("Use a valid email and a password with at least 6 characters.");
+      return;
+    }
+
+    if (mode === "sign-up" && role === "employee" && programNames.length === 0) {
+      setMessage("Choose at least one program.");
       return;
     }
 
@@ -64,8 +69,8 @@ export function AuthPanel({
                 data: {
                   role,
                   full_name: fullName || email.split("@")[0],
-                  program_name: role === "employee" ? programName : undefined,
-                  program_names: role === "employee" ? [programName] : undefined
+                  program_name: role === "employee" ? programNames[0] : undefined,
+                  program_names: role === "employee" ? programNames : undefined
                 },
                 emailRedirectTo: `${window.location.origin}${ROLE_DASHBOARD_PATHS[role]}`
               }
@@ -134,20 +139,34 @@ export function AuthPanel({
               />
             </label>
             {role === "employee" ? (
-              <label className="block">
-                <span className="label">Program</span>
-                <select
-                  value={programName}
-                  onChange={(event) => setProgramName(event.target.value as ProgramName)}
-                  className="field mt-1.5"
-                >
-                  {PROGRAMS.map((program) => (
-                    <option key={program} value={program}>
-                      {program}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <fieldset>
+                <legend className="label">Programs</legend>
+                <div className="mt-2 max-h-56 overflow-auto rounded-lg border border-harbor-ocean/10 bg-white p-2">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {PROGRAMS.map((program) => (
+                      <label
+                        key={program}
+                        className="flex items-start gap-2 rounded-md px-2 py-2 text-sm text-harbor-midnight/75 hover:bg-harbor-mist"
+                      >
+                        <input
+                          type="checkbox"
+                          value={program}
+                          checked={programNames.includes(program)}
+                          onChange={(event) => {
+                            setProgramNames((current) =>
+                              event.target.checked
+                                ? [...current, program]
+                                : current.filter((item) => item !== program)
+                            );
+                          }}
+                          className="mt-0.5 h-4 w-4 rounded border-harbor-ocean/20 text-harbor-sky"
+                        />
+                        <span>{program}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </fieldset>
             ) : null}
           </div>
         ) : null}

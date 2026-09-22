@@ -111,17 +111,22 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
   const adSlots = (adSlotsResult.data ?? []) as AdSlot[];
   const monthlyWinners = (winnersResult.data ?? []) as MonthlyWinner[];
 
-  const currentUser =
-    users.find((appUser) => appUser.id === user.id) ??
-    ({
-      id: user.id,
-      email: user.email ?? "",
-      full_name: user.user_metadata?.full_name ?? user.email ?? "Team member",
-      role,
-      avatar_url: user.user_metadata?.avatar_url ?? null,
-      phone: null,
-      created_at: user.created_at
-    } satisfies AppUser);
+  const storedCurrentUser = users.find((appUser) => appUser.id === user.id);
+  const currentUser = storedCurrentUser
+    ? ({
+        ...storedCurrentUser,
+        last_sign_in_at: user.last_sign_in_at ?? storedCurrentUser.created_at
+      } satisfies AppUser)
+    : ({
+        id: user.id,
+        email: user.email ?? "",
+        full_name: user.user_metadata?.full_name ?? user.email ?? "Team member",
+        role,
+        avatar_url: user.user_metadata?.avatar_url ?? null,
+        phone: null,
+        created_at: user.created_at,
+        last_sign_in_at: user.last_sign_in_at ?? user.created_at
+      } satisfies AppUser);
 
   return {
     currentUser,

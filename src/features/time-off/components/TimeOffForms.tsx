@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { CalendarPlus, Check, X } from "lucide-react";
 import {
   submitTimeOffRequestAction,
@@ -74,14 +74,25 @@ export function TimeOffApprovalControls({
     updateTimeOffRequestStatusAction,
     initialState
   );
+  const [reviewComment, setReviewComment] = useState("");
 
   return (
     <div className="space-y-2">
+      <label className="block">
+        <span className="label">Comment for employee</span>
+        <textarea
+          value={reviewComment}
+          onChange={(event) => setReviewComment(event.target.value)}
+          className="field mt-1.5 min-h-20"
+          placeholder="Optional note shown to the employee after review."
+        />
+      </label>
       <div className="grid grid-cols-2 gap-2">
         <form action={approveAction}>
           <input type="hidden" name="request_id" value={request.id} />
           <input type="hidden" name="status" value="approved" />
           <input type="hidden" name="role" value={role} />
+          <input type="hidden" name="review_comment" value={reviewComment} />
           <SubmitButton className="w-full">
             <Check className="h-4 w-4" aria-hidden="true" />
             Approve
@@ -91,6 +102,7 @@ export function TimeOffApprovalControls({
           <input type="hidden" name="request_id" value={request.id} />
           <input type="hidden" name="status" value="declined" />
           <input type="hidden" name="role" value={role} />
+          <input type="hidden" name="review_comment" value={reviewComment} />
           <SubmitButton variant="secondary" className="w-full">
             <X className="h-4 w-4" aria-hidden="true" />
             Decline

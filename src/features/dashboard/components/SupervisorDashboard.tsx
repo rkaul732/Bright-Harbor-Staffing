@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { CalendarCheck, CalendarClock, CalendarX, ClipboardList, UsersRound } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { MetricCard } from "@/shared/components/MetricCard";
@@ -115,64 +116,70 @@ export function SupervisorDashboard({
             )}
           </section>
 
-          <section className="panel p-4 sm:p-5">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="label">Review requests</p>
-                <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
-                  Pending supervisor approval
-                </h2>
-              </div>
-              <p className="text-sm text-harbor-midnight/60">
-                Routed to bpataky@brightharbor.org
-              </p>
-            </div>
-            <div className="mt-4 grid gap-4 xl:grid-cols-2">
-              {pendingRequests.length > 0 ? (
-                pendingRequests.map((request) => (
-                  <RequestReviewCard
-                    key={request.id}
-                    request={request}
-                    shift={data.shifts.find((shift) => shift.id === request.shift_id)}
-                    role={role}
-                  />
-                ))
-              ) : (
-                <EmptyState
-                  icon={UsersRound}
-                  title="No pending approvals"
-                  body="New employee shift requests will appear here."
-                />
-              )}
-            </div>
-          </section>
+          {role === "admin" ? (
+            <AdminRequestsWorkspace data={data} role={role} />
+          ) : (
+            <>
+              <section className="panel p-4 sm:p-5">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="label">Review requests</p>
+                    <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
+                      Pending supervisor approval
+                    </h2>
+                  </div>
+                  <p className="text-sm text-harbor-midnight/60">
+                    Routed to bpataky@brightharbor.org
+                  </p>
+                </div>
+                <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                  {pendingRequests.length > 0 ? (
+                    pendingRequests.map((request) => (
+                      <RequestReviewCard
+                        key={request.id}
+                        request={request}
+                        shift={data.shifts.find((shift) => shift.id === request.shift_id)}
+                        role={role}
+                      />
+                    ))
+                  ) : (
+                    <EmptyState
+                      icon={UsersRound}
+                      title="No pending approvals"
+                      body="New employee shift requests will appear here."
+                    />
+                  )}
+                </div>
+              </section>
 
-          <section className="panel p-4 sm:p-5">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="label">Time off requests</p>
-                <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
-                  Pending employee time off
-                </h2>
-              </div>
-              <p className="text-sm text-harbor-midnight/60">
-                {pendingTimeOffRequests.length} pending
-              </p>
-            </div>
-            <div className="mt-4 grid gap-4 xl:grid-cols-2">
-              {pendingTimeOffRequests.length > 0 ? (
-                pendingTimeOffRequests.map((request) => (
-                  <TimeOffReviewCard key={request.id} request={request} role={role} />
-                ))
-              ) : (
-                <EmptyState
-                  icon={CalendarX}
-                  title="No pending time off"
-                  body="Employee time off requests will appear here."
-                />
-              )}
-            </div>
-          </section>
+              <section className="panel p-4 sm:p-5">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <p className="label">Time off requests</p>
+                    <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
+                      Pending employee time off
+                    </h2>
+                  </div>
+                  <p className="text-sm text-harbor-midnight/60">
+                    {pendingTimeOffRequests.length} pending
+                  </p>
+                </div>
+                <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                  {pendingTimeOffRequests.length > 0 ? (
+                    pendingTimeOffRequests.map((request) => (
+                      <TimeOffReviewCard key={request.id} request={request} role={role} />
+                    ))
+                  ) : (
+                    <EmptyState
+                      icon={CalendarX}
+                      title="No pending time off"
+                      body="Employee time off requests will appear here."
+                    />
+                  )}
+                </div>
+              </section>
+            </>
+          )}
 
           <section className="panel p-4 sm:p-5">
             <p className="label">Manage and reschedule</p>
@@ -230,6 +237,156 @@ export function SupervisorDashboard({
   );
 }
 
+type AdminRequestTab = "new" | "pending" | "completed";
+type CompletedRequestFilter = "all" | "approved" | "declined";
+
+type AdminRequestItem =
+  | { type: "shift"; created_at: string; status: ShiftRequest["status"]; request: ShiftRequest }
+  | {
+      type: "time-off";
+      created_at: string;
+      status: TimeOffRequest["status"];
+      request: TimeOffRequest;
+    };
+
+function AdminRequestsWorkspace({ data, role }: { data: DashboardData; role: AppRole }) {
+  const [activeTab, setActiveTab] = useState<AdminRequestTab>("new");
+  const [completedFilter, setCompletedFilter] = useState<CompletedRequestFilter>("all");
+
+  const allRequests = useMemo<AdminRequestItem[]>(() => {
+    return [
+      ...data.requests.map((request) => ({
+        type: "shift" as const,
+        created_at: request.created_at,
+        status: request.status,
+        request
+      })),
+      ...data.timeOffRequests.map((request) => ({
+        type: "time-off" as const,
+        created_at: request.created_at,
+        status: request.status,
+        request
+      }))
+    ].sort((first, second) => second.created_at.localeCompare(first.created_at));
+  }, [data.requests, data.timeOffRequests]);
+
+  const newCutoff = data.currentUser.last_sign_in_at ?? data.currentUser.created_at;
+  const newRequests = allRequests.filter((item) => item.created_at > newCutoff);
+  const pending = allRequests.filter(
+    (item) => item.status === "pending_supervisor_approval"
+  );
+  const completed = allRequests.filter(
+    (item) => item.status === "approved" || item.status === "declined"
+  );
+  const completedVisible = completed.filter(
+    (item) => completedFilter === "all" || item.status === completedFilter
+  );
+  const visibleRequests =
+    activeTab === "new"
+      ? newRequests
+      : activeTab === "pending"
+        ? pending
+        : completedVisible;
+
+  return (
+    <section className="panel p-4 sm:p-5">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <p className="label">Requests</p>
+          <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
+            Admin request review
+          </h2>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <RequestTabButton
+            label="New"
+            count={newRequests.length}
+            active={activeTab === "new"}
+            onClick={() => setActiveTab("new")}
+          />
+          <RequestTabButton
+            label="Pending"
+            count={pending.length}
+            active={activeTab === "pending"}
+            onClick={() => setActiveTab("pending")}
+          />
+          <RequestTabButton
+            label="Completed"
+            count={completed.length}
+            active={activeTab === "completed"}
+            onClick={() => setActiveTab("completed")}
+          />
+        </div>
+      </div>
+
+      {activeTab === "completed" ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {(["all", "approved", "declined"] as CompletedRequestFilter[]).map((filter) => (
+            <button
+              key={filter}
+              type="button"
+              onClick={() => setCompletedFilter(filter)}
+              className={completedFilter === filter ? "primary-button px-3 py-2" : "secondary-button px-3 py-2"}
+            >
+              {filter === "all" ? "All" : filter === "approved" ? "Approved" : "Declined"}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        {visibleRequests.length > 0 ? (
+          visibleRequests.map((item) =>
+            item.type === "shift" ? (
+              <RequestReviewCard
+                key={`shift-${item.request.id}`}
+                request={item.request}
+                shift={data.shifts.find((shift) => shift.id === item.request.shift_id)}
+                role={role}
+              />
+            ) : (
+              <TimeOffReviewCard
+                key={`time-off-${item.request.id}`}
+                request={item.request}
+                role={role}
+              />
+            )
+          )
+        ) : (
+          <EmptyState
+            icon={UsersRound}
+            title="No requests in this view"
+            body="Use the request filters above to switch between new, pending, and completed requests."
+          />
+        )}
+      </div>
+    </section>
+  );
+}
+
+function RequestTabButton({
+  label,
+  count,
+  active,
+  onClick
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={active ? "primary-button px-3 py-2" : "secondary-button px-3 py-2"}
+    >
+      {label}
+      <span className="rounded-full bg-white/25 px-2 py-0.5 text-xs">{count}</span>
+    </button>
+  );
+}
+
 function RequestReviewCard({
   request,
   shift,
@@ -239,6 +396,8 @@ function RequestReviewCard({
   shift?: ShiftPost;
   role: AppRole;
 }) {
+  const canReview = request.status === "pending_supervisor_approval";
+
   return (
     <article className="rounded-lg border border-harbor-ocean/10 bg-white p-4 shadow-line">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -257,10 +416,18 @@ function RequestReviewCard({
           {request.note}
         </p>
       ) : null}
-      <div className="mt-4 space-y-4">
-        <ApprovalControls request={request} role={role} />
-        <MessageForm request={request} role={role} />
-      </div>
+      {request.review_comment ? (
+        <p className="mt-3 rounded-lg border border-harbor-ocean/10 bg-white p-3 text-sm leading-6 text-harbor-midnight/70">
+          <span className="font-medium text-harbor-midnight">Review comment:</span>{" "}
+          {request.review_comment}
+        </p>
+      ) : null}
+      {canReview ? (
+        <div className="mt-4 space-y-4">
+          <ApprovalControls request={request} role={role} />
+          <MessageForm request={request} role={role} />
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -272,6 +439,8 @@ function TimeOffReviewCard({
   request: TimeOffRequest;
   role: AppRole;
 }) {
+  const canReview = request.status === "pending_supervisor_approval";
+
   return (
     <article className="rounded-lg border border-harbor-ocean/10 bg-white p-4 shadow-line">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -289,9 +458,17 @@ function TimeOffReviewCard({
       <p className="mt-3 rounded-lg bg-harbor-mist p-3 text-sm leading-6 text-harbor-midnight/70">
         {request.reason}
       </p>
-      <div className="mt-4">
-        <TimeOffApprovalControls request={request} role={role} />
-      </div>
+      {request.review_comment ? (
+        <p className="mt-3 rounded-lg border border-harbor-ocean/10 bg-white p-3 text-sm leading-6 text-harbor-midnight/70">
+          <span className="font-medium text-harbor-midnight">Review comment:</span>{" "}
+          {request.review_comment}
+        </p>
+      ) : null}
+      {canReview ? (
+        <div className="mt-4">
+          <TimeOffApprovalControls request={request} role={role} />
+        </div>
+      ) : null}
     </article>
   );
 }

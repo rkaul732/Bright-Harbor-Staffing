@@ -20,20 +20,7 @@ A mobile-first Next.js app for Bright Harbor employees and admins to manage time
 
 ## Program Rules
 
-Employees in these programs can use Post Shift and Pick Up Shift:
-
-```text
-Anchor
-Beacon
-Beach
-Chelsea
-Wave
-Code Red/Code Blue
-```
-
-Employees in other programs can see and submit Time Off Requests only.
-
-Employees can select multiple profile programs, such as Anchor, Beacon, and Bayside. Their dashboard, shift lists, requests, and calendar are limited to those selected programs.
+Employees choose one or more programs from the official Directors & Supervisors program list during account creation. Their dashboard, shift posting, open shift pickup, requests, and calendar are limited to those selected programs.
 
 ## Local Setup
 
