@@ -5,7 +5,7 @@ import type {
   SkillName
 } from "@/shared/types/domain";
 
-export const APP_NAME = "Bright Harbor Staffing";
+export const APP_NAME = "Bright Harbor Healthcare Staffing";
 
 export const APPROVAL_SUPERVISOR_EMAIL =
   process.env.SHIFT_APPROVAL_SUPERVISOR_EMAIL ?? "bpataky@brightharbor.org";
