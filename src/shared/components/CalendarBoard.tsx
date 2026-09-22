@@ -56,7 +56,8 @@ export function CalendarBoard({
   emptyLabel = "No shifts for this date.",
   actions,
   timeOffRequests = [],
-  showByNameView = false
+  showByNameView = false,
+  initialMode = "month"
 }: {
   title: string;
   shifts: ShiftPost[];
@@ -64,8 +65,11 @@ export function CalendarBoard({
   actions?: (shift: ShiftPost) => React.ReactNode;
   timeOffRequests?: TimeOffRequest[];
   showByNameView?: boolean;
+  initialMode?: CalendarViewMode;
 }) {
-  const [mode, setMode] = useState<CalendarViewMode>("month");
+  const [mode, setMode] = useState<CalendarViewMode>(() =>
+    initialMode === "by-name" && !showByNameView ? "month" : initialMode
+  );
   const [monthDate, setMonthDate] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const [location, setLocation] = useState<LocationName | "all">("all");

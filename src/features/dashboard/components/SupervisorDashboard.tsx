@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CalendarCheck, CalendarClock, CalendarX, ClipboardList, UsersRound } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
@@ -47,11 +48,25 @@ export function SupervisorDashboard({
     (request) => request.status === "pending_supervisor_approval"
   );
 
+  if (role === "admin") {
+    return (
+      <AdminDashboardHome
+        data={data}
+        allShifts={allShifts}
+        openShifts={openShifts}
+        coveredShifts={coveredShifts}
+        pendingRequests={pendingRequests}
+        pendingTimeOffRequests={pendingTimeOffRequests}
+        showAdminModeration={showAdminModeration}
+      />
+    );
+  }
+
   return (
     <DashboardShell role={role} data={data}>
       <div className="grid gap-5 lg:grid-cols-[1fr_21rem]">
         <div className="min-w-0 space-y-5">
-          {role === "admin" ? (
+          {(role as AppRole) === "admin" ? (
             <section className="rounded-lg border border-harbor-sky/20 bg-harbor-sky/10 p-4 sm:p-5">
               <p className="label">Approval queue</p>
               <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -91,8 +106,8 @@ export function SupervisorDashboard({
           <CalendarBoard
             title="Staffing calendar"
             shifts={allShifts}
-            timeOffRequests={role === "admin" ? data.timeOffRequests : undefined}
-            showByNameView={role === "admin"}
+            timeOffRequests={(role as AppRole) === "admin" ? data.timeOffRequests : undefined}
+            showByNameView={(role as AppRole) === "admin"}
           />
 
           <section className="grid gap-5 xl:grid-cols-2">
@@ -121,7 +136,7 @@ export function SupervisorDashboard({
             )}
           </section>
 
-          {role === "admin" ? (
+          {(role as AppRole) === "admin" ? (
             <AdminRequestsWorkspace data={data} role={role} />
           ) : (
             <>
@@ -239,6 +254,225 @@ export function SupervisorDashboard({
         </aside>
       </div>
     </DashboardShell>
+  );
+}
+
+function AdminDashboardHome({
+  data,
+  allShifts,
+  openShifts,
+  coveredShifts,
+  pendingRequests,
+  pendingTimeOffRequests,
+  showAdminModeration
+}: {
+  data: DashboardData;
+  allShifts: ShiftPost[];
+  openShifts: ShiftPost[];
+  coveredShifts: ShiftPost[];
+  pendingRequests: ShiftRequest[];
+  pendingTimeOffRequests: TimeOffRequest[];
+  showAdminModeration: boolean;
+}) {
+  const lastSignOn = data.currentUser.last_sign_in_at ?? data.currentUser.created_at;
+  const newTimeOffRequests = data.timeOffRequests.filter(
+    (request) => request.created_at > lastSignOn
+  );
+  const approvedTimeOffRequests = data.timeOffRequests.filter(
+    (request) => request.status === "approved"
+  );
+  const deniedTimeOffRequests = data.timeOffRequests.filter(
+    (request) => request.status === "declined"
+  );
+  const totalAccounts = data.users.length;
+
+  return (
+    <DashboardShell role="admin" data={data}>
+      <section className="rounded-xl border border-harbor-ocean/10 bg-white/95 p-5 shadow-soft sm:p-7 lg:p-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="label text-harbor-sky">Admin Dashboard</p>
+            <h2 className="mt-3 text-4xl font-medium leading-tight text-harbor-midnight sm:text-5xl">
+              Welcome, {data.currentUser.full_name}!
+            </h2>
+            <p className="mt-4 text-sm font-medium uppercase tracking-[0.08em] text-harbor-ocean">
+              Admin
+            </p>
+          </div>
+          <Link href="/reports" className="word-button self-start font-semibold">
+            Reports
+          </Link>
+        </div>
+
+        <div className="mt-12 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <AdminSnapshotCard label="New since sign on" value={newTimeOffRequests.length} />
+          <AdminSnapshotCard label="Still pending" value={pendingTimeOffRequests.length} />
+          <AdminSnapshotCard label="Approved" value={approvedTimeOffRequests.length} />
+          <AdminSnapshotCard label="Denied" value={deniedTimeOffRequests.length} />
+        </div>
+
+        <div className="mt-8 grid gap-4 xl:grid-cols-4">
+          <AdminHubCard title="New Requests" badge={pendingTimeOffRequests.length + " waiting"} />
+          <AdminHubCard title="Team Schedule" badge={approvedTimeOffRequests.length + " approved"} />
+          <AdminHubCard title="Reports" badge="Spreadsheet export" href="/reports" />
+          <AdminHubCard title="Account Types" badge={totalAccounts + " accounts"} />
+        </div>
+      </section>
+
+      <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="min-w-0 space-y-5">
+          <section className="panel p-4 sm:p-5">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="label">New Requests</p>
+                <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
+                  Time off requests
+                </h2>
+              </div>
+              <p className="text-sm text-harbor-midnight/55">
+                {pendingTimeOffRequests.length} still pending
+              </p>
+            </div>
+            <div className="mt-4 grid gap-4 xl:grid-cols-2">
+              {pendingTimeOffRequests.length > 0 ? (
+                pendingTimeOffRequests.map((request) => (
+                  <TimeOffReviewCard key={request.id} request={request} role="admin" />
+                ))
+              ) : (
+                <EmptyState
+                  icon={CalendarX}
+                  title="No pending time off"
+                  body="New employee time off requests will appear here."
+                />
+              )}
+            </div>
+          </section>
+
+          <CalendarBoard
+            title="Team Schedule"
+            shifts={allShifts}
+            timeOffRequests={data.timeOffRequests}
+            showByNameView
+            initialMode="by-name"
+            emptyLabel="No staffing shifts for this date."
+          />
+
+          <section className="panel p-4 sm:p-5">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="label">Shift coverage</p>
+                <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
+                  Coverage requests
+                </h2>
+              </div>
+              <p className="text-sm text-harbor-midnight/55">
+                {pendingRequests.length} pending pickup request
+                {pendingRequests.length === 1 ? "" : "s"}
+              </p>
+            </div>
+            <div className="mt-4 grid gap-4 xl:grid-cols-2">
+              {pendingRequests.length > 0 ? (
+                pendingRequests.map((request) => (
+                  <RequestReviewCard
+                    key={request.id}
+                    request={request}
+                    shift={data.shifts.find((shift) => shift.id === request.shift_id)}
+                    role="admin"
+                  />
+                ))
+              ) : (
+                <EmptyState
+                  icon={UsersRound}
+                  title="No pending coverage requests"
+                  body="Employee pickup requests will appear here."
+                />
+              )}
+            </div>
+          </section>
+        </div>
+
+        <aside className="min-w-0 space-y-5">
+          <section className="panel p-4">
+            <p className="label">Staffing snapshot</p>
+            <div className="mt-4 grid gap-3">
+              <AdminMiniMetric label="Open shifts" value={openShifts.length} />
+              <AdminMiniMetric label="Covered shifts" value={coveredShifts.length} />
+              <AdminMiniMetric label="Approved workers" value={data.analytics.approvedWorkers} />
+            </div>
+          </section>
+
+          <section className="panel p-4">
+            <p className="label">Post available shifts</p>
+            <h2 className="mt-1 text-lg font-medium text-harbor-midnight">
+              Add coverage need
+            </h2>
+            <div className="mt-4">
+              <SupervisorShiftPostForm role="admin" />
+            </div>
+          </section>
+
+          {showAdminModeration ? <AdminModeration data={data} /> : null}
+        </aside>
+      </section>
+    </DashboardShell>
+  );
+}
+
+function AdminSnapshotCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-harbor-ocean/12 bg-white p-4 shadow-line sm:p-5">
+      <p className="text-3xl font-medium text-harbor-midnight">{value}</p>
+      <p className="mt-2 text-sm font-medium uppercase tracking-[0.06em] text-harbor-midnight/58">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function AdminHubCard({
+  title,
+  badge,
+  href
+}: {
+  title: string;
+  badge: string;
+  href?: string;
+}) {
+  const content = (
+    <>
+      <h3 className="text-2xl font-medium text-harbor-midnight">{title}</h3>
+      <span className="mt-12 inline-flex w-fit rounded-full border border-harbor-sky/20 bg-harbor-mist px-3 py-2 text-sm font-medium text-harbor-ocean">
+        {badge}
+      </span>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="rounded-lg border border-harbor-ocean/12 bg-white p-5 shadow-line transition hover:border-harbor-sky/35 hover:shadow-soft"
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-harbor-ocean/12 bg-white p-5 shadow-line">
+      {content}
+    </div>
+  );
+}
+
+function AdminMiniMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border border-harbor-ocean/10 bg-white p-3">
+      <p className="text-2xl font-medium text-harbor-midnight">{value}</p>
+      <p className="mt-1 text-xs font-medium uppercase tracking-[0.06em] text-harbor-midnight/55">
+        {label}
+      </p>
+    </div>
   );
 }
 
