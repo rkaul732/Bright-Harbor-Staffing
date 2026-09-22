@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Bookmark, Check, MessageSquare, Send, X } from "lucide-react";
 import {
   cancelShiftAction,
@@ -12,22 +12,83 @@ import {
 } from "@/app/actions";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
 import { SubmitButton } from "@/shared/components/SubmitButton";
+import { cn } from "@/shared/lib/cn";
 import type { AppRole, ShiftPost, ShiftRequest } from "@/shared/types/domain";
 
 const initialState = { ok: false, message: "" };
 
-export function RequestShiftForm({ shift }: { shift: ShiftPost }) {
+export function RequestShiftForm({
+  shift,
+  className
+}: {
+  shift: ShiftPost;
+  className?: string;
+}) {
   const [state, formAction] = useActionState(requestShiftAction, initialState);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   return (
-    <form action={formAction}>
-      <input type="hidden" name="shift_id" value={shift.id} />
-      <SubmitButton className="w-full">
+    <>
+      <button
+        type="button"
+        onClick={() => setIsConfirming(true)}
+        className={cn("primary-button w-full", className)}
+      >
         <Send className="h-4 w-4" aria-hidden="true" />
-        Request coverage
-      </SubmitButton>
+        Request
+      </button>
       <ActionFeedback state={state} />
-    </form>
+
+      {isConfirming ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-harbor-midnight/45 px-4 py-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={`request-shift-${shift.id}`}
+        >
+          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-soft">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="label">Shift request</p>
+                <h2
+                  id={`request-shift-${shift.id}`}
+                  className="mt-2 text-xl font-medium text-harbor-midnight"
+                >
+                  Are you sure you want to request this shift?
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-harbor-midnight/65">
+                  This will route your request to the supervisor for approval.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsConfirming(false)}
+                className="ghost-button px-2"
+                aria-label="Close request confirmation"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+
+            <form action={formAction} className="mt-5 space-y-3">
+              <input type="hidden" name="shift_id" value={shift.id} />
+              <SubmitButton className="w-full">
+                <Send className="h-4 w-4" aria-hidden="true" />
+                Request
+              </SubmitButton>
+              <button
+                type="button"
+                onClick={() => setIsConfirming(false)}
+                className="secondary-button w-full justify-center"
+              >
+                No, go back
+              </button>
+              <ActionFeedback state={state} />
+            </form>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 

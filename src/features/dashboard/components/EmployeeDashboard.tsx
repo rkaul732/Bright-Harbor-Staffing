@@ -5,14 +5,12 @@ import {
   CalendarCheck,
   CalendarClock,
   CalendarDays,
-  CalendarPlus,
   Clock3,
   ClipboardList,
   Send
 } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { MetricCard } from "@/shared/components/MetricCard";
-import { CalendarBoard } from "@/shared/components/CalendarBoard";
 import { ShiftCard } from "@/shared/components/ShiftCard";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { AdSlots } from "@/shared/components/AdSlots";
@@ -23,10 +21,6 @@ import {
   canUseShiftExchange,
   getProfileProgramNames
 } from "@/shared/lib/constants";
-import {
-  RequestShiftForm,
-  SaveShiftForm
-} from "@/features/shifts/components/ShiftActionForms";
 import { EmployeeCoveragePostForm } from "@/features/shifts/components/ShiftPostForms";
 import { WorkerProfileForm } from "@/features/profiles/components/ProfileForms";
 import { TimeOffRequestForm } from "@/features/time-off/components/TimeOffForms";
@@ -67,15 +61,6 @@ function isInSelectedPrograms(
   programNames: ProgramName[]
 ) {
   return Boolean(programName && programNames.includes(programName as ProgramName));
-}
-
-function shiftActions(shift: ShiftPost) {
-  return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      <RequestShiftForm shift={shift} />
-      <SaveShiftForm shift={shift} />
-    </div>
-  );
 }
 
 export function EmployeeDashboard({ data }: { data: DashboardData }) {
@@ -179,33 +164,12 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
 
   return (
     <DashboardShell role="employee" data={data}>
-      <section
-        className={
-          canExchangeShifts
-            ? "mb-5 grid gap-3 sm:grid-cols-4"
-            : "mb-5 grid gap-3 sm:grid-cols-2"
-        }
-      >
+      <section className="mb-5 grid gap-3 sm:grid-cols-2">
         <a href="#my-calendar" className="primary-button py-3">
           <CalendarDays className="h-4 w-4" aria-hidden="true" />
           My Calendar
         </a>
-        {canExchangeShifts ? (
-          <>
-            <a href="#post-shift" className="secondary-button py-3">
-              <CalendarPlus className="h-4 w-4" aria-hidden="true" />
-              Post Shift
-            </a>
-            <a href="#pick-up-shift" className="secondary-button py-3">
-              <Send className="h-4 w-4" aria-hidden="true" />
-              Pick Up Shift
-            </a>
-          </>
-        ) : null}
-        <a
-          href="#time-off-requests"
-          className="secondary-button py-3"
-        >
+        <a href="#time-off-requests" className="secondary-button py-3">
           <CalendarCheck className="h-4 w-4" aria-hidden="true" />
           Time Off Requests
         </a>
@@ -224,6 +188,8 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
         <MyCalendarBoard
           events={myCalendarEvents}
           programNames={selectedProgramNames}
+          availableShifts={canExchangeShifts ? availableShifts : []}
+          showShiftTools={canExchangeShifts}
         />
       </div>
 
@@ -332,48 +298,38 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
           </section>
 
           {canExchangeShifts ? (
-            <>
-              <section id="pick-up-shift" className="scroll-mt-24">
-                <CalendarBoard
-                  title="Available shifts to cover"
-                  shifts={availableShifts}
-                  actions={shiftActions}
-                />
-              </section>
-
-              <section className="grid gap-5 xl:grid-cols-2">
-                <div id="post-shift" className="panel scroll-mt-24 p-4 sm:p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="label">Post Shift</p>
-                      <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
-                        Put one of your shifts up
-                      </h2>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2 text-sm">
-                    <span className="rounded-full border border-harbor-ocean/10 bg-white px-3 py-2 text-harbor-midnight/72">
-                      Standard: ${FIXED_STANDARD_PAY_RATE.toFixed(2)} hourly
-                    </span>
-                    <span className="rounded-full border border-harbor-lemon bg-harbor-lemon/60 px-3 py-2 text-harbor-midnight/72">
-                      Emergency: ${FIXED_EMERGENCY_PAY_RATE.toFixed(2)} hourly
-                    </span>
-                  </div>
-                  <div className="mt-4">
-                    <EmployeeCoveragePostForm programNames={selectedProgramNames} />
+            <section className="grid gap-5 xl:grid-cols-2">
+              <div id="post-shift" className="panel scroll-mt-24 p-4 sm:p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="label">Post Shift</p>
+                    <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
+                      Put one of your shifts up
+                    </h2>
                   </div>
                 </div>
+                <div className="mt-3 flex flex-wrap gap-2 text-sm">
+                  <span className="rounded-full border border-harbor-ocean/10 bg-white px-3 py-2 text-harbor-midnight/72">
+                    Standard: ${FIXED_STANDARD_PAY_RATE.toFixed(2)} hourly
+                  </span>
+                  <span className="rounded-full border border-harbor-lemon bg-harbor-lemon/60 px-3 py-2 text-harbor-midnight/72">
+                    Emergency: ${FIXED_EMERGENCY_PAY_RATE.toFixed(2)} hourly
+                  </span>
+                </div>
+                <div className="mt-4">
+                  <EmployeeCoveragePostForm programNames={selectedProgramNames} />
+                </div>
+              </div>
 
-                <section className="panel p-4 sm:p-5">
-                  <p className="label">My shift timeline</p>
-                  <div className="mt-4 grid gap-4">
-                    <ShiftColumn title="Previous" shifts={previousShifts} />
-                    <ShiftColumn title="This week" shifts={thisWeekShifts} />
-                    <ShiftColumn title="Upcoming" shifts={upcomingShifts} />
-                  </div>
-                </section>
+              <section className="panel p-4 sm:p-5">
+                <p className="label">My shift timeline</p>
+                <div className="mt-4 grid gap-4">
+                  <ShiftColumn title="Previous" shifts={previousShifts} />
+                  <ShiftColumn title="This week" shifts={thisWeekShifts} />
+                  <ShiftColumn title="Upcoming" shifts={upcomingShifts} />
+                </div>
               </section>
-            </>
+            </section>
           ) : null}
         </div>
 

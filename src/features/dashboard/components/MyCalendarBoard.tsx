@@ -3,9 +3,11 @@
 import { useMemo, useState } from "react";
 import {
   CalendarDays,
+  CalendarPlus,
   ChevronLeft,
   ChevronRight,
-  ListFilter
+  ListFilter,
+  Send
 } from "lucide-react";
 import { PROGRAMS } from "@/shared/lib/constants";
 import {
@@ -20,7 +22,10 @@ import {
   toISODate
 } from "@/shared/lib/dates";
 import { cn } from "@/shared/lib/cn";
+import { EmptyState } from "@/shared/components/EmptyState";
+import { ShiftCard } from "@/shared/components/ShiftCard";
 import { StatusBadge } from "@/shared/components/StatusBadge";
+import { RequestShiftForm } from "@/features/shifts/components/ShiftActionForms";
 import type {
   CalendarMode,
   ProgramName,
@@ -70,20 +75,30 @@ function getEventTime(event: MyCalendarEvent) {
 
 export function MyCalendarBoard({
   events,
-  programNames
+  programNames,
+  availableShifts = [],
+  showShiftTools = false
 }: {
   events: MyCalendarEvent[];
   programNames: ProgramName[];
+  availableShifts?: ShiftPost[];
+  showShiftTools?: boolean;
 }) {
   const [mode, setMode] = useState<CalendarMode>("month");
   const [monthDate, setMonthDate] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const [program, setProgram] = useState<ProgramName | "all">("all");
+  const [showOpenShifts, setShowOpenShifts] = useState(false);
 
   const visibleProgramNames = programNames.length ? programNames : PROGRAMS;
   const filteredEvents = useMemo(() => {
     return events.filter((event) => program === "all" || event.program_name === program);
   }, [events, program]);
+  const filteredOpenShifts = useMemo(() => {
+    return availableShifts.filter(
+      (shift) => program === "all" || shift.program_name === program
+    );
+  }, [availableShifts, program]);
 
   const days = getMonthMatrix(monthDate);
 
@@ -91,19 +106,52 @@ export function MyCalendarBoard({
     return filteredEvents.filter((event) => getEventDates(event).includes(iso));
   }
 
+  function getOpenShiftsForDate(iso: string) {
+    return filteredOpenShifts.filter((shift) => shift.shift_date === iso);
+  }
+
   const dayEvents = getEventsForDate(selectedDate);
+  const selectedOpenShifts = getOpenShiftsForDate(selectedDate);
 
   return (
     <section id="my-calendar" className="panel scroll-mt-24 overflow-hidden">
       <div className="border-b border-harbor-ocean/10 bg-white px-4 py-4 sm:px-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="label">My Calendar</p>
             <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
               {formatMonthYear(monthDate)}
             </h2>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+            {showShiftTools ? (
+              <>
+                <a href="#post-shift" className="secondary-button px-3 py-2">
+                  <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+                  Post Shift
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowOpenShifts((current) => !current);
+                    setMode("day");
+                  }}
+                  aria-pressed={showOpenShifts}
+                  className={cn(
+                    showOpenShifts ? "primary-button" : "secondary-button",
+                    "px-3 py-2"
+                  )}
+                >
+                  <Send className="h-4 w-4" aria-hidden="true" />
+                  Open Shifts
+                  {selectedOpenShifts.length > 0 ? (
+                    <span className="rounded-full bg-white/25 px-2 py-0.5 text-xs">
+                      {selectedOpenShifts.length}
+                    </span>
+                  ) : null}
+                </button>
+              </>
+            ) : null}
             <div className="inline-flex rounded-lg bg-harbor-mist p-1">
               <button
                 type="button"
@@ -179,6 +227,7 @@ export function MyCalendarBoard({
             ))}
             {days.map((day) => {
               const dateEvents = getEventsForDate(day.iso);
+              const dateOpenShifts = getOpenShiftsForDate(day.iso);
 
               return (
                 <button
@@ -197,7 +246,7 @@ export function MyCalendarBoard({
                 >
                   <span className="text-xs font-medium">{day.date.getDate()}</span>
                   <div className="mt-2 space-y-1">
-                    {dateEvents.slice(0, 4).map((event) => (
+                    {dateEvents.slice(0, 3).map((event) => (
                       <span
                         key={`${event.id}-${day.iso}`}
                         className={cn(
@@ -214,7 +263,13 @@ export function MyCalendarBoard({
                         {event.program_name}: {getKindLabel(event.kind)}
                       </span>
                     ))}
-                    {dateEvents.length > 4 ? (
+                    {showOpenShifts && dateOpenShifts.length > 0 ? (
+                      <span className="block max-w-full truncate rounded-md bg-harbor-sky/15 px-2 py-1 text-[11px] text-harbor-midnight">
+                        {dateOpenShifts.length} open shift
+                        {dateOpenShifts.length === 1 ? "" : "s"}
+                      </span>
+                    ) : null}
+                    {dateEvents.length > 3 ? (
                       <span className="block text-[11px] text-harbor-ocean">More</span>
                     ) : null}
                   </div>
@@ -282,6 +337,52 @@ export function MyCalendarBoard({
           </div>
         </div>
       )}
+
+      {showOpenShifts ? (
+        <OpenShiftsPanel shifts={selectedOpenShifts} selectedDate={selectedDate} />
+      ) : null}
     </section>
+  );
+}
+
+function OpenShiftsPanel({
+  shifts,
+  selectedDate
+}: {
+  shifts: ShiftPost[];
+  selectedDate: string;
+}) {
+  return (
+    <div id="open-shifts" className="border-t border-harbor-ocean/10 bg-harbor-mist/50 p-4 sm:p-5">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="label">Open Shifts</p>
+          <h3 className="mt-1 text-lg font-medium text-harbor-midnight">
+            Available for {formatLongDate(selectedDate)}
+          </h3>
+        </div>
+        <p className="text-sm text-harbor-midnight/60">
+          {shifts.length} shift{shifts.length === 1 ? "" : "s"} available
+        </p>
+      </div>
+
+      <div className="mt-4">
+        {shifts.length > 0 ? (
+          <div className="grid gap-3 xl:grid-cols-2">
+            {shifts.map((shift) => (
+              <ShiftCard key={shift.id} shift={shift}>
+                <RequestShiftForm shift={shift} />
+              </ShiftCard>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon={Send}
+            title="No open shifts for this date"
+            body="Choose another date or program to view available shifts."
+          />
+        )}
+      </div>
+    </div>
   );
 }
