@@ -1,3 +1,11 @@
+function normalizeSupabaseUrl(url: string) {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return url.replace(/\/rest\/v1\/?$/, "");
+  }
+}
+
 export function isSupabaseConfigured() {
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -13,5 +21,5 @@ export function getSupabaseEnv() {
     throw new Error("Supabase environment variables are not configured.");
   }
 
-  return { url, anonKey };
+  return { url: normalizeSupabaseUrl(url), anonKey };
 }
