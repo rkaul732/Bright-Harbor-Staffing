@@ -88,7 +88,12 @@ export function SupervisorDashboard({
             />
           </section>
 
-          <CalendarBoard title="Staffing calendar" shifts={allShifts} />
+          <CalendarBoard
+            title="Staffing calendar"
+            shifts={allShifts}
+            timeOffRequests={role === "admin" ? data.timeOffRequests : undefined}
+            showByNameView={role === "admin"}
+          />
 
           <section className="grid gap-5 xl:grid-cols-2">
             <div className="panel p-4 sm:p-5">

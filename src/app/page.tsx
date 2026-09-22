@@ -3,8 +3,8 @@ import { ArrowRight } from "lucide-react";
 import { APP_NAME } from "@/shared/lib/constants";
 
 const roleLinks = [
-  { label: "Employee Login", href: "/auth?role=employee" },
-  { label: "Admin Login", href: "/auth?role=admin" }
+  { label: "Employee View", href: "/auth?role=employee" },
+  { label: "Admin View", href: "/auth?role=admin" }
 ];
 
 export default function LandingPage() {
@@ -24,7 +24,7 @@ export default function LandingPage() {
 
           <div className="mt-9 grid gap-3 sm:max-w-lg sm:grid-cols-2">
             {roleLinks.map((link) => (
-              <Link key={link.href} href={link.href} className="primary-button py-3">
+              <Link key={link.href} href={link.href} className="word-button justify-start py-3 text-base">
                 {link.label}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>

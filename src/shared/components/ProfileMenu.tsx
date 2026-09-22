@@ -55,7 +55,7 @@ export function ProfileMenu({
   }, []);
 
   return (
-    <div ref={menuRef} className="relative flex justify-end">
+    <div ref={menuRef} className="relative z-[100] flex justify-end">
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
@@ -73,9 +73,12 @@ export function ProfileMenu({
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 top-12 z-40 w-64 rounded-lg border border-harbor-ocean/10 bg-white p-2 shadow-soft"
+          className="absolute right-0 top-12 z-[120] w-64 rounded-lg border border-harbor-ocean/10 bg-white p-2 shadow-soft"
         >
           <div className="border-b border-harbor-ocean/10 px-3 pb-3 pt-2">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-harbor-midnight text-xs font-medium tracking-normal text-white">
+              {initials}
+            </div>
             <p className="truncate text-sm font-medium text-harbor-midnight">{fullName}</p>
             <p className="mt-1 truncate text-xs text-harbor-midnight/50">{email}</p>
           </div>

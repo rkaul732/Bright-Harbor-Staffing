@@ -25,7 +25,7 @@ export function DashboardShell({
 
   return (
     <main className="mx-auto max-w-7xl px-3 py-4 sm:px-5 lg:px-6">
-      <section className="mb-4 rounded-lg border border-harbor-ocean/10 bg-white/90 p-3 shadow-line backdrop-blur sm:p-4">
+      <section className="relative z-[30] mb-4 rounded-lg border border-harbor-ocean/10 bg-white/90 p-3 shadow-line backdrop-blur sm:p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">

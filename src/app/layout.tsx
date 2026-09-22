@@ -24,7 +24,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <div className="min-h-screen">
-          <header className="sticky top-0 z-40 border-b border-harbor-ocean/10 bg-harbor-mist/80 backdrop-blur-xl">
+          <header className="sticky top-0 z-[90] border-b border-harbor-ocean/10 bg-harbor-mist/80 backdrop-blur-xl">
             <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
               <Link
                 href="/"
@@ -33,11 +33,11 @@ export default function RootLayout({
                 {APP_NAME}
               </Link>
               <div className="flex items-center gap-1">
-                <Link href="/auth?role=employee" className="secondary-button px-3 py-2">
-                  Employee Login
+                <Link href="/auth?role=employee" className="word-button">
+                  Employee View
                 </Link>
-                <Link href="/auth?role=admin" className="secondary-button px-3 py-2">
-                  Admin Login
+                <Link href="/auth?role=admin" className="word-button">
+                  Admin View
                 </Link>
               </div>
             </nav>
