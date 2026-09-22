@@ -1,24 +1,20 @@
-import Link from "next/link";
-import { Bell, ShieldCheck, Trophy, UserRound } from "lucide-react";
+import { Bell } from "lucide-react";
 import { APP_NAME, ROLE_LABELS } from "@/shared/lib/constants";
+import { hasAdminAccess } from "@/shared/lib/access";
+import { ProfileMenu } from "@/shared/components/ProfileMenu";
 import { StatusBadge } from "@/shared/components/StatusBadge";
 import type { AppRole, DashboardData } from "@/shared/types/domain";
-
-const nav = [
-  { label: "Employee", href: "/employee", role: "employee" as AppRole },
-  { label: "Admin", href: "/admin", role: "admin" as AppRole }
-];
 
 export function DashboardShell({
   role,
   data,
   children,
-  profileAction
+  onProfileClick
 }: {
   role: AppRole;
   data: DashboardData;
   children: React.ReactNode;
-  profileAction?: React.ReactNode;
+  onProfileClick?: () => void;
 }) {
   const roleNotifications = data.notifications.filter(
     (notification) =>
@@ -30,8 +26,8 @@ export function DashboardShell({
   return (
     <main className="mx-auto max-w-7xl px-3 py-4 sm:px-5 lg:px-6">
       <section className="mb-4 rounded-lg border border-harbor-ocean/10 bg-white/90 p-3 shadow-line backdrop-blur sm:p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="pill">{ROLE_LABELS[role]} dashboard</span>
               {data.isDemo ? <StatusBadge value="demo" /> : null}
@@ -44,29 +40,13 @@ export function DashboardShell({
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-            {nav.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={
-                  item.role === role ? "primary-button px-3 py-2" : "secondary-button px-3 py-2"
-                }
-              >
-                {item.role === "employee" ? (
-                  <UserRound className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                )}
-                {item.label}
-              </Link>
-            ))}
-            <Link href="/monthly-winners" className="secondary-button col-span-2 px-3 py-2 sm:col-span-1">
-              <Trophy className="h-4 w-4" aria-hidden="true" />
-              Winners
-            </Link>
-            {profileAction}
-          </div>
+          <ProfileMenu
+            fullName={data.currentUser.full_name}
+            email={data.currentUser.email}
+            canAccessAdmin={hasAdminAccess(data)}
+            canEditProfile={role === "employee" && Boolean(onProfileClick)}
+            onProfileClick={onProfileClick}
+          />
         </div>
 
         {roleNotifications.length > 0 ? (

@@ -326,7 +326,7 @@ function AdminRequestsWorkspace({ data, role }: { data: DashboardData; role: App
               key={filter}
               type="button"
               onClick={() => setCompletedFilter(filter)}
-              className={completedFilter === filter ? "primary-button px-3 py-2" : "secondary-button px-3 py-2"}
+              className={completedFilter === filter ? "word-button font-semibold" : "word-button"}
             >
               {filter === "all" ? "All" : filter === "approved" ? "Approved" : "Declined"}
             </button>
@@ -379,10 +379,10 @@ function RequestTabButton({
     <button
       type="button"
       onClick={onClick}
-      className={active ? "primary-button px-3 py-2" : "secondary-button px-3 py-2"}
+      className={active ? "word-button font-semibold" : "word-button"}
     >
       {label}
-      <span className="rounded-full bg-white/25 px-2 py-0.5 text-xs">{count}</span>
+      <span className="text-xs text-harbor-ocean/70">({count})</span>
     </button>
   );
 }

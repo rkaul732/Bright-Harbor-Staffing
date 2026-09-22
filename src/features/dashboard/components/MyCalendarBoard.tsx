@@ -3,7 +3,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import {
   CalendarDays,
-  CalendarPlus,
   ChevronLeft,
   ChevronRight,
   ListFilter,
@@ -135,9 +134,8 @@ export function MyCalendarBoard({
                   <button
                     type="button"
                     onClick={onPostShift}
-                    className="secondary-button px-3 py-2"
+                    className="word-button"
                   >
-                    <CalendarPlus className="h-4 w-4" aria-hidden="true" />
                     Post Shift
                   </button>
                 ) : null}
@@ -148,43 +146,29 @@ export function MyCalendarBoard({
                     setMode("day");
                   }}
                   aria-pressed={showOpenShifts}
-                  className={cn(
-                    showOpenShifts ? "primary-button" : "secondary-button",
-                    "px-3 py-2"
-                  )}
+                  className={showOpenShifts ? "word-button font-semibold" : "word-button"}
                 >
-                  <Send className="h-4 w-4" aria-hidden="true" />
                   Open Shifts
                   {selectedOpenShifts.length > 0 ? (
-                    <span className="rounded-full bg-white/25 px-2 py-0.5 text-xs">
-                      {selectedOpenShifts.length}
+                    <span className="text-xs text-harbor-ocean/70">
+                      ({selectedOpenShifts.length})
                     </span>
                   ) : null}
                 </button>
               </>
             ) : null}
-            <div className="inline-flex rounded-lg bg-harbor-mist p-1">
+            <div className="inline-flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setMode("month")}
-                className={cn(
-                  "focus-ring rounded-md px-3 py-2 text-sm font-medium",
-                  mode === "month"
-                    ? "bg-white text-harbor-midnight shadow-line"
-                    : "text-harbor-ocean"
-                )}
+                className={mode === "month" ? "word-button font-semibold" : "word-button"}
               >
                 Month
               </button>
               <button
                 type="button"
                 onClick={() => setMode("day")}
-                className={cn(
-                  "focus-ring rounded-md px-3 py-2 text-sm font-medium",
-                  mode === "day"
-                    ? "bg-white text-harbor-midnight shadow-line"
-                    : "text-harbor-ocean"
-                )}
+                className={mode === "day" ? "word-button font-semibold" : "word-button"}
               >
                 Day
               </button>
@@ -192,7 +176,7 @@ export function MyCalendarBoard({
             <button
               type="button"
               onClick={() => setMonthDate((date) => addMonths(date, -1))}
-              className="secondary-button px-3"
+              className="ghost-button px-2 py-2"
               aria-label="Previous month"
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -200,7 +184,7 @@ export function MyCalendarBoard({
             <button
               type="button"
               onClick={() => setMonthDate((date) => addMonths(date, 1))}
-              className="secondary-button px-3"
+              className="ghost-button px-2 py-2"
               aria-label="Next month"
             >
               <ChevronRight className="h-4 w-4" aria-hidden="true" />

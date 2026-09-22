@@ -173,49 +173,48 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
     }))
   ];
 
-  const initials = getInitials(data.currentUser.full_name);
 
   const widgetActions = (
     <>
       <WidgetButton
-        icon={CalendarCheck}
-        label="Time Off"
+        label="Time Off Requests"
         count={myTimeOffRequests.length}
+        active={activeModal === "time-off"}
         onClick={() => setActiveModal("time-off")}
       />
       {canExchangeShifts ? (
         <>
           <WidgetButton
-            icon={ClipboardList}
-            label="Posted"
+            label="Posted Shifts"
             count={myCoveragePosts.length}
+            active={activeModal === "posted-shifts"}
             onClick={() => setActiveModal("posted-shifts")}
           />
           <WidgetButton
-            icon={Send}
-            label="Requests"
+            label="Pick Up Shift"
             count={pickupRequests.length}
+            active={activeModal === "pickup-requests"}
             onClick={() => setActiveModal("pickup-requests")}
           />
           <WidgetButton
-            icon={CalendarClock}
-            label="Scheduled"
+            label="Scheduled Shifts"
             count={scheduledShifts.length}
+            active={activeModal === "scheduled-shifts"}
             onClick={() => setActiveModal("scheduled-shifts")}
           />
           <WidgetButton
-            icon={Bookmark}
-            label="Saved"
+            label="Saved Shifts"
             count={savedShifts.length}
+            active={activeModal === "saved-shifts"}
             onClick={() => setActiveModal("saved-shifts")}
           />
         </>
       ) : null}
       {visibleAdSlots.length > 0 ? (
         <WidgetButton
-          icon={Clock3}
-          label="Notices"
+          label="Program Notices"
           count={visibleAdSlots.length}
+          active={activeModal === "program-notices"}
           onClick={() => setActiveModal("program-notices")}
         />
       ) : null}
@@ -223,16 +222,7 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
   );
 
   return (
-    <DashboardShell
-      role="employee"
-      data={data}
-      profileAction={
-        <ProfileInitialsButton
-          initials={initials}
-          onClick={() => setActiveModal("profile")}
-        />
-      }
-    >
+    <DashboardShell role="employee" data={data} onProfileClick={() => setActiveModal("profile")}>
       {!canExchangeShifts ? (
         <section className="mb-4 rounded-lg border border-harbor-sky/20 bg-white/80 p-3 text-sm leading-6 text-harbor-midnight/70 shadow-line">
           Your selected program access is{" "}
@@ -380,59 +370,26 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
   );
 }
 
-function getInitials(name: string) {
-  const initials = name
-    .split(" ")
-    .map((part) => part.trim()[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-
-  return initials || "BH";
-}
-
-function ProfileInitialsButton({
-  initials,
+function WidgetButton({
+  label,
+  count,
+  active = false,
   onClick
 }: {
-  initials: string;
+  label: string;
+  count?: number;
+  active?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="focus-ring col-span-2 inline-flex items-center justify-center gap-2 rounded-lg border border-harbor-ocean/15 bg-harbor-midnight px-2.5 py-2 text-sm font-medium text-white shadow-line transition hover:bg-harbor-ocean sm:col-span-1"
-      aria-label="Open My Profile"
+      className={active ? "word-button font-semibold" : "word-button"}
     >
-      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/15 text-xs tracking-normal">
-        {initials}
-      </span>
-      <span>My Profile</span>
-    </button>
-  );
-}
-
-function WidgetButton({
-  icon: Icon,
-  label,
-  count,
-  onClick
-}: {
-  icon: typeof CalendarClock;
-  label: string;
-  count?: number;
-  onClick: () => void;
-}) {
-  return (
-    <button type="button" onClick={onClick} className="secondary-button px-3 py-2">
-      <Icon className="h-4 w-4" aria-hidden="true" />
       {label}
       {typeof count === "number" ? (
-        <span className="rounded-full bg-harbor-mist px-2 py-0.5 text-xs text-harbor-ocean">
-          {count}
-        </span>
+        <span className="text-xs text-harbor-ocean/70">({count})</span>
       ) : null}
     </button>
   );

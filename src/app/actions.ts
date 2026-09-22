@@ -135,6 +135,7 @@ function revalidateDashboards() {
   revalidatePath("/supervisor");
   revalidatePath("/admin");
   revalidatePath("/monthly-winners");
+  revalidatePath("/reports");
 }
 
 export async function employeePostShiftAction(

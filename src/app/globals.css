@@ -82,6 +82,10 @@ a {
     @apply focus-ring inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-harbor-ocean transition hover:bg-harbor-sky/10 hover:text-harbor-midnight;
   }
 
+  .word-button {
+    @apply focus-ring inline-flex items-center justify-center gap-1.5 rounded-md px-1.5 py-2 text-sm font-medium text-harbor-ocean transition hover:text-harbor-midnight;
+  }
+
   .pill {
     @apply inline-flex items-center rounded-full border border-harbor-ocean/10 bg-harbor-mist px-2.5 py-1 text-xs font-medium text-harbor-ocean;
   }
