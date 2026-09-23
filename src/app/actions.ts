@@ -41,6 +41,26 @@ function asString(value: FormDataEntryValue | null) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function isUploadedFile(value: FormDataEntryValue | null): value is File {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "size" in value &&
+    typeof value.size === "number" &&
+    value.size > 0 &&
+    "arrayBuffer" in value &&
+    typeof value.arrayBuffer === "function"
+  );
+}
+
+function uploadExtension(file: File) {
+  if (typeof file.name !== "string") {
+    return "jpg";
+  }
+
+  return file.name.split(".").pop()?.replace(/[^a-z0-9]/gi, "") || "jpg";
+}
+
 function asNumber(value: FormDataEntryValue | null, fallback: number) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -234,10 +254,6 @@ export async function updateWorkerProfileAction(
     return { ok: false, message: "Choose at least one program." };
   }
 
-  if (skills.length === 0) {
-    return { ok: false, message: "Choose at least one skill." };
-  }
-
   if (!isSupabaseConfigured()) {
     return { ok: true, message: "Demo mode: employee profile updated." };
   }
@@ -245,8 +261,8 @@ export async function updateWorkerProfileAction(
   const supabase = await createSupabaseServerClient();
   let photoUrl: string | null = null;
 
-  if (photo instanceof File && photo.size > 0) {
-    const extension = photo.name.split(".").pop() || "jpg";
+  if (isUploadedFile(photo)) {
+    const extension = uploadExtension(photo);
     const path = `${user.id}/${Date.now()}.${extension}`;
     const { error: uploadError } = await supabase.storage
       .from("profile-photos")
@@ -260,14 +276,27 @@ export async function updateWorkerProfileAction(
     photoUrl = data.publicUrl;
   }
 
-  await supabase
+  const userUpdate: {
+    full_name: string;
+    phone: string | null;
+    avatar_url?: string;
+  } = {
+    full_name: fullName,
+    phone: phone || null
+  };
+
+  if (photoUrl) {
+    userUpdate.avatar_url = photoUrl;
+  }
+
+  const { error: userUpdateError } = await supabase
     .from("users")
-    .update({
-      full_name: fullName,
-      phone: phone || null,
-      avatar_url: photoUrl
-    })
+    .update(userUpdate)
     .eq("id", user.id);
+
+  if (userUpdateError) {
+    return { ok: false, message: userUpdateError.message };
+  }
 
   const { error } = await supabase.from("worker_profiles").upsert(
     {
@@ -278,7 +307,7 @@ export async function updateWorkerProfileAction(
       availability,
       skills,
       account_information: { preferredContact },
-      photo_url: photoUrl
+      ...(photoUrl ? { photo_url: photoUrl } : {})
     },
     { onConflict: "user_id" }
   );
