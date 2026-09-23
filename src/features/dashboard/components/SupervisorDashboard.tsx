@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CalendarCheck, CalendarClock, CalendarPlus, CalendarX, ClipboardList, UsersRound, X } from "lucide-react";
@@ -26,7 +27,9 @@ import type {
   DashboardData,
   ShiftPost,
   ShiftRequest,
-  TimeOffRequest
+  SupervisorProfile,
+  TimeOffRequest,
+  WorkerProfile
 } from "@/shared/types/domain";
 
 export function SupervisorDashboard({
@@ -753,34 +756,50 @@ function AdminAnalyticsInset({ data }: { data: DashboardData }) {
   );
 }
 
+type ProfileModerationItem =
+  | { role: "employee"; profile: WorkerProfile }
+  | { role: "supervisor"; profile: SupervisorProfile };
+
 function AdminModeration({ data }: { data: DashboardData }) {
   const pendingWorkers = data.workerProfiles.filter((profile) => profile.status === "pending");
   const pendingSupervisors = data.supervisorProfiles.filter(
     (profile) => profile.status === "pending"
   );
+  const pendingProfiles: ProfileModerationItem[] = [
+    ...pendingWorkers.map((profile) => ({ role: "employee" as const, profile })),
+    ...pendingSupervisors.map((profile) => ({ role: "supervisor" as const, profile }))
+  ];
 
   return (
     <section className="panel p-4">
-      <p className="label">Profile moderation</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="label">Profile moderation</p>
+          <h2 className="mt-1 text-lg font-medium text-harbor-midnight">
+            Pending profile reviews
+          </h2>
+        </div>
+        <span className="rounded-full bg-harbor-mist px-2.5 py-1 text-xs font-medium text-harbor-ocean">
+          {pendingProfiles.length}
+        </span>
+      </div>
       <div className="mt-3 space-y-3">
-        {[...pendingWorkers, ...pendingSupervisors].length > 0 ? (
-          [...pendingWorkers, ...pendingSupervisors].map((profile) => {
-            const user = data.users.find((item) => item.id === profile.user_id);
-            return (
-              <div
-                key={profile.id}
-                className="rounded-lg border border-harbor-ocean/10 bg-white p-3"
-              >
-                <p className="text-sm font-medium text-harbor-midnight">
-                  {user?.full_name ?? "New profile"}
-                </p>
-                <p className="mt-1 text-xs text-harbor-midnight/50">{user?.email}</p>
-                <StatusBadge value={profile.status} />
-                <ProfileModerationControls
-                  profileId={profile.id}
-                  profileRole={pendingSupervisors.some((item) => item.id === profile.id) ? "supervisor" : "employee"}
-                />
-              </div>
+        {pendingProfiles.length > 0 ? (
+          pendingProfiles.map((item) => {
+            const user = data.users.find((profileUser) => profileUser.id === item.profile.user_id);
+
+            return item.role === "employee" ? (
+              <WorkerProfileReviewCard
+                key={item.profile.id}
+                profile={item.profile}
+                user={user}
+              />
+            ) : (
+              <SupervisorProfileReviewCard
+                key={item.profile.id}
+                profile={item.profile}
+                user={user}
+              />
             );
           })
         ) : (
@@ -793,4 +812,122 @@ function AdminModeration({ data }: { data: DashboardData }) {
       </div>
     </section>
   );
+}
+
+function WorkerProfileReviewCard({
+  profile,
+  user
+}: {
+  profile: WorkerProfile;
+  user?: DashboardData["users"][number];
+}) {
+  const programs = profile.program_names?.length ? profile.program_names : [profile.program_name];
+  const preferredContact = profile.account_information?.preferredContact || "Not provided";
+
+  return (
+    <details className="rounded-lg border border-harbor-ocean/10 bg-white p-3 shadow-line">
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-3">
+        <div className="flex min-w-0 gap-3">
+          {profile.photo_url ? (
+            <Image
+              src={profile.photo_url}
+              alt=""
+              width={40}
+              height={40}
+              unoptimized
+              className="h-10 w-10 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-harbor-midnight text-xs font-medium text-white">
+              {profileInitials(user?.full_name)}
+            </span>
+          )}
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium text-harbor-midnight">
+              {user?.full_name ?? "New employee profile"}
+            </span>
+            <span className="mt-1 block truncate text-xs text-harbor-midnight/50">
+              {user?.email ?? "No email on file"}
+            </span>
+          </span>
+        </div>
+        <StatusBadge value={profile.status} />
+      </summary>
+
+      <div className="mt-4 space-y-3 border-t border-harbor-ocean/10 pt-4">
+        <ProfileDetail label="Role" value="Employee" />
+        <ProfileDetail label="Phone" value={user?.phone || "Not provided"} />
+        <ProfileDetail label="Preferred contact" value={preferredContact} />
+        <ProfileDetail label="Programs" value={programs.join(", ")} />
+        <ProfileDetail
+          label="Regular work schedule"
+          value={profile.availability.length > 0 ? profile.availability.join(", ") : "Not provided"}
+        />
+        <ProfileDetail
+          label="Skills"
+          value={profile.skills.length > 0 ? profile.skills.join(", ") : "Not provided"}
+        />
+        <ProfileDetail label="Submitted" value={formatLongDate(profile.created_at.slice(0, 10))} />
+        <ProfileModerationControls profileId={profile.id} profileRole="employee" />
+      </div>
+    </details>
+  );
+}
+
+function SupervisorProfileReviewCard({
+  profile,
+  user
+}: {
+  profile: SupervisorProfile;
+  user?: DashboardData["users"][number];
+}) {
+  return (
+    <details className="rounded-lg border border-harbor-ocean/10 bg-white p-3 shadow-line">
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span className="block truncate text-sm font-medium text-harbor-midnight">
+            {user?.full_name ?? "New supervisor profile"}
+          </span>
+          <span className="mt-1 block truncate text-xs text-harbor-midnight/50">
+            {user?.email ?? "No email on file"}
+          </span>
+        </div>
+        <StatusBadge value={profile.status} />
+      </summary>
+
+      <div className="mt-4 space-y-3 border-t border-harbor-ocean/10 pt-4">
+        <ProfileDetail label="Role" value="Supervisor" />
+        <ProfileDetail label="Phone" value={user?.phone || "Not provided"} />
+        <ProfileDetail label="Title" value={profile.title || "Not provided"} />
+        <ProfileDetail
+          label="Program location profile"
+          value={profile.front_desk_location_name || "Not provided"}
+        />
+        <ProfileDetail label="Location" value={profile.location_name || "Not provided"} />
+        <ProfileDetail label="Submitted" value={formatLongDate(profile.created_at.slice(0, 10))} />
+        <ProfileModerationControls profileId={profile.id} profileRole="supervisor" />
+      </div>
+    </details>
+  );
+}
+
+function ProfileDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-harbor-mist/70 px-3 py-2">
+      <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-harbor-ocean">
+        {label}
+      </p>
+      <p className="mt-1 text-sm leading-5 text-harbor-midnight/75">{value}</p>
+    </div>
+  );
+}
+
+function profileInitials(name?: string) {
+  return (name ?? "BH")
+    .split(" ")
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 }
