@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, ListFilter } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ListFilter } from "lucide-react";
 import { LOCATIONS } from "@/shared/lib/constants";
 import {
   addMonths,
@@ -57,7 +57,8 @@ export function CalendarBoard({
   actions,
   timeOffRequests = [],
   showByNameView = false,
-  initialMode = "month"
+  initialMode = "month",
+  headerAction
 }: {
   title: string;
   shifts: ShiftPost[];
@@ -66,6 +67,7 @@ export function CalendarBoard({
   timeOffRequests?: TimeOffRequest[];
   showByNameView?: boolean;
   initialMode?: CalendarViewMode;
+  headerAction?: React.ReactNode;
 }) {
   const [mode, setMode] = useState<CalendarViewMode>(() =>
     initialMode === "by-name" && !showByNameView ? "month" : initialMode
@@ -107,11 +109,10 @@ export function CalendarBoard({
   }, [timeOffRequests]);
 
   const dayShifts = filteredShifts.filter((shift) => shift.shift_date === selectedDate);
-  const selectedTimeOff = timeOffByDate.get(selectedDate) ?? [];
   const days = getMonthMatrix(monthDate);
 
   function getShiftsForDate(iso: string) {
-    return filteredShifts.filter((shift) => shift.shift_date === iso).slice(0, 3);
+    return filteredShifts.filter((shift) => shift.shift_date === iso);
   }
 
   function renderCalendarChrome() {
@@ -125,6 +126,7 @@ export function CalendarBoard({
             </h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {headerAction}
             <button
               type="button"
               onClick={() => setMode("month")}
@@ -194,10 +196,8 @@ export function CalendarBoard({
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-harbor-ocean/10 bg-harbor-ocean/10">
           {renderWeekdayHeaders()}
           {days.map((day) => {
-            const dateShifts = getShiftsForDate(day.iso);
-            const allDateShifts = filteredShifts.filter(
-              (shift) => shift.shift_date === day.iso
-            );
+            const allDateShifts = getShiftsForDate(day.iso);
+            const dateShifts = allDateShifts.slice(0, 2);
 
             return (
               <button
@@ -208,14 +208,14 @@ export function CalendarBoard({
                   setMode("day");
                 }}
                 className={cn(
-                  "min-h-24 min-w-0 bg-white p-2 text-left transition hover:bg-harbor-mist sm:min-h-32",
+                  "flex aspect-square min-h-0 min-w-0 flex-col items-start justify-start overflow-hidden bg-white p-2 text-left transition hover:bg-harbor-mist",
                   !day.isCurrentMonth && "bg-white/60 text-harbor-midnight/40",
                   selectedDate === day.iso && "ring-2 ring-inset ring-harbor-sky",
                   day.isToday && "bg-harbor-lemon/30"
                 )}
               >
-                <span className="text-xs font-medium">{day.date.getDate()}</span>
-                <div className="mt-2 space-y-1">
+                <span className="self-start text-xs font-medium leading-none">{day.date.getDate()}</span>
+                <div className="mt-2 w-full min-w-0 space-y-1 overflow-hidden">
                   {dateShifts.map((shift) => (
                     <span
                       key={shift.id}
@@ -232,7 +232,10 @@ export function CalendarBoard({
                     </span>
                   ))}
                   {dateShifts.length < allDateShifts.length ? (
-                    <span className="block text-[11px] text-harbor-ocean">More</span>
+                    <span className="flex items-center gap-1 text-[11px] font-medium text-harbor-ocean">
+                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                      {allDateShifts.length - dateShifts.length} more
+                    </span>
                   ) : null}
                 </div>
               </button>
@@ -250,7 +253,7 @@ export function CalendarBoard({
           {renderWeekdayHeaders()}
           {days.map((day) => {
             const requests = timeOffByDate.get(day.iso) ?? [];
-            const visibleRequests = requests.slice(0, 5);
+            const visibleRequests = requests.slice(0, 3);
 
             return (
               <button
@@ -258,14 +261,14 @@ export function CalendarBoard({
                 type="button"
                 onClick={() => setSelectedDate(day.iso)}
                 className={cn(
-                  "min-h-28 min-w-0 bg-white p-2 text-left transition hover:bg-harbor-mist sm:min-h-36",
+                  "flex aspect-square min-h-0 min-w-0 flex-col items-start justify-start overflow-hidden bg-white p-2 text-left transition hover:bg-harbor-mist",
                   !day.isCurrentMonth && "bg-white/60 text-harbor-midnight/40",
                   selectedDate === day.iso && "ring-2 ring-inset ring-harbor-sky",
                   day.isToday && "bg-harbor-lemon/30"
                 )}
               >
-                <span className="text-xs font-medium">{day.date.getDate()}</span>
-                <div className="mt-2 space-y-1">
+                <span className="self-start text-xs font-medium leading-none">{day.date.getDate()}</span>
+                <div className="mt-2 w-full min-w-0 space-y-1 overflow-hidden">
                   {visibleRequests.map((request) => (
                     <span
                       key={`${request.id}-${day.iso}`}
@@ -278,43 +281,15 @@ export function CalendarBoard({
                     </span>
                   ))}
                   {visibleRequests.length < requests.length ? (
-                    <span className="block text-[11px] text-harbor-ocean">More</span>
+                    <span className="flex items-center gap-1 text-[11px] font-medium text-harbor-ocean">
+                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                      {requests.length - visibleRequests.length} more
+                    </span>
                   ) : null}
                 </div>
               </button>
             );
           })}
-        </div>
-
-        <div className="mt-4 rounded-lg border border-harbor-ocean/10 bg-white p-4">
-          <div className="mb-3 flex items-center gap-2 text-harbor-ocean">
-            <CalendarDays className="h-4 w-4" aria-hidden="true" />
-            <p className="text-sm">{formatLongDate(selectedDate)}</p>
-          </div>
-          {selectedTimeOff.length > 0 ? (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {selectedTimeOff.map((request) => (
-                <div
-                  key={request.id}
-                  className="rounded-lg border border-harbor-ocean/10 bg-harbor-mist/50 p-3"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <p className="text-sm font-medium text-harbor-midnight">
-                      {request.employee_name}
-                    </p>
-                    <StatusBadge value={request.status} />
-                  </div>
-                  <p className="mt-1 text-xs text-harbor-midnight/55">
-                    {request.program_name}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-harbor-midnight/55">
-              No approved or pending time off for this day.
-            </p>
-          )}
         </div>
       </div>
     );

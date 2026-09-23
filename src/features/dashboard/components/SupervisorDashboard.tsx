@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { CalendarCheck, CalendarClock, CalendarX, ClipboardList, UsersRound } from "lucide-react";
+import { CalendarCheck, CalendarClock, CalendarPlus, CalendarX, ClipboardList, UsersRound, X } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { MetricCard } from "@/shared/components/MetricCard";
 import { CalendarBoard } from "@/shared/components/CalendarBoard";
@@ -12,7 +12,7 @@ import { AdSlots } from "@/shared/components/AdSlots";
 import { StatusBadge } from "@/shared/components/StatusBadge";
 import { SupervisorProfileForm } from "@/features/profiles/components/ProfileForms";
 import { SupervisorShiftPostForm } from "@/features/shifts/components/ShiftPostForms";
-import { TimeOffApprovalControls } from "@/features/time-off/components/TimeOffForms";
+import { AdminOutOfOfficeForm, TimeOffApprovalControls } from "@/features/time-off/components/TimeOffForms";
 import {
   ApprovalControls,
   CancelShiftForm,
@@ -285,6 +285,7 @@ function AdminDashboardHome({
     (request) => request.status === "declined"
   );
   const totalAccounts = data.users.length;
+  const [showOooForm, setShowOooForm] = useState(false);
 
   return (
     <DashboardShell role="admin" data={data}>
@@ -355,7 +356,46 @@ function AdminDashboardHome({
             showByNameView
             initialMode="by-name"
             emptyLabel="No staffing shifts for this date."
+            headerAction={
+              <button
+                type="button"
+                onClick={() => setShowOooForm(true)}
+                className="word-button font-semibold"
+              >
+                <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+                Add OOO
+              </button>
+            }
           />
+
+          {showOooForm ? (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-harbor-midnight/35 px-3 py-5 backdrop-blur-sm"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="admin-ooo-title"
+            >
+              <section className="w-full max-w-lg rounded-lg border border-white/70 bg-white p-4 shadow-soft sm:p-5">
+                <div className="mb-4 flex items-start justify-between gap-4 border-b border-harbor-ocean/10 pb-4">
+                  <div>
+                    <p className="label">Team Schedule</p>
+                    <h2 id="admin-ooo-title" className="mt-1 text-xl font-medium text-harbor-midnight">
+                      Add OOO
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowOooForm(false)}
+                    className="ghost-button px-2"
+                    aria-label="Close Add OOO"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+                <AdminOutOfOfficeForm />
+              </section>
+            </div>
+          ) : null}
 
           <section className="panel p-4 sm:p-5">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -402,13 +442,20 @@ function AdminDashboardHome({
           </section>
 
           <section className="panel p-4">
-            <p className="label">Post available shifts</p>
-            <h2 className="mt-1 text-lg font-medium text-harbor-midnight">
-              Add coverage need
-            </h2>
-            <div className="mt-4">
-              <SupervisorShiftPostForm role="admin" />
-            </div>
+            <details>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                <span>
+                  <span className="label block">Post available shifts</span>
+                  <span className="mt-1 block text-lg font-medium text-harbor-midnight">
+                    Add coverage need
+                  </span>
+                </span>
+                <span className="text-sm font-medium text-harbor-ocean">Open</span>
+              </summary>
+              <div className="mt-4 border-t border-harbor-ocean/10 pt-4">
+                <SupervisorShiftPostForm role="admin" />
+              </div>
+            </details>
           </section>
 
           {showAdminModeration ? <AdminModeration data={data} /> : null}

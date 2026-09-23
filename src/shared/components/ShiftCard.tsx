@@ -1,4 +1,4 @@
-import { Clock, MapPin, Users } from "lucide-react";
+import { ChevronDown, Clock, MapPin, Users } from "lucide-react";
 import { FIXED_STANDARD_PAY_RATE } from "@/shared/lib/constants";
 import { formatLongDate, formatTimeRange } from "@/shared/lib/dates";
 import { StatusBadge } from "@/shared/components/StatusBadge";
@@ -21,7 +21,6 @@ export function ShiftCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="pill">{shift.program_name}</span>
             {shift.urgent ? <StatusBadge value="urgent" /> : null}
             <StatusBadge value={shift.category} />
             <StatusBadge value={shift.status} />
@@ -58,15 +57,13 @@ export function ShiftCard({
         </span>
       </div>
       <p className="mt-2 text-sm text-harbor-midnight/60">{formatLongDate(shift.shift_date)}</p>
-      {shift.requirements.length ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {shift.requirements.map((requirement) => (
-            <span key={requirement} className="pill">
-              {requirement}
-            </span>
-          ))}
-        </div>
-      ) : null}
+      <details className="mt-3 rounded-lg border border-harbor-ocean/10 bg-harbor-mist/45 px-3 py-2">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-harbor-ocean">
+          Program
+          <ChevronDown className="h-4 w-4" aria-hidden="true" />
+        </summary>
+        <p className="mt-2 text-sm text-harbor-midnight/70">{shift.program_name}</p>
+      </details>
       {children ? <div className="mt-4 border-t border-harbor-ocean/10 pt-4">{children}</div> : null}
     </article>
   );

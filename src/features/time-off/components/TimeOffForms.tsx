@@ -3,9 +3,11 @@
 import { useActionState, useState } from "react";
 import { CalendarPlus, Check, X } from "lucide-react";
 import {
+  adminAddOutOfOfficeAction,
   submitTimeOffRequestAction,
   updateTimeOffRequestStatusAction
 } from "@/app/actions";
+import { PROGRAMS } from "@/shared/lib/constants";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
 import { SubmitButton } from "@/shared/components/SubmitButton";
 import type { AppRole, ProgramName, TimeOffRequest } from "@/shared/types/domain";
@@ -53,6 +55,48 @@ export function TimeOffRequestForm({
       <SubmitButton>
         <CalendarPlus className="h-4 w-4" aria-hidden="true" />
         Submit time off request
+      </SubmitButton>
+      <ActionFeedback state={state} />
+    </form>
+  );
+}
+
+export function AdminOutOfOfficeForm() {
+  const [state, formAction] = useActionState(adminAddOutOfOfficeAction, initialState);
+
+  return (
+    <form action={formAction} className="space-y-4">
+      <label className="block">
+        <span className="label">Program</span>
+        <select name="program_name" className="field mt-1.5" required>
+          {PROGRAMS.map((program) => (
+            <option key={program} value={program}>
+              {program}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="label">Start date</span>
+          <input name="start_date" type="date" className="field mt-1.5" required />
+        </label>
+        <label className="block">
+          <span className="label">End date</span>
+          <input name="end_date" type="date" className="field mt-1.5" required />
+        </label>
+      </div>
+      <label className="block">
+        <span className="label">Note</span>
+        <textarea
+          name="reason"
+          className="field mt-1.5 min-h-20"
+          placeholder="Optional note, such as conference, PTO, or OOO."
+        />
+      </label>
+      <SubmitButton>
+        <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+        Add OOO
       </SubmitButton>
       <ActionFeedback state={state} />
     </form>

@@ -11,8 +11,7 @@ import {
   FIXED_STANDARD_PAY_RATE,
   LOCATIONS,
   PROGRAMS,
-  SHIFT_EXCHANGE_PROGRAMS,
-  SKILLS
+  SHIFT_EXCHANGE_PROGRAMS
 } from "@/shared/lib/constants";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
 import { SubmitButton } from "@/shared/components/SubmitButton";
@@ -233,25 +232,6 @@ export function SupervisorShiftPostForm({ role = "supervisor" }: { role?: AppRol
         </div>
       </div>
 
-      <fieldset>
-        <legend className="label">Requirements</legend>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          {SKILLS.map((skill) => (
-            <label
-              key={skill}
-              className="flex items-center gap-2 rounded-lg border border-harbor-ocean/10 bg-white px-3 py-2 text-sm text-harbor-midnight/75"
-            >
-              <input
-                name="requirements"
-                type="checkbox"
-                value={skill}
-                className="h-4 w-4 rounded border-harbor-ocean/20 text-harbor-sky"
-              />
-              {skill}
-            </label>
-          ))}
-        </div>
-      </fieldset>
 
       <label className="flex items-center gap-2 rounded-lg border border-harbor-ocean/10 bg-harbor-mist px-3 py-2 text-sm text-harbor-midnight/75">
         <input
@@ -267,7 +247,7 @@ export function SupervisorShiftPostForm({ role = "supervisor" }: { role?: AppRol
         <textarea
           name="details"
           className="field mt-1.5 min-h-24"
-          placeholder="Include staffing notes, requirements, or context."
+          placeholder="Include staffing notes or context."
           required
         />
       </label>

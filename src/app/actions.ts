@@ -562,6 +562,62 @@ export async function submitTimeOffRequestAction(
   return { ok: true, message: "Time off request submitted." };
 }
 
+export async function adminAddOutOfOfficeAction(
+  _previousState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const user = await getUserForAction("admin");
+  const parsed = z
+    .object({
+      program_name: programSchema,
+      start_date: dateSchema,
+      end_date: dateSchema,
+      reason: z.string().optional()
+    })
+    .refine((value) => value.end_date >= value.start_date, {
+      message: "End date must be on or after the start date."
+    })
+    .safeParse({
+      program_name: asString(formData.get("program_name")),
+      start_date: asString(formData.get("start_date")),
+      end_date: asString(formData.get("end_date")),
+      reason: asString(formData.get("reason"))
+    });
+
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the form." };
+  }
+
+  if (user.role !== "admin") {
+    return { ok: false, message: "Only admins can add direct OOO days." };
+  }
+
+  if (!isSupabaseConfigured()) {
+    return { ok: true, message: "Demo mode: OOO added to the admin calendar." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from("time_off_requests").insert({
+    user_id: user.id,
+    employee_name: user.full_name,
+    program_name: parsed.data.program_name,
+    start_date: parsed.data.start_date,
+    end_date: parsed.data.end_date,
+    reason: parsed.data.reason || "Admin-added OOO",
+    status: "approved",
+    reviewed_by: user.id,
+    reviewed_at: new Date().toISOString(),
+    review_comment: "Added by admin without approval routing."
+  });
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+
+  revalidateDashboards();
+  return { ok: true, message: "OOO added to the team schedule." };
+}
+
 export async function updateTimeOffRequestStatusAction(
   _previousState: ActionState,
   formData: FormData
