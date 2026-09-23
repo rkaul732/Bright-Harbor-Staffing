@@ -55,7 +55,6 @@ export function SupervisorDashboard({
         allShifts={allShifts}
         openShifts={openShifts}
         coveredShifts={coveredShifts}
-        pendingRequests={pendingRequests}
         pendingTimeOffRequests={pendingTimeOffRequests}
         showAdminModeration={showAdminModeration}
       />
@@ -262,7 +261,6 @@ function AdminDashboardHome({
   allShifts,
   openShifts,
   coveredShifts,
-  pendingRequests,
   pendingTimeOffRequests,
   showAdminModeration
 }: {
@@ -270,7 +268,6 @@ function AdminDashboardHome({
   allShifts: ShiftPost[];
   openShifts: ShiftPost[];
   coveredShifts: ShiftPost[];
-  pendingRequests: ShiftRequest[];
   pendingTimeOffRequests: TimeOffRequest[];
   showAdminModeration: boolean;
 }) {
@@ -396,39 +393,6 @@ function AdminDashboardHome({
               </section>
             </div>
           ) : null}
-
-          <section className="panel p-4 sm:p-5">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="label">Shift coverage</p>
-                <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
-                  Coverage requests
-                </h2>
-              </div>
-              <p className="text-sm text-harbor-midnight/55">
-                {pendingRequests.length} pending pickup request
-                {pendingRequests.length === 1 ? "" : "s"}
-              </p>
-            </div>
-            <div className="mt-4 grid gap-4 xl:grid-cols-2">
-              {pendingRequests.length > 0 ? (
-                pendingRequests.map((request) => (
-                  <RequestReviewCard
-                    key={request.id}
-                    request={request}
-                    shift={data.shifts.find((shift) => shift.id === request.shift_id)}
-                    role="admin"
-                  />
-                ))
-              ) : (
-                <EmptyState
-                  icon={UsersRound}
-                  title="No pending coverage requests"
-                  body="Employee pickup requests will appear here."
-                />
-              )}
-            </div>
-          </section>
         </div>
 
         <aside className="min-w-0 space-y-5">

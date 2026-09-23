@@ -3,8 +3,8 @@ import { ArrowRight } from "lucide-react";
 import { APP_NAME } from "@/shared/lib/constants";
 
 const roleLinks = [
-  { label: "Employee View", href: "/auth?role=employee" },
-  { label: "Admin View", href: "/auth?role=admin" }
+  { label: "Employee Login", href: "/auth?role=employee" },
+  { label: "Admin Login", href: "/auth?role=admin" }
 ];
 
 export default function LandingPage() {
