@@ -1,13 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, FileSpreadsheet } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { EmptyState } from "@/shared/components/EmptyState";
-import { StatusBadge } from "@/shared/components/StatusBadge";
+import { downloadExcelReport, type ExcelReportColumn } from "@/features/reports/lib/excelWorkbook";
 import {
   formatShortDate,
-  formatTimeRange,
   parseLocalDate,
   todayISO,
   toISODate
@@ -15,23 +14,28 @@ import {
 import type {
   DashboardData,
   RequestStatus,
-  ShiftStatus,
   TimeOffRequest
 } from "@/shared/types/domain";
 
-type ReportRow = {
+type ReportType = "requests-by-employee" | "requests-by-approval-status" | "flagged-requests";
+
+type TimeOffReportRow = {
   id: string;
-  type: "Time off request" | "Pickup request" | "Posted shift for coverage";
   employeeName: string;
-  employeeId: string;
-  programName: string;
-  requestDate: string;
-  coverageDate: string;
-  timeFrame: string;
-  status: RequestStatus | ShiftStatus;
-  reason: string;
-  reviewComment: string;
-  hrFlags: string[];
+  flagDetails: string;
+  requestSubmitDate: string;
+  timeOffStartDate: string;
+  timeOffEndDate: string;
+  totalHours: number;
+  approvalStatus: string;
+  comments: string;
+  rawStatus: RequestStatus;
+};
+
+type ReportDefinition = {
+  title: string;
+  description: string;
+  columns: ExcelReportColumn<TimeOffReportRow>[];
 };
 
 const DAY_NAMES = [
@@ -43,6 +47,49 @@ const DAY_NAMES = [
   "Friday",
   "Saturday"
 ];
+
+const REPORT_DEFINITIONS: Record<ReportType, ReportDefinition> = {
+  "requests-by-employee": {
+    title: "Requests By Employee",
+    description: "Time off requests grouped by employee using the employee template layout.",
+    columns: [
+      { header: "Employee Name", key: "employeeName" },
+      { header: "Time Off Request Submit Date", key: "requestSubmitDate", type: "date" },
+      { header: "Time Off Start Date", key: "timeOffStartDate", type: "date" },
+      { header: "Time Off End Date", key: "timeOffEndDate", type: "date" },
+      { header: "Total Hours", key: "totalHours", type: "number" },
+      { header: "Approval Status", key: "approvalStatus" },
+      { header: "Comments", key: "comments" }
+    ]
+  },
+  "requests-by-approval-status": {
+    title: "Requests By Approval Status",
+    description: "Time off requests grouped by approval status using the approval status template layout.",
+    columns: [
+      { header: "Approval Status", key: "approvalStatus" },
+      { header: "Employee Name", key: "employeeName" },
+      { header: "Time Off Request Submit Date", key: "requestSubmitDate", type: "date" },
+      { header: "Time Off Start Date", key: "timeOffStartDate", type: "date" },
+      { header: "Time Off End Date", key: "timeOffEndDate", type: "date" },
+      { header: "Total Hours", key: "totalHours", type: "number" },
+      { header: "Comments", key: "comments" }
+    ]
+  },
+  "flagged-requests": {
+    title: "Flagged Requests",
+    description: "Only requests with HR attention flags, using the flagged requests template layout.",
+    columns: [
+      { header: "Employee Name", key: "employeeName" },
+      { header: "Flag Details", key: "flagDetails" },
+      { header: "Time Off Request Submit Date", key: "requestSubmitDate", type: "date" },
+      { header: "Time Off Start Date", key: "timeOffStartDate", type: "date" },
+      { header: "Time Off End Date", key: "timeOffEndDate", type: "date" },
+      { header: "Total Hours", key: "totalHours", type: "number" },
+      { header: "Approval Status", key: "approvalStatus" },
+      { header: "Comments", key: "comments" }
+    ]
+  }
+};
 
 function firstDayOfCurrentMonth() {
   const now = new Date();
@@ -154,147 +201,109 @@ function requestDateInRange(value: string, startDate: string, endDate: string) {
   return date >= startDate && date <= endDate;
 }
 
-function csvCell(value: string | number) {
-  const text = String(value ?? "");
-  return "\"" + text.replaceAll("\"", "\"\"") + "\"";
+function inclusiveDayCount(startDate: string, endDate: string) {
+  const start = parseLocalDate(startDate);
+  const end = parseLocalDate(endDate);
+  const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+  return Math.max(days, 1);
 }
 
-function downloadRows(rows: ReportRow[], startDate: string, endDate: string) {
-  const headers = [
-    "Employee Name",
-    "Employee ID",
-    "Request Type",
-    "Program",
-    "Date Requested",
-    "Coverage/Time Off Date",
-    "Time Frame",
-    "Status",
-    "Reason/Details",
-    "Review Comment",
-    "HR Flags"
-  ];
-  const csv = [
-    headers.map(csvCell).join(","),
-    ...rows.map((row) =>
-      [
-        row.employeeName,
-        row.employeeId,
-        row.type,
-        row.programName,
-        row.requestDate.slice(0, 10),
-        row.coverageDate,
-        row.timeFrame,
-        row.status,
-        row.reason,
-        row.reviewComment,
-        row.hrFlags.join("; ")
-      ]
-        .map(csvCell)
-        .join(",")
-    )
-  ].join("\r\n");
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-
-  link.href = url;
-  link.download =
-    "bright-harbor-staffing-requests-by-name-" +
-    todayISO() +
-    "-" +
-    startDate +
-    "-to-" +
-    endDate +
-    ".csv";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+function totalHours(startDate: string, endDate: string) {
+  return inclusiveDayCount(startDate, endDate) * 8;
 }
 
-function buildReportRows(data: DashboardData, hrFlags: Map<string, string[]>) {
-  const usersById = new Map(data.users.map((user) => [user.id, user]));
-  const shiftsById = new Map(data.shifts.map((shift) => [shift.id, shift]));
+function approvalStatusLabel(status: RequestStatus) {
+  switch (status) {
+    case "approved":
+      return "Approved";
+    case "declined":
+      return "Declined";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return "Pending Supervisor Approval";
+  }
+}
 
-  const timeOffRows: ReportRow[] = data.timeOffRequests.map((request) => ({
-    id: "time-off-" + request.id,
-    type: "Time off request",
+function commentsForRequest(request: TimeOffRequest) {
+  const comments = ["Reason: " + request.reason];
+
+  if (request.review_comment) {
+    comments.push("Admin comment: " + request.review_comment);
+  }
+
+  return comments.join("; ");
+}
+
+function buildTimeOffReportRows(data: DashboardData, hrFlags: Map<string, string[]>) {
+  return data.timeOffRequests.map((request) => ({
+    id: request.id,
     employeeName: request.employee_name,
-    employeeId: request.user_id,
-    programName: request.program_name,
-    requestDate: request.created_at,
-    coverageDate:
-      request.start_date === request.end_date
-        ? request.start_date
-        : request.start_date + " to " + request.end_date,
-    timeFrame: "Time off",
-    status: request.status,
-    reason: request.reason,
-    reviewComment: request.review_comment ?? "",
-    hrFlags: hrFlags.get(request.id) ?? []
+    flagDetails: (hrFlags.get(request.id) ?? []).join("; "),
+    requestSubmitDate: request.created_at,
+    timeOffStartDate: request.start_date,
+    timeOffEndDate: request.end_date,
+    totalHours: totalHours(request.start_date, request.end_date),
+    approvalStatus: approvalStatusLabel(request.status),
+    comments: commentsForRequest(request),
+    rawStatus: request.status
   }));
+}
 
-  const pickupRows: ReportRow[] = data.requests.map((request) => {
-    const shift = shiftsById.get(request.shift_id);
+function rowsForReport(type: ReportType, rows: TimeOffReportRow[]) {
+  const reportRows = type === "flagged-requests"
+    ? rows.filter((row) => row.flagDetails.length > 0)
+    : [...rows];
 
-    return {
-      id: "pickup-" + request.id,
-      type: "Pickup request",
-      employeeName: request.requestor_name,
-      employeeId: request.requestor_id,
-      programName: shift?.program_name ?? "Program pending",
-      requestDate: request.created_at,
-      coverageDate: shift?.shift_date ?? "Shift pending",
-      timeFrame: shift ? formatTimeRange(shift) : "Shift pending",
-      status: request.status,
-      reason: request.note ?? "",
-      reviewComment: request.review_comment ?? "",
-      hrFlags: []
-    };
-  });
-
-  const postedShiftRows: ReportRow[] = data.shifts
-    .filter((shift) => shift.posted_by_role === "employee" && shift.owner_user_id)
-    .map((shift) => {
-      const employee = shift.owner_user_id ? usersById.get(shift.owner_user_id) : null;
-
-      return {
-        id: "posted-" + shift.id,
-        type: "Posted shift for coverage",
-        employeeName: employee?.full_name ?? "Employee",
-        employeeId: shift.owner_user_id ?? "",
-        programName: shift.program_name,
-        requestDate: shift.created_at,
-        coverageDate: shift.shift_date,
-        timeFrame: formatTimeRange(shift),
-        status: shift.status,
-        reason: shift.details ?? "",
-        reviewComment: "",
-        hrFlags: []
-      };
+  if (type === "requests-by-approval-status") {
+    return reportRows.sort((first, second) => {
+      const statusCompare = first.approvalStatus.localeCompare(second.approvalStatus);
+      return statusCompare || first.employeeName.localeCompare(second.employeeName) || first.timeOffStartDate.localeCompare(second.timeOffStartDate);
     });
+  }
 
-  return [...timeOffRows, ...pickupRows, ...postedShiftRows].sort((first, second) => {
-    const nameCompare = first.employeeName.localeCompare(second.employeeName);
-    return nameCompare || second.requestDate.localeCompare(first.requestDate);
-  });
+  if (type === "flagged-requests") {
+    return reportRows.sort((first, second) =>
+      second.requestSubmitDate.localeCompare(first.requestSubmitDate) || first.employeeName.localeCompare(second.employeeName)
+    );
+  }
+
+  return reportRows.sort((first, second) =>
+    first.employeeName.localeCompare(second.employeeName) || first.timeOffStartDate.localeCompare(second.timeOffStartDate)
+  );
+}
+
+function displayCell(row: TimeOffReportRow, column: ExcelReportColumn<TimeOffReportRow>) {
+  const value = row[column.key];
+
+  if (column.type === "date" && typeof value === "string") {
+    return formatShortDate(value.slice(0, 10));
+  }
+
+  return String(value ?? "");
 }
 
 export function AdminReportsDashboard({ data }: { data: DashboardData }) {
   const [startDate, setStartDate] = useState(firstDayOfCurrentMonth);
   const [endDate, setEndDate] = useState(todayISO);
+  const [reportType, setReportType] = useState<ReportType>("requests-by-employee");
   const hrFlags = useMemo(() => buildHrFlagMap(data.timeOffRequests), [data.timeOffRequests]);
-  const reportRows = useMemo(() => buildReportRows(data, hrFlags), [data, hrFlags]);
-  const filteredRows = useMemo(
+  const timeOffRows = useMemo(() => buildTimeOffReportRows(data, hrFlags), [data, hrFlags]);
+  const filteredTimeOffRows = useMemo(
     () =>
-      reportRows.filter((row) => requestDateInRange(row.requestDate, startDate, endDate)),
-    [endDate, reportRows, startDate]
+      timeOffRows.filter((row) => requestDateInRange(row.requestSubmitDate, startDate, endDate)),
+    [endDate, startDate, timeOffRows]
   );
-  const flaggedRows = filteredRows.filter((row) => row.hrFlags.length > 0);
-  const pendingRows = filteredRows.filter(
-    (row) => row.status === "pending_supervisor_approval" || row.status === "open"
+  const selectedDefinition = REPORT_DEFINITIONS[reportType];
+  const selectedRows = useMemo(
+    () => rowsForReport(reportType, filteredTimeOffRows),
+    [filteredTimeOffRows, reportType]
   );
-  const previewRows = filteredRows.slice(0, 12);
+  const flaggedRows = filteredTimeOffRows.filter((row) => row.flagDetails.length > 0);
+  const pendingRows = filteredTimeOffRows.filter(
+    (row) => row.rawStatus === "pending_supervisor_approval"
+  );
+  const previewRows = selectedRows.slice(0, 12);
 
   return (
     <DashboardShell role="admin" data={data}>
@@ -303,16 +312,30 @@ export function AdminReportsDashboard({ data }: { data: DashboardData }) {
           <div>
             <p className="label">Reports</p>
             <h2 className="mt-1 text-2xl font-medium text-harbor-midnight">
-              Request data by employee
+              Time off request reports
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-harbor-midnight/62">
-              Preview and download employee request activity for a selected date range.
+              Preview and download time off request reports using the selected Excel template.
               HR attention flags appear when time off patterns match repeated Monday/Friday
               or repeated day-of-week criteria.
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[13rem_10rem_10rem_auto] xl:items-end">
+            <label className="block sm:col-span-2 xl:col-span-1">
+              <span className="label">Report type</span>
+              <select
+                value={reportType}
+                onChange={(event) => setReportType(event.target.value as ReportType)}
+                className="field mt-1.5"
+              >
+                {Object.entries(REPORT_DEFINITIONS).map(([key, definition]) => (
+                  <option key={key} value={key}>
+                    {definition.title}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="block">
               <span className="label">Start</span>
               <input
@@ -333,18 +356,29 @@ export function AdminReportsDashboard({ data }: { data: DashboardData }) {
             </label>
             <button
               type="button"
-              onClick={() => downloadRows(filteredRows, startDate, endDate)}
+              onClick={() =>
+                downloadExcelReport({
+                  title: selectedDefinition.title,
+                  columns: selectedDefinition.columns,
+                  rows: selectedRows,
+                  downloadedOn: todayISO()
+                })
+              }
               className="word-button font-semibold"
-              disabled={filteredRows.length === 0}
             >
-              Download Spreadsheet
+              <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+              Download XLSX
             </button>
           </div>
         </div>
 
+        <div className="mt-4 rounded-lg border border-harbor-ocean/10 bg-harbor-mist/60 px-3 py-2 text-sm leading-6 text-harbor-midnight/68">
+          {selectedDefinition.description}
+        </div>
+
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <ReportMetric label="Rows in range" value={filteredRows.length} />
-          <ReportMetric label="Pending or open" value={pendingRows.length} />
+          <ReportMetric label="Rows in selected report" value={selectedRows.length} />
+          <ReportMetric label="Pending approval" value={pendingRows.length} />
           <ReportMetric label="HR flags" value={flaggedRows.length} tone="attention" />
         </div>
       </section>
@@ -354,11 +388,11 @@ export function AdminReportsDashboard({ data }: { data: DashboardData }) {
           <div>
             <p className="label">Preview</p>
             <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
-              Spreadsheet preview
+              {selectedDefinition.title}
             </h2>
           </div>
           <p className="text-sm text-harbor-midnight/55">
-            Showing {previewRows.length} of {filteredRows.length} rows
+            Showing {previewRows.length} of {selectedRows.length} rows
           </p>
         </div>
 
@@ -367,51 +401,35 @@ export function AdminReportsDashboard({ data }: { data: DashboardData }) {
             <table className="w-full min-w-[980px] border-separate border-spacing-0 text-left text-sm">
               <thead>
                 <tr className="text-xs uppercase tracking-[0.08em] text-harbor-ocean">
-                  <th className="border-b border-harbor-ocean/10 px-3 py-2 font-medium">Employee</th>
-                  <th className="border-b border-harbor-ocean/10 px-3 py-2 font-medium">Type</th>
-                  <th className="border-b border-harbor-ocean/10 px-3 py-2 font-medium">Program</th>
-                  <th className="border-b border-harbor-ocean/10 px-3 py-2 font-medium">Requested</th>
-                  <th className="border-b border-harbor-ocean/10 px-3 py-2 font-medium">Date</th>
-                  <th className="border-b border-harbor-ocean/10 px-3 py-2 font-medium">Status</th>
-                  <th className="border-b border-harbor-ocean/10 px-3 py-2 font-medium">HR Flags</th>
+                  {selectedDefinition.columns.map((column) => (
+                    <th key={column.header} className="border-b border-harbor-ocean/10 px-3 py-2 font-medium">
+                      {column.header}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {previewRows.map((row) => (
                   <tr
                     key={row.id}
-                    className={row.hrFlags.length > 0 ? "bg-harbor-lemon/30" : "bg-white"}
+                    className={row.flagDetails.length > 0 ? "bg-harbor-lemon/30" : "bg-white"}
                   >
-                    <td className="border-b border-harbor-ocean/10 px-3 py-3 align-top">
-                      <p className="font-medium text-harbor-midnight">{row.employeeName}</p>
-                      <p className="mt-1 text-xs text-harbor-midnight/45">{row.employeeId}</p>
-                    </td>
-                    <td className="border-b border-harbor-ocean/10 px-3 py-3 align-top text-harbor-midnight/70">
-                      {row.type}
-                    </td>
-                    <td className="border-b border-harbor-ocean/10 px-3 py-3 align-top text-harbor-midnight/70">
-                      {row.programName}
-                    </td>
-                    <td className="border-b border-harbor-ocean/10 px-3 py-3 align-top text-harbor-midnight/70">
-                      {formatShortDate(row.requestDate.slice(0, 10))}
-                    </td>
-                    <td className="border-b border-harbor-ocean/10 px-3 py-3 align-top text-harbor-midnight/70">
-                      <p>{row.coverageDate}</p>
-                      <p className="mt-1 text-xs text-harbor-midnight/45">{row.timeFrame}</p>
-                    </td>
-                    <td className="border-b border-harbor-ocean/10 px-3 py-3 align-top">
-                      <StatusBadge value={row.status} />
-                    </td>
-                    <td className="border-b border-harbor-ocean/10 px-3 py-3 align-top text-harbor-midnight/70">
-                      {row.hrFlags.length > 0 ? (
-                        <div className="flex gap-2">
-                          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-harbor-ocean" aria-hidden="true" />
-                          <span>{row.hrFlags.join("; ")}</span>
-                        </div>
-                      ) : (
-                        <span className="text-harbor-midnight/35">None</span>
-                      )}
-                    </td>
+                    {selectedDefinition.columns.map((column) => (
+                      <td key={row.id + column.key} className="border-b border-harbor-ocean/10 px-3 py-3 align-top text-harbor-midnight/70">
+                        {column.key === "flagDetails" && row.flagDetails.length > 0 ? (
+                          <div className="flex gap-2">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-harbor-ocean" aria-hidden="true" />
+                            <span>{row.flagDetails}</span>
+                          </div>
+                        ) : column.key === "flagDetails" ? (
+                          <span className="text-harbor-midnight/35">None</span>
+                        ) : column.key === "employeeName" ? (
+                          <span className="font-medium text-harbor-midnight">{displayCell(row, column)}</span>
+                        ) : (
+                          displayCell(row, column)
+                        )}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -421,8 +439,8 @@ export function AdminReportsDashboard({ data }: { data: DashboardData }) {
           <div className="mt-4">
             <EmptyState
               icon={AlertTriangle}
-              title="No report rows in this range"
-              body="Adjust the start and end dates to preview request data."
+              title="No report rows in this view"
+              body="Adjust the report type or date range to preview request data. You can still download the empty template."
             />
           </div>
         )}
