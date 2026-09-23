@@ -21,6 +21,7 @@ import {
   RescheduleShiftForm
 } from "@/features/shifts/components/ShiftActionForms";
 import { ProfileModerationControls } from "@/features/admin/components/ProfileModerationControls";
+import { StaffAccountInviteForm } from "@/features/admin/components/StaffAccountInviteForm";
 import { formatLongDate, sortShifts } from "@/shared/lib/dates";
 import type {
   AppRole,
@@ -421,6 +422,23 @@ function AdminDashboardHome({
               </summary>
               <div className="mt-4 border-t border-harbor-ocean/10 pt-4">
                 <SupervisorShiftPostForm role="admin" />
+              </div>
+            </details>
+          </section>
+
+          <section className="panel p-4">
+            <details>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                <span>
+                  <span className="label block">Staff accounts</span>
+                  <span className="mt-1 block text-lg font-medium text-harbor-midnight">
+                    Create staff login
+                  </span>
+                </span>
+                <span className="text-sm font-medium text-harbor-ocean">Open</span>
+              </summary>
+              <div className="mt-4 border-t border-harbor-ocean/10 pt-4">
+                <StaffAccountInviteForm />
               </div>
             </details>
           </section>

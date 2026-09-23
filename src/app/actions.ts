@@ -9,10 +9,12 @@ import {
   PROGRAMS,
   LOCATIONS,
   SKILLS,
+  ROLE_DASHBOARD_PATHS,
   canUseShiftExchange
 } from "@/shared/lib/constants";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
+import { createSupabaseAdminClient, hasSupabaseServiceRoleKey } from "@/shared/lib/supabase/admin";
 import type {
   AppRole,
   LocationName,
@@ -25,6 +27,7 @@ import type {
 type ActionState = {
   ok: boolean;
   message: string;
+  redirectTo?: string;
 };
 
 const locationSchema = z.enum(LOCATIONS as [LocationName, ...LocationName[]]);
@@ -76,6 +79,46 @@ function asPrograms(formData: FormData) {
   return formData
     .getAll("program_names")
     .filter((value): value is ProgramName => programSchema.safeParse(value).success);
+}
+
+function appBaseUrl() {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.URL ||
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
+}
+
+async function notifyAdminsInApp({
+  staffName,
+  staffEmail,
+  role,
+  message
+}: {
+  staffName: string;
+  staffEmail: string;
+  role: AppRole;
+  message: string;
+}) {
+  if (!isSupabaseConfigured() || !hasSupabaseServiceRoleKey()) {
+    return;
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  await adminClient.from("notifications").insert({
+    user_id: null,
+    role: "admin",
+    title: "Staff profile ready for review",
+    body:
+      staffName +
+      " (" +
+      staffEmail +
+      ") " +
+      message +
+      " Open the " +
+      role +
+      " profile in Admin View."
+  });
 }
 
 async function getUserForAction(roleHint?: AppRole) {
@@ -316,10 +359,243 @@ export async function updateWorkerProfileAction(
     return { ok: false, message: error.message };
   }
 
+  await notifyAdminsInApp({
+    staffName: fullName,
+    staffEmail: user.email,
+    role: "employee",
+    message: "updated employee profile information for review."
+  });
+
   revalidateDashboards();
   return { ok: true, message: "Employee profile submitted for approval." };
 }
 
+export async function createStaffAccountAction(
+  _previousState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const currentUser = await getUserForAction("admin");
+  const parsed = z
+    .object({
+      full_name: z.string().min(2, "Add the staff member's name."),
+      email: z.string().email("Use a valid email address."),
+      role: z.enum(["employee", "supervisor"])
+    })
+    .safeParse({
+      full_name: asString(formData.get("full_name")),
+      email: asString(formData.get("email")).toLowerCase(),
+      role: asString(formData.get("role"))
+    });
+  const programNames = asPrograms(formData);
+
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the staff account form." };
+  }
+
+  if (parsed.data.role === "employee" && programNames.length === 0) {
+    return { ok: false, message: "Choose at least one starting program." };
+  }
+
+  if (!isSupabaseConfigured()) {
+    return { ok: true, message: "Demo mode: setup email would be sent." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: approvedAdminProfile } = await supabase
+    .from("admin_profiles")
+    .select("id")
+    .eq("user_id", currentUser.id)
+    .eq("status", "approved")
+    .maybeSingle();
+
+  if (currentUser.role !== "admin" && !approvedAdminProfile) {
+    return { ok: false, message: "Only admins can create staff accounts." };
+  }
+
+  if (!hasSupabaseServiceRoleKey()) {
+    return {
+      ok: false,
+      message: "Add SUPABASE_SERVICE_ROLE_KEY in Netlify to send staff setup emails."
+    };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const metadata = {
+    role: parsed.data.role,
+    full_name: parsed.data.full_name,
+    program_name: parsed.data.role === "employee" ? programNames[0] : undefined,
+    program_names: parsed.data.role === "employee" ? programNames : undefined,
+    invited_by: currentUser.id,
+    invited_by_email: currentUser.email,
+    setup_required: true
+  };
+  const invite = await adminClient.auth.admin.inviteUserByEmail(parsed.data.email, {
+    redirectTo: appBaseUrl() + "/auth/callback?next=/auth/setup",
+    data: metadata
+  });
+
+  if (invite.error) {
+    return { ok: false, message: invite.error.message };
+  }
+
+  const invitedUser = invite.data.user;
+  if (invitedUser) {
+    await adminClient.from("users").upsert({
+      id: invitedUser.id,
+      email: parsed.data.email,
+      full_name: parsed.data.full_name,
+      role: parsed.data.role
+    });
+
+    if (parsed.data.role === "employee") {
+      await adminClient.from("worker_profiles").upsert(
+        {
+          user_id: invitedUser.id,
+          status: "pending",
+          program_name: programNames[0],
+          program_names: programNames,
+          account_information: {
+            invitedBy: currentUser.id,
+            setupRequired: "true"
+          }
+        },
+        { onConflict: "user_id" }
+      );
+    } else {
+      await adminClient.from("supervisor_profiles").upsert(
+        {
+          user_id: invitedUser.id,
+          status: "pending"
+        },
+        { onConflict: "user_id" }
+      );
+    }
+  }
+
+  revalidateDashboards();
+  return { ok: true, message: "Setup email sent to " + parsed.data.email + "." };
+}
+
+export async function completeStaffSetupAction(
+  _previousState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const user = await getUserForAction();
+  const password = asString(formData.get("password"));
+  const confirmPassword = asString(formData.get("confirm_password"));
+  const fullName = asString(formData.get("full_name"));
+  const phone = asString(formData.get("phone"));
+  const role = user.role === "supervisor" ? "supervisor" : "employee";
+
+  if (fullName.length < 2) {
+    return { ok: false, message: "Add your full name." };
+  }
+
+  if (password.length < 8) {
+    return { ok: false, message: "Use a password with at least 8 characters." };
+  }
+
+  if (password !== confirmPassword) {
+    return { ok: false, message: "Passwords do not match." };
+  }
+
+  if (!isSupabaseConfigured()) {
+    return {
+      ok: true,
+      message: "Demo mode: account setup completed.",
+      redirectTo: ROLE_DASHBOARD_PATHS[role]
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error: authError } = await supabase.auth.updateUser({
+    password,
+    data: {
+      full_name: fullName,
+      setup_completed_at: new Date().toISOString()
+    }
+  });
+
+  if (authError) {
+    return { ok: false, message: authError.message };
+  }
+
+  const { error: userError } = await supabase
+    .from("users")
+    .update({
+      full_name: fullName,
+      phone: phone || null,
+      role
+    })
+    .eq("id", user.id);
+
+  if (userError) {
+    return { ok: false, message: userError.message };
+  }
+
+  if (role === "employee") {
+    const programNames = asPrograms(formData);
+    const skills = asSkills(formData);
+    const availability = asString(formData.get("availability"))
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const preferredContact = asString(formData.get("preferred_contact"));
+
+    if (programNames.length === 0) {
+      return { ok: false, message: "Choose at least one program." };
+    }
+
+    const { error } = await supabase.from("worker_profiles").upsert(
+      {
+        user_id: user.id,
+        status: "pending",
+        program_name: programNames[0],
+        program_names: programNames,
+        availability,
+        skills,
+        account_information: {
+          preferredContact,
+          setupCompletedAt: new Date().toISOString()
+        }
+      },
+      { onConflict: "user_id" }
+    );
+
+    if (error) {
+      return { ok: false, message: error.message };
+    }
+  } else {
+    const { error } = await supabase.from("supervisor_profiles").upsert(
+      {
+        user_id: user.id,
+        status: "pending",
+        location_name: asString(formData.get("location_name")) || null,
+        front_desk_location_name: asString(formData.get("front_desk_location_name")) || null,
+        title: asString(formData.get("title")) || null
+      },
+      { onConflict: "user_id" }
+    );
+
+    if (error) {
+      return { ok: false, message: error.message };
+    }
+  }
+
+  await notifyAdminsInApp({
+    staffName: fullName,
+    staffEmail: user.email,
+    role,
+    message: "completed account setup and submitted profile information for review."
+  });
+
+  revalidateDashboards();
+  return {
+    ok: true,
+    message: "Account setup complete. Administrators have been notified.",
+    redirectTo: ROLE_DASHBOARD_PATHS[role]
+  };
+}
 export async function updateSupervisorProfileAction(
   _previousState: ActionState,
   formData: FormData
@@ -358,6 +634,13 @@ export async function updateSupervisorProfileAction(
   if (error) {
     return { ok: false, message: error.message };
   }
+
+  await notifyAdminsInApp({
+    staffName: user.full_name,
+    staffEmail: user.email,
+    role: "supervisor",
+    message: "updated supervisor profile information for review."
+  });
 
   revalidateDashboards();
   return { ok: true, message: "Supervisor profile submitted for approval." };

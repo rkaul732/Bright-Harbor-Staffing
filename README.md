@@ -58,6 +58,8 @@ Without Supabase keys, the app opens in demo mode so you can click through the l
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 SHIFT_APPROVAL_SUPERVISOR_EMAIL=bpataky@brightharbor.org
 ```
 
@@ -73,8 +75,17 @@ morgan@example.com / password123
 admin@example.com / password123
 ```
 
-## Approval Routing
+## Staff Account Invitations
 
+Admins can create staff accounts from Admin View. This uses Supabase Auth invite emails, so `SUPABASE_SERVICE_ROLE_KEY` must be set in Netlify and Supabase Auth should allow this setup redirect URL:
+
+```text
+https://brightharborstaffing.netlify.app/auth/callback
+```
+
+Invited staff members are routed through `/auth/callback` and then create their password at `/auth/setup`, verify profile settings, and submit the profile for admin review. The app also creates an admin notification when setup is completed.
+
+## Approval Routing
 When an employee requests to pick up a shift, a `requests` row is created with:
 
 ```text
