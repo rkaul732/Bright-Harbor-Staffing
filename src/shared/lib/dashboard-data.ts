@@ -12,6 +12,7 @@ import type {
   Message,
   MonthlyWinner,
   Notification,
+  ProgramName,
   SavedShift,
   ShiftPost,
   ShiftRequest,
@@ -46,6 +47,82 @@ function calculateAnalytics(
     thisMonthRequests: requests.filter((request) =>
       request.created_at.startsWith(currentMonth)
     ).length
+  };
+}
+
+type DashboardCollections = Omit<DashboardData, "analytics" | "isDemo">;
+
+function workerProgramNames(profile: WorkerProfile) {
+  return profile.program_names?.length ? profile.program_names : [profile.program_name];
+}
+
+function scopeDashboardDataForCurrentUser(
+  data: DashboardCollections
+): DashboardCollections {
+  if (data.currentUser.role !== "admin") {
+    return data;
+  }
+
+  const currentAdminProfile = data.adminProfiles.find(
+    (profile) => profile.user_id === data.currentUser.id
+  );
+
+  if (currentAdminProfile?.is_super_admin) {
+    return data;
+  }
+
+  const scopedPrograms = new Set<ProgramName>(currentAdminProfile?.program_names ?? []);
+  const canSeeProgram = (programName: string) =>
+    scopedPrograms.has(programName as ProgramName);
+
+  const shifts = data.shifts.filter((shift) => canSeeProgram(shift.program_name));
+  const visibleShiftIds = new Set(shifts.map((shift) => shift.id));
+  const requests = data.requests.filter((request) => visibleShiftIds.has(request.shift_id));
+  const timeOffRequests = data.timeOffRequests.filter((request) =>
+    canSeeProgram(request.program_name)
+  );
+  const workerProfiles = data.workerProfiles.filter((profile) =>
+    workerProgramNames(profile).some((programName) => canSeeProgram(programName))
+  );
+
+  const visibleUserIds = new Set<string>([data.currentUser.id]);
+  workerProfiles.forEach((profile) => visibleUserIds.add(profile.user_id));
+  requests.forEach((request) => visibleUserIds.add(request.requestor_id));
+  timeOffRequests.forEach((request) => visibleUserIds.add(request.user_id));
+  shifts.forEach((shift) => {
+    visibleUserIds.add(shift.created_by);
+    if (shift.owner_user_id) {
+      visibleUserIds.add(shift.owner_user_id);
+    }
+  });
+
+  const visibleRequestIds = new Set(requests.map((request) => request.id));
+  const messages = data.messages.filter(
+    (message) =>
+      (message.shift_id ? visibleShiftIds.has(message.shift_id) : false) ||
+      (message.request_id ? visibleRequestIds.has(message.request_id) : false) ||
+      visibleUserIds.has(message.sender_id) ||
+      (message.recipient_id ? visibleUserIds.has(message.recipient_id) : false)
+  );
+
+  return {
+    ...data,
+    users: data.users.filter((user) => visibleUserIds.has(user.id)),
+    workerProfiles,
+    supervisorProfiles: [],
+    adminProfiles: currentAdminProfile ? [currentAdminProfile] : [],
+    shifts,
+    requests,
+    timeOffRequests,
+    messages,
+    savedShifts: data.savedShifts.filter(
+      (savedShift) =>
+        visibleShiftIds.has(savedShift.shift_id) || visibleUserIds.has(savedShift.user_id)
+    ),
+    adSlots: data.adSlots.filter((adSlot) => canSeeProgram(adSlot.program_name)),
+    monthlyWinners: data.monthlyWinners.filter((winner) =>
+      visibleUserIds.has(winner.user_id)
+    )
   };
 }
 
@@ -101,7 +178,13 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
   const users = (usersResult.data ?? []) as AppUser[];
   const workerProfiles = (workerProfilesResult.data ?? []) as WorkerProfile[];
   const supervisorProfiles = (supervisorProfilesResult.data ?? []) as SupervisorProfile[];
-  const adminProfiles = (adminProfilesResult.data ?? []) as AdminProfile[];
+  const adminProfiles = ((adminProfilesResult.data ?? []) as AdminProfile[]).map(
+    (profile) => ({
+      ...profile,
+      program_names: Array.isArray(profile.program_names) ? profile.program_names : [],
+      is_super_admin: profile.is_super_admin === true
+    })
+  );
   const shifts = (shiftsResult.data ?? []) as ShiftPost[];
   const requests = (requestsResult.data ?? []) as ShiftRequest[];
   const timeOffRequests = (timeOffRequestsResult.data ?? []) as TimeOffRequest[];
@@ -128,7 +211,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
         last_sign_in_at: user.last_sign_in_at ?? user.created_at
       } satisfies AppUser);
 
-  return {
+  const scopedData = scopeDashboardDataForCurrentUser({
     currentUser,
     users,
     workerProfiles,
@@ -141,13 +224,17 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
     savedShifts,
     notifications,
     adSlots,
-    monthlyWinners,
+    monthlyWinners
+  });
+
+  return {
+    ...scopedData,
     analytics: calculateAnalytics(
-      shifts,
-      requests,
-      timeOffRequests,
-      workerProfiles,
-      supervisorProfiles
+      scopedData.shifts,
+      scopedData.requests,
+      scopedData.timeOffRequests,
+      scopedData.workerProfiles,
+      scopedData.supervisorProfiles
     ),
     isDemo: false
   };

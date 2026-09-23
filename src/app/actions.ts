@@ -192,6 +192,86 @@ async function getWorkerProgramsForAction(userId: string) {
   return data?.program_name ? [data.program_name as ProgramName] : [];
 }
 
+type ActionUser = Awaited<ReturnType<typeof getUserForAction>>;
+
+type AdminScope = {
+  isSuperAdmin: boolean;
+  programNames: ProgramName[];
+};
+
+function normalizeProgramNames(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((programName): programName is ProgramName =>
+        programSchema.safeParse(programName).success
+      )
+    : [];
+}
+
+async function getAdminScopeForAction(userId: string): Promise<AdminScope> {
+  if (!isSupabaseConfigured()) {
+    return { isSuperAdmin: true, programNames: PROGRAMS };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("admin_profiles")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+  const profile = data as
+    | { is_super_admin?: unknown; program_names?: unknown }
+    | null;
+
+  return {
+    isSuperAdmin: profile?.is_super_admin === true,
+    programNames: normalizeProgramNames(profile?.program_names)
+  };
+}
+
+async function isSuperAdminForAction(user: ActionUser) {
+  if (user.role !== "admin") {
+    return false;
+  }
+
+  const scope = await getAdminScopeForAction(user.id);
+  return scope.isSuperAdmin;
+}
+
+async function scopedProgramAccessError(
+  user: ActionUser,
+  programNames: ProgramName[],
+  action: string,
+  options: { requireAll?: boolean } = {}
+): Promise<ActionState | null> {
+  if (user.role === "supervisor") {
+    return null;
+  }
+
+  if (user.role !== "admin") {
+    return { ok: false, message: "Only supervisors and admins can " + action + "." };
+  }
+
+  const scope = await getAdminScopeForAction(user.id);
+
+  if (scope.isSuperAdmin) {
+    return null;
+  }
+
+  const allowedPrograms = new Set(scope.programNames);
+  const hasAccess = (options.requireAll ?? true)
+    ? programNames.every((programName) => allowedPrograms.has(programName))
+    : programNames.some((programName) => allowedPrograms.has(programName));
+
+  if (programNames.length > 0 && hasAccess) {
+    return null;
+  }
+
+  return {
+    ok: false,
+    message: "You can only " + action + " for programs assigned to your admin profile."
+  };
+}
+
 function revalidateDashboards() {
   revalidatePath("/");
   revalidatePath("/employee");
@@ -410,6 +490,22 @@ export async function createStaffAccountAction(
 
   if (currentUser.role !== "admin" && !approvedAdminProfile) {
     return { ok: false, message: "Only admins can create staff accounts." };
+  }
+
+  if (parsed.data.role === "supervisor" && !(await isSuperAdminForAction(currentUser))) {
+    return { ok: false, message: "Only super admins can create supervisor accounts." };
+  }
+
+  if (parsed.data.role === "employee") {
+    const scopeError = await scopedProgramAccessError(
+      currentUser,
+      programNames,
+      "create staff accounts"
+    );
+
+    if (scopeError) {
+      return scopeError;
+    }
   }
 
   if (!hasSupabaseServiceRoleKey()) {
@@ -693,6 +789,16 @@ export async function supervisorPostShiftAction(
     return { ok: false, message: "Only supervisors and admins can create this posting." };
   }
 
+  const scopeError = await scopedProgramAccessError(
+    user,
+    [parsed.data.program_name],
+    "post shifts"
+  );
+
+  if (scopeError) {
+    return scopeError;
+  }
+
   if (!isSupabaseConfigured()) {
     return { ok: true, message: "Demo mode: shift posting saved for preview." };
   }
@@ -904,6 +1010,16 @@ export async function adminAddOutOfOfficeAction(
     return { ok: false, message: "Only admins can add direct OOO days." };
   }
 
+  const scopeError = await scopedProgramAccessError(
+    user,
+    [parsed.data.program_name],
+    "add OOO days"
+  );
+
+  if (scopeError) {
+    return scopeError;
+  }
+
   if (!isSupabaseConfigured()) {
     return { ok: true, message: "Demo mode: OOO added to the admin calendar." };
   }
@@ -956,6 +1072,26 @@ export async function updateTimeOffRequestStatusAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const { data: requestToReview } = await supabase
+    .from("time_off_requests")
+    .select("program_name")
+    .eq("id", requestId)
+    .single();
+
+  if (!requestToReview) {
+    return { ok: false, message: "Time off request not found." };
+  }
+
+  const scopeError = await scopedProgramAccessError(
+    user,
+    [requestToReview.program_name as ProgramName],
+    "review time off requests"
+  );
+
+  if (scopeError) {
+    return scopeError;
+  }
+
   const { error } = await supabase
     .from("time_off_requests")
     .update({
@@ -997,6 +1133,26 @@ export async function updateRequestStatusAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const { data: shift } = await supabase
+    .from("shift_posts")
+    .select("program_name,openings,filled_openings")
+    .eq("id", shiftId)
+    .single();
+
+  if (!shift) {
+    return { ok: false, message: "Shift not found." };
+  }
+
+  const scopeError = await scopedProgramAccessError(
+    user,
+    [shift.program_name as ProgramName],
+    "review shift requests"
+  );
+
+  if (scopeError) {
+    return scopeError;
+  }
+
   const { error } = await supabase
     .from("requests")
     .update({
@@ -1012,22 +1168,14 @@ export async function updateRequestStatusAction(
   }
 
   if (status === "approved") {
-    const { data: shift } = await supabase
+    const filled = Math.min(shift.openings, (shift.filled_openings ?? 0) + 1);
+    await supabase
       .from("shift_posts")
-      .select("openings, filled_openings")
-      .eq("id", shiftId)
-      .single();
-
-    if (shift) {
-      const filled = Math.min(shift.openings, (shift.filled_openings ?? 0) + 1);
-      await supabase
-        .from("shift_posts")
-        .update({
-          filled_openings: filled,
-          status: filled >= shift.openings ? "covered" : "open"
-        })
-        .eq("id", shiftId);
-    }
+      .update({
+        filled_openings: filled,
+        status: filled >= shift.openings ? "covered" : "open"
+      })
+      .eq("id", shiftId);
   }
 
   revalidateDashboards();
@@ -1164,10 +1312,14 @@ export async function moderateProfileAction(
   const role = asString(formData.get("profile_role")) as AppRole;
   const profileId = asString(formData.get("profile_id"));
   const status = asString(formData.get("status")) as ProfileStatus;
-  await getUserForAction("admin");
+  const user = await getUserForAction("admin");
 
   if (!["approved", "suspended", "pending"].includes(status) || !profileId) {
     return { ok: false, message: "Choose a valid profile status." };
+  }
+
+  if (user.role !== "admin") {
+    return { ok: false, message: "Only admins can moderate profiles." };
   }
 
   if (!isSupabaseConfigured()) {
@@ -1175,24 +1327,89 @@ export async function moderateProfileAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const result =
-    role === "supervisor"
-      ? await supabase
-          .from("supervisor_profiles")
-          .update({ status })
-          .eq("id", profileId)
-      : role === "admin"
-        ? await supabase
-            .from("admin_profiles")
-            .update({ status })
-            .eq("id", profileId)
-        : await supabase
-            .from("worker_profiles")
-            .update({ status })
-            .eq("id", profileId);
 
-  if (result.error) {
-    return { ok: false, message: result.error.message };
+  if (role === "admin") {
+    if (!(await isSuperAdminForAction(user))) {
+      return { ok: false, message: "Only super admins can manage admin access." };
+    }
+
+    const adminProgramNames = asPrograms(formData);
+    const isSuperAdmin = formData.get("is_super_admin") === "on";
+
+    if (status === "approved" && !isSuperAdmin && adminProgramNames.length === 0) {
+      return {
+        ok: false,
+        message: "Choose at least one program for this admin or mark them as a super admin."
+      };
+    }
+
+    const { error } = await supabase
+      .from("admin_profiles")
+      .update({
+        status,
+        program_names: adminProgramNames,
+        is_super_admin: isSuperAdmin
+      })
+      .eq("id", profileId);
+
+    if (error) {
+      return { ok: false, message: error.message };
+    }
+
+    revalidateDashboards();
+    return { ok: true, message: "Admin access updated." };
+  }
+
+  if (role === "supervisor") {
+    if (!(await isSuperAdminForAction(user))) {
+      return { ok: false, message: "Only super admins can moderate supervisor profiles." };
+    }
+
+    const { error } = await supabase
+      .from("supervisor_profiles")
+      .update({ status })
+      .eq("id", profileId);
+
+    if (error) {
+      return { ok: false, message: error.message };
+    }
+
+    revalidateDashboards();
+    return { ok: true, message: `Profile marked ${status}.` };
+  }
+
+  const { data: profile } = await supabase
+    .from("worker_profiles")
+    .select("program_name,program_names")
+    .eq("id", profileId)
+    .single();
+
+  if (!profile) {
+    return { ok: false, message: "Employee profile not found." };
+  }
+
+  const profilePrograms = normalizeProgramNames(profile.program_names).length
+    ? normalizeProgramNames(profile.program_names)
+    : profile.program_name
+      ? [profile.program_name as ProgramName]
+      : [];
+  const scopeError = await scopedProgramAccessError(
+    user,
+    profilePrograms,
+    "moderate employee profiles"
+  );
+
+  if (scopeError) {
+    return scopeError;
+  }
+
+  const { error } = await supabase
+    .from("worker_profiles")
+    .update({ status })
+    .eq("id", profileId);
+
+  if (error) {
+    return { ok: false, message: error.message };
   }
 
   revalidateDashboards();

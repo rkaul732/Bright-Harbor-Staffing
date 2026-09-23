@@ -24,6 +24,7 @@ import { ProfileModerationControls } from "@/features/admin/components/ProfileMo
 import { StaffAccountInviteForm } from "@/features/admin/components/StaffAccountInviteForm";
 import { formatLongDate, sortShifts } from "@/shared/lib/dates";
 import type {
+  AdminProfile,
   AppRole,
   DashboardData,
   ShiftPost,
@@ -776,16 +777,25 @@ function AdminAnalyticsInset({ data }: { data: DashboardData }) {
 
 type ProfileModerationItem =
   | { role: "employee"; profile: WorkerProfile }
-  | { role: "supervisor"; profile: SupervisorProfile };
+  | { role: "supervisor"; profile: SupervisorProfile }
+  | { role: "admin"; profile: AdminProfile };
 
 function AdminModeration({ data }: { data: DashboardData }) {
+  const currentAdminProfile = data.adminProfiles.find(
+    (profile) => profile.user_id === data.currentUser.id
+  );
+  const canManageAdminScopes = currentAdminProfile?.is_super_admin === true;
   const pendingWorkers = data.workerProfiles.filter((profile) => profile.status === "pending");
   const pendingSupervisors = data.supervisorProfiles.filter(
     (profile) => profile.status === "pending"
   );
+  const adminProfilesForReview = canManageAdminScopes
+    ? data.adminProfiles.filter((profile) => profile.user_id !== data.currentUser.id)
+    : [];
   const pendingProfiles: ProfileModerationItem[] = [
     ...pendingWorkers.map((profile) => ({ role: "employee" as const, profile })),
-    ...pendingSupervisors.map((profile) => ({ role: "supervisor" as const, profile }))
+    ...pendingSupervisors.map((profile) => ({ role: "supervisor" as const, profile })),
+    ...adminProfilesForReview.map((profile) => ({ role: "admin" as const, profile }))
   ];
 
   return (
@@ -806,14 +816,28 @@ function AdminModeration({ data }: { data: DashboardData }) {
           pendingProfiles.map((item) => {
             const user = data.users.find((profileUser) => profileUser.id === item.profile.user_id);
 
-            return item.role === "employee" ? (
-              <WorkerProfileReviewCard
-                key={item.profile.id}
-                profile={item.profile}
-                user={user}
-              />
-            ) : (
-              <SupervisorProfileReviewCard
+            if (item.role === "employee") {
+              return (
+                <WorkerProfileReviewCard
+                  key={item.profile.id}
+                  profile={item.profile}
+                  user={user}
+                />
+              );
+            }
+
+            if (item.role === "supervisor") {
+              return (
+                <SupervisorProfileReviewCard
+                  key={item.profile.id}
+                  profile={item.profile}
+                  user={user}
+                />
+              );
+            }
+
+            return (
+              <AdminProfileReviewCard
                 key={item.profile.id}
                 profile={item.profile}
                 user={user}
@@ -824,11 +848,53 @@ function AdminModeration({ data }: { data: DashboardData }) {
           <EmptyState
             icon={UsersRound}
             title="No pending profiles"
-            body="Worker and supervisor approvals are clear."
+            body="Employee, supervisor, and admin reviews are clear."
           />
         )}
       </div>
     </section>
+  );
+}
+
+function AdminProfileReviewCard({
+  profile,
+  user
+}: {
+  profile: AdminProfile;
+  user?: DashboardData["users"][number];
+}) {
+  const scopeLabel = profile.is_super_admin
+    ? "Super admin"
+    : profile.program_names.length > 0
+      ? profile.program_names.join(", ")
+      : "No programs assigned";
+
+  return (
+    <details className="rounded-lg border border-harbor-ocean/10 bg-white p-3 shadow-line">
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span className="block truncate text-sm font-medium text-harbor-midnight">
+            {user?.full_name ?? "Admin profile"}
+          </span>
+          <span className="mt-1 block truncate text-xs text-harbor-midnight/50">
+            {user?.email ?? "No email on file"}
+          </span>
+        </div>
+        <StatusBadge value={profile.status} />
+      </summary>
+
+      <div className="mt-4 space-y-3 border-t border-harbor-ocean/10 pt-4">
+        <ProfileDetail label="Role" value="Admin" />
+        <ProfileDetail label="Access" value={scopeLabel} />
+        <ProfileDetail label="Submitted" value={formatLongDate(profile.created_at.slice(0, 10))} />
+        <ProfileModerationControls
+          profileId={profile.id}
+          profileRole="admin"
+          adminProgramNames={profile.program_names}
+          adminIsSuperAdmin={profile.is_super_admin}
+        />
+      </div>
+    </details>
   );
 }
 

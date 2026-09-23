@@ -105,6 +105,8 @@ type AdminProfileRow = {
   id: string;
   user_id: string;
   status: ProfileStatus;
+  program_names: ProgramName[];
+  is_super_admin: boolean;
   created_at: string;
 };
 

@@ -63,7 +63,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 SHIFT_APPROVAL_SUPERVISOR_EMAIL=bpataky@brightharbor.org
 ```
 
-3. Apply the schema in `supabase/migrations/001_initial_schema.sql`.
+3. Apply the SQL files in `supabase/migrations` in numeric order.
 4. Load optional demo records from `supabase/seed.sql`.
 5. Confirm the `profile-photos` storage bucket exists. The migration creates it and adds policies.
 
@@ -84,6 +84,10 @@ https://brightharborstaffing.netlify.app/auth/callback
 ```
 
 Invited staff members are routed through `/auth/callback` and then create their password at `/auth/setup`, verify profile settings, and submit the profile for admin review. The app also creates an admin notification when setup is completed.
+
+## Admin Visibility
+
+Regular admins see requests, calendars, reports, and profile reviews for the programs assigned to their admin profile. Super admins see every program. The migration marks `rkaul@brightharbor.org` as a super admin when that user exists.
 
 ## Approval Routing
 When an employee requests to pick up a shift, a `requests` row is created with:

@@ -117,6 +117,8 @@ const adminProfiles: AdminProfile[] = [
     id: "admin-profile-1",
     user_id: "user-admin-1",
     status: "approved",
+    program_names: [],
+    is_super_admin: true,
     created_at: dateFromToday(-200)
   }
 ];

@@ -126,7 +126,10 @@ set
 where user_id = '00000000-0000-0000-0000-000000000201';
 
 update public.admin_profiles
-set status = 'approved'
+set
+  status = 'approved',
+  is_super_admin = true,
+  program_names = '{}'::text[]
 where user_id = '00000000-0000-0000-0000-000000000301';
 
 insert into public.shift_posts (
