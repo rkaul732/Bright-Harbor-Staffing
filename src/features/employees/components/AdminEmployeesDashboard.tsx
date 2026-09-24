@@ -1,4 +1,4 @@
-import { Mail, MailPlus, Phone, UsersRound } from "lucide-react";
+import { MailPlus, UsersRound } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { StatusBadge } from "@/shared/components/StatusBadge";
@@ -30,16 +30,6 @@ function programText(profile?: WorkerProfile) {
 
 function listText(items?: string[]) {
   return items?.length ? items.join(", ") : "Not provided";
-}
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((part) => part.trim()[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase() || "BH";
 }
 
 export function AdminEmployeesDashboard({ data }: { data: DashboardData }) {
@@ -109,9 +99,9 @@ export function AdminEmployeesDashboard({ data }: { data: DashboardData }) {
           </p>
         </div>
 
-        <div className="mt-4 grid gap-3 xl:grid-cols-2">
+        <div className="mt-4">
           {employees.length > 0 ? (
-            employees.map((employee) => <EmployeeCard key={employee.user.id} employee={employee} />)
+            <EmployeeTable employees={employees} />
           ) : (
             <EmptyState
               icon={UsersRound}
@@ -136,32 +126,47 @@ function EmployeeMetric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function EmployeeCard({ employee }: { employee: EmployeeRecord }) {
+function EmployeeTable({ employees }: { employees: EmployeeRecord[] }) {
+  return (
+    <div className="overflow-x-auto rounded-lg border border-harbor-ocean/10 bg-white shadow-line">
+      <table className="w-full min-w-[1120px] border-separate border-spacing-0 text-left text-sm">
+        <thead className="bg-harbor-mist text-[11px] font-medium uppercase tracking-[0.06em] text-harbor-ocean">
+          <tr>
+            <th className="border-b border-harbor-ocean/10 px-3 py-2">Employee</th>
+            <th className="border-b border-harbor-ocean/10 px-3 py-2">Email</th>
+            <th className="border-b border-harbor-ocean/10 px-3 py-2">Phone</th>
+            <th className="border-b border-harbor-ocean/10 px-3 py-2">Status</th>
+            <th className="border-b border-harbor-ocean/10 px-3 py-2">Programs</th>
+            <th className="border-b border-harbor-ocean/10 px-3 py-2">Regular schedule</th>
+            <th className="border-b border-harbor-ocean/10 px-3 py-2">Skills</th>
+            <th className="border-b border-harbor-ocean/10 px-3 py-2">Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          {employees.map((employee) => (
+            <EmployeeRow key={employee.user.id} employee={employee} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function EmployeeRow({ employee }: { employee: EmployeeRecord }) {
   const { user, profile } = employee;
 
   return (
-    <article className="min-w-0 rounded-lg border border-harbor-ocean/10 bg-white p-3 shadow-line">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-harbor-midnight text-xs font-medium text-white">
-            {initials(user.full_name)}
-          </span>
-          <div className="min-w-0">
-            <h3 className="truncate text-base font-medium text-harbor-midnight">{user.full_name}</h3>
-            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-harbor-midnight/58">
-              <span className="inline-flex min-w-0 items-center gap-1">
-                <Mail className="h-3.5 w-3.5 shrink-0 text-harbor-ocean" aria-hidden="true" />
-                <span className="truncate">{user.email}</span>
-              </span>
-              {user.phone ? (
-                <span className="inline-flex items-center gap-1">
-                  <Phone className="h-3.5 w-3.5 text-harbor-ocean" aria-hidden="true" />
-                  {user.phone}
-                </span>
-              ) : null}
-            </div>
-          </div>
-        </div>
+    <tr className="align-top transition hover:bg-harbor-mist/45">
+      <td className="border-b border-harbor-ocean/10 px-3 py-2.5 font-medium text-harbor-midnight">
+        {user.full_name}
+      </td>
+      <td className="border-b border-harbor-ocean/10 px-3 py-2.5 text-harbor-midnight/70">
+        {user.email}
+      </td>
+      <td className="border-b border-harbor-ocean/10 px-3 py-2.5 text-harbor-midnight/70">
+        {user.phone || "Not provided"}
+      </td>
+      <td className="border-b border-harbor-ocean/10 px-3 py-2.5">
         {profile ? (
           <StatusBadge value={profile.status} />
         ) : (
@@ -169,25 +174,21 @@ function EmployeeCard({ employee }: { employee: EmployeeRecord }) {
             Profile needed
           </span>
         )}
-      </div>
-
-      <dl className="mt-3 grid gap-2 text-xs text-harbor-midnight/68 sm:grid-cols-2">
-        <EmployeeDetail label="Programs" value={programText(profile)} />
-        <EmployeeDetail label="Regular schedule" value={listText(profile?.availability)} />
-        <EmployeeDetail label="Skills" value={listText(profile?.skills)} />
-        <EmployeeDetail label="Account created" value={formatShortDate(user.created_at.slice(0, 10))} />
-      </dl>
-    </article>
+      </td>
+      <EmployeeCell value={programText(profile)} />
+      <EmployeeCell value={listText(profile?.availability)} />
+      <EmployeeCell value={listText(profile?.skills)} />
+      <td className="border-b border-harbor-ocean/10 px-3 py-2.5 text-harbor-midnight/70">
+        {formatShortDate(user.created_at.slice(0, 10))}
+      </td>
+    </tr>
   );
 }
 
-function EmployeeDetail({ label, value }: { label: string; value: string }) {
+function EmployeeCell({ value }: { value: string }) {
   return (
-    <div className="min-w-0 rounded-md bg-harbor-mist/70 px-2.5 py-2">
-      <dt className="text-[11px] font-medium uppercase tracking-[0.06em] text-harbor-ocean">
-        {label}
-      </dt>
-      <dd className="mt-1 leading-5 text-harbor-midnight/72">{value}</dd>
-    </div>
+    <td className="max-w-[18rem] border-b border-harbor-ocean/10 px-3 py-2.5 text-xs leading-5 text-harbor-midnight/70">
+      {value}
+    </td>
   );
 }

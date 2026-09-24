@@ -27,7 +27,7 @@ export function TopNavigationClient({
           {APP_NAME}
         </Link>
         {showViewSwitcher ? (
-          <div className="inline-flex min-w-0 shrink-0 items-center rounded-full border border-harbor-ocean/10 bg-white/75 p-0.5 shadow-line">
+          <div className="grid w-[15rem] shrink-0 grid-cols-2 rounded-full border border-harbor-ocean/10 bg-white/75 p-0.5 shadow-line">
             {viewLinks.map((link) => {
               const active = link.match.some((item) => pathname.startsWith(item));
 
@@ -37,7 +37,7 @@ export function TopNavigationClient({
                   href={link.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "focus-ring rounded-full px-2 py-0.5 text-[12px] font-medium text-harbor-ocean transition sm:px-2.5",
+                    "focus-ring flex items-center justify-center rounded-full px-2 py-1 text-[12px] font-medium text-harbor-ocean transition",
                     active && "bg-harbor-midnight text-white shadow-line"
                   )}
                 >

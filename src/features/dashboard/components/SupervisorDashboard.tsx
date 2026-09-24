@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CalendarCheck, CalendarClock, CalendarPlus, CalendarX, ClipboardList, UsersRound, X } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
-import { hasSuperAdminAccess } from "@/shared/lib/access";
 import { MetricCard } from "@/shared/components/MetricCard";
 import { CalendarBoard } from "@/shared/components/CalendarBoard";
 import { ShiftCard } from "@/shared/components/ShiftCard";
@@ -288,7 +287,6 @@ function AdminDashboardHome({
     (request) => request.status === "declined"
   );
   const totalAccounts = data.users.length;
-  const canAccessMessagingTemplates = hasSuperAdminAccess(data);
   const [showOooForm, setShowOooForm] = useState(false);
 
   return (
@@ -308,11 +306,6 @@ function AdminDashboardHome({
             <Link href="/reports" className="word-button font-semibold">
               Reports
             </Link>
-            {canAccessMessagingTemplates ? (
-              <Link href="/automated-messages" className="word-button font-semibold">
-                Messaging Templates
-              </Link>
-            ) : null}
           </div>
         </div>
 
@@ -327,13 +320,6 @@ function AdminDashboardHome({
           <AdminHubCard title="New Requests" badge={pendingTimeOffRequests.length + " waiting"} />
           <AdminHubCard title="Team Schedule" badge={approvedTimeOffRequests.length + " approved"} />
           <AdminHubCard title="Reports" badge="Spreadsheet export" href="/reports" />
-          {canAccessMessagingTemplates ? (
-            <AdminHubCard
-              title="Messaging Templates"
-              badge="Email wording"
-              href="/automated-messages"
-            />
-          ) : null}
           <AdminHubCard title="Account Types" badge={totalAccounts + " accounts"} />
         </div>
       </section>
