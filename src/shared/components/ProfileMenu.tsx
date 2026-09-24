@@ -115,6 +115,13 @@ export function ProfileMenu({
                   Admin View
                 </Link>
                 <Link
+                  href="/employees"
+                  className={menuItemClass(pathname.startsWith("/employees"))}
+                  onClick={() => setOpen(false)}
+                >
+                  Employees
+                </Link>
+                <Link
                   href="/reports"
                   className={menuItemClass(pathname.startsWith("/reports"))}
                   onClick={() => setOpen(false)}

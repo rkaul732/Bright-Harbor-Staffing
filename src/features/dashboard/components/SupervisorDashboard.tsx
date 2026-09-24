@@ -293,14 +293,14 @@ function AdminDashboardHome({
 
   return (
     <DashboardShell role="admin" data={data}>
-      <section className="rounded-xl border border-harbor-ocean/10 bg-white/95 p-5 shadow-soft sm:p-7 lg:p-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <section className="rounded-lg border border-harbor-ocean/10 bg-white/95 p-3 shadow-soft sm:p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="label text-harbor-sky">Admin Dashboard</p>
-            <h2 className="mt-3 text-4xl font-medium leading-tight text-harbor-midnight sm:text-5xl">
+            <h2 className="mt-2 text-3xl font-medium leading-tight text-harbor-midnight sm:text-4xl">
               Welcome, {data.currentUser.full_name}!
             </h2>
-            <p className="mt-4 text-sm font-medium uppercase tracking-[0.08em] text-harbor-ocean">
+            <p className="mt-2 text-xs font-medium uppercase tracking-[0.06em] text-harbor-ocean">
               Admin
             </p>
           </div>
@@ -316,14 +316,14 @@ function AdminDashboardHome({
           </div>
         </div>
 
-        <div className="mt-12 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <AdminSnapshotCard label="New since sign on" value={newTimeOffRequests.length} />
           <AdminSnapshotCard label="Still pending" value={pendingTimeOffRequests.length} />
           <AdminSnapshotCard label="Approved" value={approvedTimeOffRequests.length} />
           <AdminSnapshotCard label="Denied" value={deniedTimeOffRequests.length} />
         </div>
 
-        <div className={`mt-6 grid min-w-0 gap-3 sm:grid-cols-2 ${canAccessMessagingTemplates ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
+        <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]">
           <AdminHubCard title="New Requests" badge={pendingTimeOffRequests.length + " waiting"} />
           <AdminHubCard title="Team Schedule" badge={approvedTimeOffRequests.length + " approved"} />
           <AdminHubCard title="Reports" badge="Spreadsheet export" href="/reports" />
@@ -469,9 +469,9 @@ function AdminDashboardHome({
 
 function AdminSnapshotCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-harbor-ocean/12 bg-white p-4 shadow-line sm:p-5">
-      <p className="text-3xl font-medium text-harbor-midnight">{value}</p>
-      <p className="mt-2 text-sm font-medium uppercase tracking-[0.06em] text-harbor-midnight/58">
+    <div className="rounded-lg border border-harbor-ocean/12 bg-white p-3 shadow-line">
+      <p className="text-2xl font-medium text-harbor-midnight">{value}</p>
+      <p className="mt-1 text-xs font-medium uppercase tracking-[0.06em] text-harbor-midnight/58">
         {label}
       </p>
     </div>
@@ -489,8 +489,8 @@ function AdminHubCard({
 }) {
   const content = (
     <>
-      <h3 className="text-2xl font-medium text-harbor-midnight">{title}</h3>
-      <span className="mt-12 inline-flex w-fit rounded-full border border-harbor-sky/20 bg-harbor-mist px-3 py-2 text-sm font-medium text-harbor-ocean">
+      <h3 className="text-xl font-medium text-harbor-midnight">{title}</h3>
+      <span className="mt-6 inline-flex w-fit rounded-full border border-harbor-sky/20 bg-harbor-mist px-2.5 py-1 text-xs font-medium text-harbor-ocean">
         {badge}
       </span>
     </>
@@ -500,7 +500,7 @@ function AdminHubCard({
     return (
       <Link
         href={href}
-        className="min-w-0 rounded-lg border border-harbor-ocean/12 bg-white p-4 shadow-line transition hover:border-harbor-sky/35 hover:shadow-soft"
+        className="min-w-0 rounded-lg border border-harbor-ocean/12 bg-white p-3 shadow-line transition hover:border-harbor-sky/35 hover:shadow-soft"
       >
         {content}
       </Link>
@@ -508,7 +508,7 @@ function AdminHubCard({
   }
 
   return (
-    <div className="min-w-0 rounded-lg border border-harbor-ocean/12 bg-white p-4 shadow-line">
+    <div className="min-w-0 rounded-lg border border-harbor-ocean/12 bg-white p-3 shadow-line">
       {content}
     </div>
   );

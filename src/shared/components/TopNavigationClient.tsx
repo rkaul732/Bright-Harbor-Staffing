@@ -7,7 +7,7 @@ import { cn } from "@/shared/lib/cn";
 
 const viewLinks = [
   { label: "Employee View", href: "/employee", match: ["/employee"] },
-  { label: "Admin View", href: "/admin", match: ["/admin", "/reports", "/automated-messages"] }
+  { label: "Admin View", href: "/admin", match: ["/admin", "/employees", "/reports", "/automated-messages"] }
 ];
 
 export function TopNavigationClient({
@@ -19,7 +19,7 @@ export function TopNavigationClient({
 
   return (
     <header className="sticky top-0 z-[90] border-b border-harbor-ocean/10 bg-harbor-mist/85 backdrop-blur-xl">
-      <nav className="mx-auto flex w-full max-w-[96rem] items-center justify-between gap-3 px-3 py-2.5 pr-16 sm:px-4 sm:pr-20 lg:px-5">
+      <nav className="mx-auto flex w-full max-w-[96rem] items-center justify-between gap-2 px-3 py-2 pr-28 sm:px-4 sm:pr-32 lg:px-5 lg:pr-36">
         <Link
           href="/"
           className="focus-ring min-w-0 rounded-md text-sm font-medium text-harbor-midnight sm:text-base"
@@ -27,7 +27,7 @@ export function TopNavigationClient({
           {APP_NAME}
         </Link>
         {showViewSwitcher ? (
-          <div className="inline-flex shrink-0 items-center rounded-full border border-harbor-ocean/10 bg-white/75 p-1 shadow-line">
+          <div className="inline-flex min-w-0 shrink-0 items-center rounded-full border border-harbor-ocean/10 bg-white/75 p-0.5 shadow-line">
             {viewLinks.map((link) => {
               const active = link.match.some((item) => pathname.startsWith(item));
 
@@ -37,7 +37,7 @@ export function TopNavigationClient({
                   href={link.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "focus-ring rounded-full px-2.5 py-1 text-[13px] font-medium text-harbor-ocean transition sm:px-3",
+                    "focus-ring rounded-full px-2 py-0.5 text-[12px] font-medium text-harbor-ocean transition sm:px-2.5",
                     active && "bg-harbor-midnight text-white shadow-line"
                   )}
                 >
