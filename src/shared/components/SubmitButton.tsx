@@ -7,10 +7,12 @@ import { cn } from "@/shared/lib/cn";
 export function SubmitButton({
   children,
   className,
+  disabled = false,
   variant = "primary"
 }: {
   children: React.ReactNode;
   className?: string;
+  disabled?: boolean;
   variant?: "primary" | "secondary" | "ghost";
 }) {
   const { pending } = useFormStatus();
@@ -18,7 +20,7 @@ export function SubmitButton({
   return (
     <button
       type="submit"
-      disabled={pending}
+      disabled={pending || disabled}
       className={cn(
         variant === "primary" && "primary-button",
         variant === "secondary" && "secondary-button",

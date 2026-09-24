@@ -98,22 +98,8 @@ export function ProfileMenu({
                 My Profile
               </button>
             ) : null}
-            <Link
-              href="/employee"
-              className={menuItemClass(pathname.startsWith("/employee"))}
-              onClick={() => setOpen(false)}
-            >
-              Employee View
-            </Link>
             {canAccessAdmin ? (
               <>
-                <Link
-                  href="/admin"
-                  className={menuItemClass(pathname.startsWith("/admin"))}
-                  onClick={() => setOpen(false)}
-                >
-                  Admin View
-                </Link>
                 <Link
                   href="/employees"
                   className={menuItemClass(pathname.startsWith("/employees"))}

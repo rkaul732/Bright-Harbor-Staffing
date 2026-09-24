@@ -1,9 +1,11 @@
-import { Mail, Phone, UsersRound } from "lucide-react";
+import { Mail, MailPlus, Phone, UsersRound } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { StatusBadge } from "@/shared/components/StatusBadge";
-import { getProfileProgramNames } from "@/shared/lib/constants";
+import { PROGRAMS, getProfileProgramNames } from "@/shared/lib/constants";
 import { formatShortDate } from "@/shared/lib/dates";
+import { hasSuperAdminAccess } from "@/shared/lib/access";
+import { EmployeeAccountInviteForm } from "@/features/employees/components/EmployeeAccountInviteForm";
 import type { AppUser, DashboardData, WorkerProfile } from "@/shared/types/domain";
 
 type EmployeeRecord = {
@@ -42,6 +44,12 @@ function initials(name: string) {
 
 export function AdminEmployeesDashboard({ data }: { data: DashboardData }) {
   const employees = employeeRecords(data);
+  const currentAdminProfile = data.adminProfiles.find(
+    (profile) => profile.user_id === data.currentUser.id
+  );
+  const inviteProgramNames = hasSuperAdminAccess(data)
+    ? PROGRAMS
+    : (currentAdminProfile?.program_names ?? []);
   const approvedProfiles = employees.filter((employee) => employee.profile?.status === "approved");
   const pendingProfiles = employees.filter((employee) => employee.profile?.status === "pending");
   const missingProfiles = employees.filter((employee) => !employee.profile);
@@ -68,6 +76,26 @@ export function AdminEmployeesDashboard({ data }: { data: DashboardData }) {
           <EmployeeMetric label="Pending profiles" value={pendingProfiles.length} />
           <EmployeeMetric label="Profiles needed" value={missingProfiles.length} />
         </div>
+      </section>
+
+      <section className="panel mt-4 p-3 sm:p-4">
+        <details>
+          <summary className="flex cursor-pointer list-none flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              <span className="label block">Create employee</span>
+              <span className="mt-1 block text-xl font-medium text-harbor-midnight">
+                Invite employee to complete profile
+              </span>
+            </span>
+            <span className="word-button self-start font-semibold sm:self-auto">
+              <MailPlus className="h-4 w-4" aria-hidden="true" />
+              Open
+            </span>
+          </summary>
+          <div className="mt-4 border-t border-harbor-ocean/10 pt-4">
+            <EmployeeAccountInviteForm programNames={inviteProgramNames} />
+          </div>
+        </details>
       </section>
 
       <section className="panel mt-4 p-3 sm:p-4">
