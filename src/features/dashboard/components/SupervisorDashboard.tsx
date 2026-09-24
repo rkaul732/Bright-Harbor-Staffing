@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CalendarCheck, CalendarClock, CalendarPlus, CalendarX, ClipboardList, UsersRound, X } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
+import { hasSuperAdminAccess } from "@/shared/lib/access";
 import { MetricCard } from "@/shared/components/MetricCard";
 import { CalendarBoard } from "@/shared/components/CalendarBoard";
 import { ShiftCard } from "@/shared/components/ShiftCard";
@@ -287,6 +288,7 @@ function AdminDashboardHome({
     (request) => request.status === "declined"
   );
   const totalAccounts = data.users.length;
+  const canAccessMessagingTemplates = hasSuperAdminAccess(data);
   const [showOooForm, setShowOooForm] = useState(false);
 
   return (
@@ -302,9 +304,16 @@ function AdminDashboardHome({
               Admin
             </p>
           </div>
-          <Link href="/reports" className="word-button self-start font-semibold">
-            Reports
-          </Link>
+          <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+            <Link href="/reports" className="word-button font-semibold">
+              Reports
+            </Link>
+            {canAccessMessagingTemplates ? (
+              <Link href="/automated-messages" className="word-button font-semibold">
+                Messaging Templates
+              </Link>
+            ) : null}
+          </div>
         </div>
 
         <div className="mt-12 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -314,10 +323,17 @@ function AdminDashboardHome({
           <AdminSnapshotCard label="Denied" value={deniedTimeOffRequests.length} />
         </div>
 
-        <div className="mt-6 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className={`mt-6 grid min-w-0 gap-3 sm:grid-cols-2 ${canAccessMessagingTemplates ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
           <AdminHubCard title="New Requests" badge={pendingTimeOffRequests.length + " waiting"} />
           <AdminHubCard title="Team Schedule" badge={approvedTimeOffRequests.length + " approved"} />
           <AdminHubCard title="Reports" badge="Spreadsheet export" href="/reports" />
+          {canAccessMessagingTemplates ? (
+            <AdminHubCard
+              title="Messaging Templates"
+              badge="Email wording"
+              href="/automated-messages"
+            />
+          ) : null}
           <AdminHubCard title="Account Types" badge={totalAccounts + " accounts"} />
         </div>
       </section>

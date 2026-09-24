@@ -127,7 +127,7 @@ export function ProfileMenu({
                     className={menuItemClass(pathname.startsWith("/automated-messages"))}
                     onClick={() => setOpen(false)}
                   >
-                    Automated Messages
+                    Messaging Templates
                   </Link>
                 ) : null}
               </>
