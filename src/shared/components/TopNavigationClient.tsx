@@ -6,9 +6,18 @@ import { APP_NAME } from "@/shared/lib/constants";
 import { cn } from "@/shared/lib/cn";
 
 const viewLinks = [
-  { label: "Employee View", href: "/employee", match: ["/employee"] },
-  { label: "Admin View", href: "/admin", match: ["/admin", "/employees", "/reports", "/automated-messages"] }
-];
+  { key: "employee", label: "Employee View", href: "/employee" },
+  { key: "admin", label: "Admin View", href: "/admin" }
+] as const;
+
+function activeViewForPath(pathname: string) {
+  if (pathname.startsWith("/employee")) return "employee";
+  if (["/admin", "/employees", "/reports", "/automated-messages"].some((path) => pathname.startsWith(path))) {
+    return "admin";
+  }
+
+  return null;
+}
 
 export function TopNavigationClient({
   showViewSwitcher
@@ -16,6 +25,7 @@ export function TopNavigationClient({
   showViewSwitcher: boolean;
 }) {
   const pathname = usePathname();
+  const activeView = activeViewForPath(pathname);
 
   return (
     <header className="sticky top-0 z-[90] border-b border-harbor-ocean/10 bg-harbor-mist/85 backdrop-blur-xl">
@@ -29,7 +39,7 @@ export function TopNavigationClient({
         {showViewSwitcher ? (
           <div className="grid w-[15rem] shrink-0 grid-cols-2 rounded-full border border-harbor-ocean/10 bg-white/75 p-0.5 shadow-line">
             {viewLinks.map((link) => {
-              const active = link.match.some((item) => pathname.startsWith(item));
+              const active = activeView === link.key;
 
               return (
                 <Link
@@ -37,8 +47,8 @@ export function TopNavigationClient({
                   href={link.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "focus-ring flex items-center justify-center rounded-full px-2 py-1 text-[12px] font-medium text-harbor-ocean transition",
-                    active && "bg-harbor-midnight text-white shadow-line"
+                    "focus-ring flex items-center justify-center rounded-full px-2 py-1 text-[12px] font-normal text-harbor-ocean/70 transition hover:text-harbor-midnight",
+                    active && "bg-harbor-midnight font-semibold text-white shadow-line hover:text-white"
                   )}
                 >
                   {link.label}
