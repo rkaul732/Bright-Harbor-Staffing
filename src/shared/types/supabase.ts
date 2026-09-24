@@ -55,6 +55,8 @@ type RequestStatus =
   | "approved"
   | "declined"
   | "cancelled";
+type AutomatedMessageEvent = "time_off_approved" | "time_off_declined";
+type AutomatedEmailStatus = "queued" | "sent" | "failed";
 type SkillName =
   | "Direct care"
   | "Case management"
@@ -243,6 +245,38 @@ type MonthlyWinnerRow = {
   created_at: string;
 };
 
+type AutomatedMessageTemplateRow = {
+  id: string;
+  name: string;
+  event_type: AutomatedMessageEvent;
+  program_names: ProgramName[];
+  subject: string;
+  body_html: string;
+  active: boolean;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type AutomatedEmailDeliveryRow = {
+  id: string;
+  template_id: string | null;
+  request_id: string | null;
+  event_type: AutomatedMessageEvent;
+  program_name: ProgramName;
+  recipient_user_id: string | null;
+  recipient_email: string;
+  recipient_name: string;
+  subject: string;
+  body_html: string;
+  status: AutomatedEmailStatus;
+  metadata: Json;
+  error_message: string | null;
+  created_at: string;
+  sent_at: string | null;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -361,6 +395,26 @@ export type Database = {
           worker_name: string;
         }
       >;
+      automated_message_templates: Table<
+        AutomatedMessageTemplateRow,
+        Partial<AutomatedMessageTemplateRow> & {
+          name: string;
+          event_type: AutomatedMessageEvent;
+          subject: string;
+          body_html: string;
+        }
+      >;
+      automated_email_deliveries: Table<
+        AutomatedEmailDeliveryRow,
+        Partial<AutomatedEmailDeliveryRow> & {
+          event_type: AutomatedMessageEvent;
+          program_name: ProgramName;
+          recipient_email: string;
+          recipient_name: string;
+          subject: string;
+          body_html: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -370,6 +424,8 @@ export type Database = {
       shift_category: ShiftCategory;
       shift_status: ShiftStatus;
       request_status: RequestStatus;
+      automated_message_event: AutomatedMessageEvent;
+      automated_email_status: AutomatedEmailStatus;
       skill_name: SkillName;
     };
     CompositeTypes: Record<string, never>;

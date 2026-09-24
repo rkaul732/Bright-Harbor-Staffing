@@ -16,6 +16,7 @@ import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
 import { createSupabaseAdminClient, hasSupabaseServiceRoleKey } from "@/shared/lib/supabase/admin";
 import type {
+  AutomatedMessageEvent,
   AppRole,
   LocationName,
   ProgramName,
@@ -79,6 +80,10 @@ function asPrograms(formData: FormData) {
   return formData
     .getAll("program_names")
     .filter((value): value is ProgramName => programSchema.safeParse(value).success);
+}
+
+function asBoolean(value: FormDataEntryValue | null) {
+  return value === "on" || value === "true";
 }
 
 function appBaseUrl() {
@@ -272,6 +277,128 @@ async function scopedProgramAccessError(
   };
 }
 
+function escapeTemplateValue(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function renderAutomatedMessageTemplate(
+  template: string,
+  values: Record<string, string>
+) {
+  return Object.entries(values).reduce(
+    (current, [key, value]) =>
+      current.replaceAll("{{" + key + "}}", escapeTemplateValue(value)),
+    template
+  );
+}
+
+function sanitizeRichText(html: string) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/\son[a-z]+=("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/javascript:/gi, "");
+}
+
+async function queueAutomatedTimeOffEmail({
+  supabase,
+  request,
+  status,
+  reviewComment,
+  reviewerName
+}: {
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  request: {
+    id: string;
+    user_id: string;
+    employee_name: string;
+    program_name: string;
+    start_date: string;
+    end_date: string;
+    reason: string;
+  };
+  status: "approved" | "declined";
+  reviewComment: string;
+  reviewerName: string;
+}) {
+  const eventType: AutomatedMessageEvent =
+    status === "approved" ? "time_off_approved" : "time_off_declined";
+  const { data: templates, error: templateError } = await supabase
+    .from("automated_message_templates")
+    .select("*")
+    .eq("event_type", eventType)
+    .eq("active", true);
+
+  if (templateError) {
+    return "Automated email could not be queued until the message tables are set up.";
+  }
+
+  const matchingTemplates = (templates ?? []).filter((template) => {
+    const programNames = normalizeProgramNames(template.program_names);
+    return programNames.length === 0 || programNames.includes(request.program_name as ProgramName);
+  });
+  const selectedTemplate = matchingTemplates.sort((first, second) => {
+    const firstSpecificity = normalizeProgramNames(first.program_names).length;
+    const secondSpecificity = normalizeProgramNames(second.program_names).length;
+    return secondSpecificity - firstSpecificity;
+  })[0];
+
+  if (!selectedTemplate) {
+    return "No active automated message matched this program.";
+  }
+
+  const { data: recipient } = await supabase
+    .from("users")
+    .select("email,full_name")
+    .eq("id", request.user_id)
+    .maybeSingle();
+
+  const recipientEmail = recipient?.email ?? "";
+
+  if (!recipientEmail) {
+    return "Automated email could not be queued because the employee email is missing.";
+  }
+
+  const values = {
+    employee_name: request.employee_name,
+    program_name: request.program_name as ProgramName,
+    start_date: request.start_date,
+    end_date: request.end_date,
+    reason: request.reason,
+    status,
+    review_comment: reviewComment || "No additional comments were added.",
+    reviewer_name: reviewerName
+  };
+  const subject = renderAutomatedMessageTemplate(selectedTemplate.subject, values);
+  const bodyHtml = renderAutomatedMessageTemplate(selectedTemplate.body_html, values);
+  const { error } = await supabase.from("automated_email_deliveries").insert({
+    template_id: selectedTemplate.id,
+    request_id: request.id,
+    event_type: eventType,
+    program_name: request.program_name as ProgramName,
+    recipient_user_id: request.user_id,
+    recipient_email: recipientEmail,
+    recipient_name: recipient?.full_name ?? request.employee_name,
+    subject,
+    body_html: bodyHtml,
+    status: "queued",
+    metadata: {
+      reviewComment,
+      reviewerName
+    }
+  });
+
+  if (error) {
+    return "Automated email could not be queued: " + error.message;
+  }
+
+  return "Automated email queued for " + recipientEmail + ".";
+}
+
 function revalidateDashboards() {
   revalidatePath("/");
   revalidatePath("/employee");
@@ -279,6 +406,7 @@ function revalidateDashboards() {
   revalidatePath("/admin");
   revalidatePath("/monthly-winners");
   revalidatePath("/reports");
+  revalidatePath("/automated-messages");
 }
 
 export async function employeePostShiftAction(
@@ -1074,7 +1202,7 @@ export async function updateTimeOffRequestStatusAction(
   const supabase = await createSupabaseServerClient();
   const { data: requestToReview } = await supabase
     .from("time_off_requests")
-    .select("program_name")
+    .select("id,user_id,employee_name,program_name,start_date,end_date,reason")
     .eq("id", requestId)
     .single();
 
@@ -1106,8 +1234,22 @@ export async function updateTimeOffRequestStatusAction(
     return { ok: false, message: error.message };
   }
 
+  const emailMessage =
+    status === "approved" || status === "declined"
+      ? await queueAutomatedTimeOffEmail({
+          supabase,
+          request: requestToReview,
+          status,
+          reviewComment,
+          reviewerName: user.full_name
+        })
+      : null;
+
   revalidateDashboards();
-  return { ok: true, message: `Time off request ${status}.` };
+  return {
+    ok: true,
+    message: `Time off request ${status}.${emailMessage ? " " + emailMessage : ""}`
+  };
 }
 
 export async function updateRequestStatusAction(
@@ -1303,6 +1445,70 @@ export async function cancelShiftAction(
 
   revalidateDashboards();
   return { ok: true, message: "Cancellation request sent for approval." };
+}
+
+export async function saveAutomatedMessageTemplateAction(
+  _previousState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const user = await getUserForAction("admin");
+
+  if (!(await isSuperAdminForAction(user))) {
+    return { ok: false, message: "Only super admins can manage automated messages." };
+  }
+
+  const templateId = asString(formData.get("template_id"));
+  const parsed = z
+    .object({
+      name: z.string().min(3, "Add a message name."),
+      event_type: z.enum(["time_off_approved", "time_off_declined"]),
+      subject: z.string().min(4, "Add an email subject."),
+      body_html: z.string().min(12, "Add message body text."),
+      active: z.boolean()
+    })
+    .safeParse({
+      name: asString(formData.get("name")),
+      event_type: asString(formData.get("event_type")),
+      subject: asString(formData.get("subject")),
+      body_html: sanitizeRichText(asString(formData.get("body_html"))),
+      active: asBoolean(formData.get("active"))
+    });
+  const programNames = asPrograms(formData);
+
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the template." };
+  }
+
+  if (!isSupabaseConfigured()) {
+    return { ok: true, message: "Demo mode: automated message template saved." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const payload = {
+    name: parsed.data.name,
+    event_type: parsed.data.event_type,
+    program_names: programNames,
+    subject: parsed.data.subject,
+    body_html: parsed.data.body_html,
+    active: parsed.data.active,
+    updated_by: user.id
+  };
+  const result = templateId
+    ? await supabase
+        .from("automated_message_templates")
+        .update(payload)
+        .eq("id", templateId)
+    : await supabase.from("automated_message_templates").insert({
+        ...payload,
+        created_by: user.id
+      });
+
+  if (result.error) {
+    return { ok: false, message: result.error.message };
+  }
+
+  revalidateDashboards();
+  return { ok: true, message: "Automated message saved." };
 }
 
 export async function moderateProfileAction(

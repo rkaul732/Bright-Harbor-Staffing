@@ -9,3 +9,12 @@ export function hasAdminAccess(data: DashboardData) {
     )
   );
 }
+
+export function hasSuperAdminAccess(data: DashboardData) {
+  return data.adminProfiles.some(
+    (profile) =>
+      profile.user_id === data.currentUser.id &&
+      profile.status === "approved" &&
+      profile.is_super_admin === true
+  );
+}

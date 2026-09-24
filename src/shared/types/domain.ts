@@ -63,6 +63,10 @@ export type RequestStatus =
   | "declined"
   | "cancelled";
 
+export type AutomatedMessageEvent = "time_off_approved" | "time_off_declined";
+
+export type AutomatedEmailStatus = "queued" | "sent" | "failed";
+
 export type ProfileStatus = "pending" | "approved" | "suspended";
 
 export type CalendarMode = "month" | "day";
@@ -237,6 +241,38 @@ export type MonthlyWinner = {
   approved_shift_count: number;
   location_name?: LocationName | null;
   created_at: string;
+};
+
+export type AutomatedMessageTemplate = {
+  id: string;
+  name: string;
+  event_type: AutomatedMessageEvent;
+  program_names: ProgramName[];
+  subject: string;
+  body_html: string;
+  active: boolean;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AutomatedEmailDelivery = {
+  id: string;
+  template_id: string | null;
+  request_id: string | null;
+  event_type: AutomatedMessageEvent;
+  program_name: ProgramName;
+  recipient_user_id: string | null;
+  recipient_email: string;
+  recipient_name: string;
+  subject: string;
+  body_html: string;
+  status: AutomatedEmailStatus;
+  metadata: Record<string, unknown>;
+  error_message: string | null;
+  created_at: string;
+  sent_at: string | null;
 };
 
 export type AnalyticsSummary = {

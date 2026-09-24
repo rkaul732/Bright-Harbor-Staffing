@@ -29,12 +29,14 @@ export function ProfileMenu({
   fullName,
   email,
   canAccessAdmin,
+  canAccessAutomatedMessages = false,
   canEditProfile = false,
   onProfileClick
 }: {
   fullName: string;
   email: string;
   canAccessAdmin: boolean;
+  canAccessAutomatedMessages?: boolean;
   canEditProfile?: boolean;
   onProfileClick?: () => void;
 }) {
@@ -119,6 +121,15 @@ export function ProfileMenu({
                 >
                   Reports
                 </Link>
+                {canAccessAutomatedMessages ? (
+                  <Link
+                    href="/automated-messages"
+                    className={menuItemClass(pathname.startsWith("/automated-messages"))}
+                    onClick={() => setOpen(false)}
+                  >
+                    Automated Messages
+                  </Link>
+                ) : null}
               </>
             ) : null}
             <Link

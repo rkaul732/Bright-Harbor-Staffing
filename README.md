@@ -89,6 +89,10 @@ Invited staff members are routed through `/auth/callback` and then create their 
 
 Regular admins see requests, calendars, reports, and profile reviews for the programs assigned to their admin profile. Super admins see every program. The migration marks `rkaul@brightharbor.org` as a super admin when that user exists.
 
+## Automated Messages
+
+Super admins can open `/automated-messages` from the initials menu to edit rich text email templates for approved and declined time off requests. The app queues rendered email records in `automated_email_deliveries`; connect that queue to the approved SMTP, Resend, SendGrid, or Supabase Edge Function email adapter to send mail from production.
+
 ## Approval Routing
 When an employee requests to pick up a shift, a `requests` row is created with:
 

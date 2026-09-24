@@ -1,5 +1,5 @@
 import { Bell } from "lucide-react";
-import { hasAdminAccess } from "@/shared/lib/access";
+import { hasAdminAccess, hasSuperAdminAccess } from "@/shared/lib/access";
 import { ProfileMenu } from "@/shared/components/ProfileMenu";
 import type { AppRole, DashboardData } from "@/shared/types/domain";
 
@@ -28,6 +28,7 @@ export function DashboardShell({
           fullName={data.currentUser.full_name}
           email={data.currentUser.email}
           canAccessAdmin={hasAdminAccess(data)}
+          canAccessAutomatedMessages={hasSuperAdminAccess(data)}
           canEditProfile={role === "employee" && Boolean(onProfileClick)}
           onProfileClick={onProfileClick}
         />

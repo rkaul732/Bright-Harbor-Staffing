@@ -7,7 +7,7 @@ import { cn } from "@/shared/lib/cn";
 
 const viewLinks = [
   { label: "Employee View", href: "/employee", match: ["/employee"] },
-  { label: "Admin View", href: "/admin", match: ["/admin", "/reports"] }
+  { label: "Admin View", href: "/admin", match: ["/admin", "/reports", "/automated-messages"] }
 ];
 
 export function TopNavigationClient({

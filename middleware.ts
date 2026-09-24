@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
 
-const protectedPrefixes = ["/employee", "/supervisor", "/admin", "/monthly-winners"];
+const protectedPrefixes = ["/employee", "/supervisor", "/admin", "/monthly-winners", "/reports", "/automated-messages"];
 
 function isProtectedPath(pathname: string) {
   return protectedPrefixes.some(
