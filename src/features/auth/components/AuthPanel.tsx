@@ -204,7 +204,7 @@ export function AuthPanel({
           </div>
         ) : null}
 
-        <button type="submit" disabled={isSubmitting} className="primary-button w-full py-3">
+        <button type="submit" disabled={isSubmitting} className="primary-button w-full py-2">
           {mode === "sign-in" ? (
             <LogIn className="h-4 w-4" aria-hidden="true" />
           ) : (

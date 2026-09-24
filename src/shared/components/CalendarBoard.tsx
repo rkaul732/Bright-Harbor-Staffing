@@ -153,18 +153,18 @@ export function CalendarBoard({
             <button
               type="button"
               onClick={() => setMonthDate((date) => addMonths(date, -1))}
-              className="ghost-button px-2 py-2"
+              className="ghost-button px-1.5 py-1.5"
               aria-label="Previous month"
             >
-              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
             <button
               type="button"
               onClick={() => setMonthDate((date) => addMonths(date, 1))}
-              className="ghost-button px-2 py-2"
+              className="ghost-button px-1.5 py-1.5"
               aria-label="Next month"
             >
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -192,7 +192,7 @@ export function CalendarBoard({
 
   function renderShiftMonth() {
     return (
-      <div className="p-2 sm:p-4">
+      <div className="p-1.5 sm:p-3">
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-harbor-ocean/10 bg-harbor-ocean/10">
           {renderWeekdayHeaders()}
           {days.map((day) => {
@@ -208,7 +208,7 @@ export function CalendarBoard({
                   setMode("day");
                 }}
                 className={cn(
-                  "flex aspect-square min-h-0 min-w-0 flex-col items-start justify-start overflow-hidden bg-white p-2 text-left transition hover:bg-harbor-mist",
+                  "flex aspect-square min-h-0 min-w-0 flex-col items-start justify-start overflow-hidden bg-white p-1.5 text-left transition hover:bg-harbor-mist sm:p-2",
                   !day.isCurrentMonth && "bg-white/60 text-harbor-midnight/40",
                   selectedDate === day.iso && "ring-2 ring-inset ring-harbor-sky",
                   day.isToday && "bg-harbor-lemon/30"
@@ -248,7 +248,7 @@ export function CalendarBoard({
 
   function renderByNameMonth() {
     return (
-      <div className="p-2 sm:p-4">
+      <div className="p-1.5 sm:p-3">
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-harbor-ocean/10 bg-harbor-ocean/10">
           {renderWeekdayHeaders()}
           {days.map((day) => {
@@ -261,7 +261,7 @@ export function CalendarBoard({
                 type="button"
                 onClick={() => setSelectedDate(day.iso)}
                 className={cn(
-                  "flex aspect-square min-h-0 min-w-0 flex-col items-start justify-start overflow-hidden bg-white p-2 text-left transition hover:bg-harbor-mist",
+                  "flex aspect-square min-h-0 min-w-0 flex-col items-start justify-start overflow-hidden bg-white p-1.5 text-left transition hover:bg-harbor-mist sm:p-2",
                   !day.isCurrentMonth && "bg-white/60 text-harbor-midnight/40",
                   selectedDate === day.iso && "ring-2 ring-inset ring-harbor-sky",
                   day.isToday && "bg-harbor-lemon/30"
@@ -299,7 +299,7 @@ export function CalendarBoard({
     return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
       <div
         key={day}
-        className="bg-harbor-mist px-2 py-2 text-center text-xs text-harbor-ocean"
+        className="bg-harbor-mist px-1.5 py-1.5 text-center text-xs text-harbor-ocean"
       >
         {day}
       </div>
@@ -315,7 +315,7 @@ export function CalendarBoard({
       ) : mode === "by-name" ? (
         renderByNameMonth()
       ) : (
-        <div className="p-4 sm:p-5">
+        <div className="p-3 sm:p-4">
           <label className="mb-4 block sm:max-w-xs">
             <span className="label">Selected day</span>
             <input
@@ -340,7 +340,7 @@ export function CalendarBoard({
               ))}
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-harbor-ocean/20 bg-white/70 p-6 text-center">
+            <div className="rounded-lg border border-dashed border-harbor-ocean/20 bg-white/70 p-4 text-center">
               <p className="text-sm text-harbor-midnight/60">
                 {emptyLabel} Try another day or location filter.
               </p>

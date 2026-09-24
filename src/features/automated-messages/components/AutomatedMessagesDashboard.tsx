@@ -194,7 +194,7 @@ export function AutomatedMessagesDashboard({
               Manage the email wording sent after time off requests are approved or declined.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:w-80">
+          <div className="grid grid-cols-2 gap-2 sm:min-w-64 lg:min-w-72">
             <div className="rounded-lg border border-harbor-ocean/10 bg-harbor-mist/70 p-3">
               <p className="text-2xl font-medium text-harbor-midnight">{templates.length}</p>
               <p className="label mt-1">Templates</p>
@@ -213,7 +213,7 @@ export function AutomatedMessagesDashboard({
         ) : null}
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[22rem_minmax(0,1fr)]">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(17rem,21rem)_minmax(0,1fr)]">
         <aside className="panel p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -276,7 +276,7 @@ export function AutomatedMessagesDashboard({
           </div>
         </aside>
 
-        <section className="panel p-4 sm:p-5">
+        <section className="panel p-3 sm:p-4">
           <form action={formAction} className="space-y-5">
             <input type="hidden" name="template_id" value={draft.id} />
             <input type="hidden" name="body_html" value={draft.body_html} />
@@ -442,7 +442,7 @@ export function AutomatedMessagesDashboard({
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <ActionFeedback state={state} />
-              <SubmitButton className="sm:min-w-44">
+              <SubmitButton className="sm:min-w-36">
                 <Save className="h-4 w-4" aria-hidden="true" />
                 Save message
               </SubmitButton>
@@ -451,7 +451,7 @@ export function AutomatedMessagesDashboard({
         </section>
       </div>
 
-      <section className="panel p-4 sm:p-5">
+      <section className="panel p-3 sm:p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="label">Delivery log</p>

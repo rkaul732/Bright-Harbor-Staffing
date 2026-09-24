@@ -263,7 +263,7 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
         open={activeModal === "time-off"}
         onClose={() => setActiveModal(null)}
       >
-        <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
           <TimeOffRequestForm programNames={selectedProgramNames} />
           <WidgetList
             emptyIcon={CalendarCheck}
@@ -428,8 +428,8 @@ function EmployeeWidgetModal({
               {title}
             </h2>
           </div>
-          <button type="button" onClick={onClose} className="ghost-button px-2" aria-label="Close">
-            <X className="h-4 w-4" aria-hidden="true" />
+          <button type="button" onClick={onClose} className="ghost-button px-1.5" aria-label="Close">
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         </div>
         {children}

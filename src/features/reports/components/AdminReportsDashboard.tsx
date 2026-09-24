@@ -321,7 +321,7 @@ export function AdminReportsDashboard({ data }: { data: DashboardData }) {
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[13rem_10rem_10rem_auto] xl:items-end">
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(10rem,13rem)_minmax(8rem,10rem)_minmax(8rem,10rem)_minmax(12rem,1fr)] xl:items-end">
             <label className="block sm:col-span-2 xl:col-span-1">
               <span className="label">Report type</span>
               <select

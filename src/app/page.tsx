@@ -24,7 +24,7 @@ export default function LandingPage() {
 
           <div className="mt-9 grid gap-3 sm:max-w-lg sm:grid-cols-2">
             {roleLinks.map((link) => (
-              <Link key={link.href} href={link.href} className="word-button justify-start py-3 text-base">
+              <Link key={link.href} href={link.href} className="word-button justify-start py-2 text-sm">
                 {link.label}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>

@@ -68,7 +68,7 @@ export function SupervisorDashboard({
 
   return (
     <DashboardShell role={role} data={data}>
-      <div className="grid gap-5 lg:grid-cols-[1fr_21rem]">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]">
         <div className="min-w-0 space-y-5">
           {(role as AppRole) === "admin" ? (
             <section className="rounded-lg border border-harbor-sky/20 bg-harbor-sky/10 p-4 sm:p-5">
@@ -114,7 +114,7 @@ export function SupervisorDashboard({
             showByNameView={(role as AppRole) === "admin"}
           />
 
-          <section className="grid gap-5 xl:grid-cols-2">
+          <section className="grid min-w-0 gap-4 xl:grid-cols-2">
             <div className="panel p-4 sm:p-5">
               <p className="label">Post available shifts</p>
               <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
@@ -314,7 +314,7 @@ function AdminDashboardHome({
           <AdminSnapshotCard label="Denied" value={deniedTimeOffRequests.length} />
         </div>
 
-        <div className="mt-8 grid gap-4 xl:grid-cols-4">
+        <div className="mt-6 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <AdminHubCard title="New Requests" badge={pendingTimeOffRequests.length + " waiting"} />
           <AdminHubCard title="Team Schedule" badge={approvedTimeOffRequests.length + " approved"} />
           <AdminHubCard title="Reports" badge="Spreadsheet export" href="/reports" />
@@ -322,7 +322,7 @@ function AdminDashboardHome({
         </div>
       </section>
 
-      <section className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
+      <section className="mt-4 grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
         <div className="min-w-0 space-y-5">
           <section className="panel p-4 sm:p-5">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -388,10 +388,10 @@ function AdminDashboardHome({
                   <button
                     type="button"
                     onClick={() => setShowOooForm(false)}
-                    className="ghost-button px-2"
+                    className="ghost-button px-1.5"
                     aria-label="Close Add OOO"
                   >
-                    <X className="h-4 w-4" aria-hidden="true" />
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
                 </div>
                 <AdminOutOfOfficeForm />
@@ -484,7 +484,7 @@ function AdminHubCard({
     return (
       <Link
         href={href}
-        className="rounded-lg border border-harbor-ocean/12 bg-white p-5 shadow-line transition hover:border-harbor-sky/35 hover:shadow-soft"
+        className="min-w-0 rounded-lg border border-harbor-ocean/12 bg-white p-4 shadow-line transition hover:border-harbor-sky/35 hover:shadow-soft"
       >
         {content}
       </Link>
@@ -492,7 +492,7 @@ function AdminHubCard({
   }
 
   return (
-    <div className="rounded-lg border border-harbor-ocean/12 bg-white p-5 shadow-line">
+    <div className="min-w-0 rounded-lg border border-harbor-ocean/12 bg-white p-4 shadow-line">
       {content}
     </div>
   );

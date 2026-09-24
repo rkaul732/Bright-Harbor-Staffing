@@ -20,7 +20,7 @@ function getInitials(name: string) {
 
 function menuItemClass(active = false) {
   return cn(
-    "block w-full rounded-md px-3 py-2 text-left text-sm text-harbor-midnight/72 transition hover:bg-harbor-mist hover:text-harbor-midnight",
+    "block w-full rounded-md px-2.5 py-1.5 text-left text-[13px] text-harbor-midnight/72 transition hover:bg-harbor-mist hover:text-harbor-midnight",
     active && "font-semibold text-harbor-midnight"
   );
 }

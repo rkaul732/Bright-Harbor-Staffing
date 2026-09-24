@@ -26,7 +26,7 @@ export function SubmitButton({
         className
       )}
     >
-      {pending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+      {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
       {pending ? "Working..." : children}
     </button>
   );

@@ -14,7 +14,7 @@ export function AdSlots({ ads }: { ads: AdSlot[] }) {
         <a
           key={ad.id}
           href={ad.cta_href}
-          className="block rounded-lg border border-harbor-sky/20 bg-white p-4 shadow-line transition hover:border-harbor-sky/50"
+          className="block min-w-0 rounded-lg border border-harbor-sky/20 bg-white p-3 shadow-line transition hover:border-harbor-sky/50"
         >
           <div className="flex items-center gap-2 text-sm text-harbor-ocean">
             <Megaphone className="h-4 w-4" aria-hidden="true" />

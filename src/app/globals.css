@@ -63,30 +63,30 @@ a {
   }
 
   .field {
-    @apply focus-ring w-full rounded-lg border border-harbor-ocean/15 bg-white px-3 py-2 text-sm text-harbor-midnight outline-none transition placeholder:text-harbor-midnight/35;
+    @apply focus-ring w-full rounded-md border border-harbor-ocean/15 bg-white px-2.5 py-1.5 text-[13px] leading-5 text-harbor-midnight outline-none transition placeholder:text-harbor-midnight/35;
   }
 
   .label {
-    @apply text-xs font-medium uppercase tracking-[0.08em] text-harbor-ocean;
+    @apply text-[11px] font-medium uppercase tracking-[0.06em] text-harbor-ocean;
   }
 
   .primary-button {
-    @apply focus-ring inline-flex items-center justify-center gap-2 rounded-lg bg-harbor-midnight px-3.5 py-2 text-sm font-medium text-white shadow-line transition hover:bg-harbor-ocean disabled:cursor-not-allowed disabled:opacity-60;
+    @apply focus-ring inline-flex items-center justify-center gap-1.5 rounded-md bg-harbor-midnight px-3 py-1.5 text-[13px] font-medium leading-5 text-white shadow-line transition hover:bg-harbor-ocean disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .secondary-button {
-    @apply focus-ring inline-flex items-center justify-center gap-2 rounded-lg border border-harbor-ocean/15 bg-white px-3.5 py-2 text-sm font-medium text-harbor-midnight shadow-line transition hover:border-harbor-sky/60 hover:bg-harbor-mist;
+    @apply focus-ring inline-flex items-center justify-center gap-1.5 rounded-md border border-harbor-ocean/15 bg-white px-3 py-1.5 text-[13px] font-medium leading-5 text-harbor-midnight shadow-line transition hover:border-harbor-sky/60 hover:bg-harbor-mist;
   }
 
   .ghost-button {
-    @apply focus-ring inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-harbor-ocean transition hover:bg-harbor-sky/10 hover:text-harbor-midnight;
+    @apply focus-ring inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium leading-5 text-harbor-ocean transition hover:bg-harbor-sky/10 hover:text-harbor-midnight;
   }
 
   .word-button {
-    @apply focus-ring inline-flex items-center justify-center gap-1.5 rounded-md px-1.5 py-2 text-sm font-medium text-harbor-ocean transition hover:text-harbor-midnight;
+    @apply focus-ring inline-flex items-center justify-center gap-1 rounded-md px-1 py-1.5 text-[13px] font-medium leading-5 text-harbor-ocean transition hover:text-harbor-midnight;
   }
 
   .pill {
-    @apply inline-flex items-center rounded-full border border-harbor-ocean/10 bg-harbor-mist px-2.5 py-1 text-xs font-medium text-harbor-ocean;
+    @apply inline-flex items-center rounded-full border border-harbor-ocean/10 bg-harbor-mist px-2 py-0.5 text-[11px] font-medium text-harbor-ocean;
   }
 }

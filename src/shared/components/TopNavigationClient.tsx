@@ -19,7 +19,7 @@ export function TopNavigationClient({
 
   return (
     <header className="sticky top-0 z-[90] border-b border-harbor-ocean/10 bg-harbor-mist/85 backdrop-blur-xl">
-      <nav className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 pr-20 sm:px-6 sm:pr-24 lg:px-8">
+      <nav className="mx-auto flex w-full max-w-[96rem] items-center justify-between gap-3 px-3 py-2.5 pr-16 sm:px-4 sm:pr-20 lg:px-5">
         <Link
           href="/"
           className="focus-ring min-w-0 rounded-md text-sm font-medium text-harbor-midnight sm:text-base"
@@ -37,7 +37,7 @@ export function TopNavigationClient({
                   href={link.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "focus-ring rounded-full px-3 py-1.5 text-sm font-medium text-harbor-ocean transition sm:px-4",
+                    "focus-ring rounded-full px-2.5 py-1 text-[13px] font-medium text-harbor-ocean transition sm:px-3",
                     active && "bg-harbor-midnight text-white shadow-line"
                   )}
                 >

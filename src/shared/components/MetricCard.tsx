@@ -13,7 +13,7 @@ export function MetricCard({
 }) {
   return (
     <div
-      className={`rounded-lg border p-4 ${
+      className={`min-w-0 rounded-lg border p-3 ${
         tone === "sky"
           ? "border-harbor-sky/20 bg-harbor-sky/10"
           : tone === "lemon"
@@ -25,7 +25,7 @@ export function MetricCard({
         <p className="text-sm text-harbor-midnight/60">{label}</p>
         <Icon className="h-4 w-4 text-harbor-ocean" aria-hidden="true" />
       </div>
-      <p className="mt-3 text-3xl font-medium text-harbor-midnight">{value}</p>
+      <p className="mt-2 text-2xl font-medium text-harbor-midnight">{value}</p>
     </div>
   );
 }

@@ -234,7 +234,7 @@ export function StaffAccountSetupPanel() {
           </div>
         )}
 
-        <SubmitButton className="w-full py-3">
+        <SubmitButton className="w-full py-2">
           <KeyRound className="h-4 w-4" aria-hidden="true" />
           Finish account setup
         </SubmitButton>

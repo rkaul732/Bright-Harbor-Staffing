@@ -63,10 +63,10 @@ export function RequestShiftForm({
               <button
                 type="button"
                 onClick={() => setIsConfirming(false)}
-                className="ghost-button px-2"
+                className="ghost-button px-1.5"
                 aria-label="Close request confirmation"
               >
-                <X className="h-4 w-4" aria-hidden="true" />
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             </div>
 
@@ -154,7 +154,7 @@ export function ApprovalControls({
           <input type="hidden" name="role" value={role} />
           <input type="hidden" name="review_comment" value={reviewComment} />
           <SubmitButton variant="secondary" className="w-full">
-            <X className="h-4 w-4" aria-hidden="true" />
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
             Decline
           </SubmitButton>
         </form>

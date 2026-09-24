@@ -22,7 +22,7 @@ export function DashboardShell({
   );
 
   return (
-    <main className="mx-auto max-w-7xl px-3 py-4 sm:px-5 lg:px-6">
+    <main className="mx-auto w-full max-w-[96rem] px-2.5 py-3 sm:px-4 lg:px-5">
       <div className="fixed right-4 top-2.5 z-[110] sm:right-6 lg:right-8">
         <ProfileMenu
           fullName={data.currentUser.full_name}

@@ -17,7 +17,7 @@ export function ShiftCard({
   const payRate = shift.pay_rate || FIXED_STANDARD_PAY_RATE;
 
   return (
-    <article className="rounded-lg border border-harbor-ocean/10 bg-white p-4 shadow-line">
+    <article className="min-w-0 rounded-lg border border-harbor-ocean/10 bg-white p-3 shadow-line">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -25,7 +25,7 @@ export function ShiftCard({
             <StatusBadge value={shift.category} />
             <StatusBadge value={shift.status} />
           </div>
-          <h3 className="mt-3 text-base font-medium text-harbor-midnight">
+          <h3 className="mt-2 text-sm font-medium text-harbor-midnight">
             {shift.title}
           </h3>
           {!compact && shift.details ? (
@@ -34,7 +34,7 @@ export function ShiftCard({
             </p>
           ) : null}
         </div>
-        <div className="rounded-lg bg-harbor-mist px-3 py-2 text-right">
+        <div className="rounded-lg bg-harbor-mist px-2.5 py-1.5 text-right">
           <p className="text-xs text-harbor-ocean">Rate</p>
           <p className="text-sm font-medium text-harbor-midnight">
             ${payRate.toFixed(2)} hourly
@@ -42,7 +42,7 @@ export function ShiftCard({
         </div>
       </div>
 
-      <div className="mt-4 grid gap-2 text-sm text-harbor-midnight/70 sm:grid-cols-3">
+      <div className="mt-3 grid gap-2 text-xs text-harbor-midnight/70 sm:grid-cols-3">
         <span className="inline-flex items-center gap-2">
           <MapPin className="h-4 w-4 text-harbor-ocean" aria-hidden="true" />
           {shift.location_name}
@@ -64,7 +64,7 @@ export function ShiftCard({
         </summary>
         <p className="mt-2 text-sm text-harbor-midnight/70">{shift.program_name}</p>
       </details>
-      {children ? <div className="mt-4 border-t border-harbor-ocean/10 pt-4">{children}</div> : null}
+      {children ? <div className="mt-3 border-t border-harbor-ocean/10 pt-3">{children}</div> : null}
     </article>
   );
 }
