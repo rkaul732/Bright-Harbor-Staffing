@@ -33,6 +33,8 @@ export const PROGRAMS: ProgramName[] = [
   "Level I Outpatient",
   "Medication Assisted Treatment (MAT)",
   "Shore Haven",
+  "Code Red/Code Blue",
+  "Front Desk",
   "Building Empowerment to Achieve Community Housing (BEACH)",
   "Beacon/ Anchor",
   "Chelsea",
@@ -59,7 +61,95 @@ export const PROGRAMS: ProgramName[] = [
   "SOLAS"
 ];
 
-export const SHIFT_EXCHANGE_PROGRAMS: ProgramName[] = PROGRAMS;
+export const SHIFT_EXCHANGE_PROGRAMS: ProgramName[] = [
+  "Code Red/Code Blue",
+  "Beacon/ Anchor",
+  "Building Empowerment to Achieve Community Housing (BEACH)",
+  "Chelsea",
+  "Wellness Assistance Valuing Excellence (WAVE)",
+  "Front Desk"
+];
+
+export const PROGRAM_DIVISIONS: { name: string; programNames: ProgramName[] }[] = [
+  {
+    name: "Shift Coverage Programs",
+    programNames: [
+      "Code Red/Code Blue",
+      "Beacon/ Anchor",
+      "Building Empowerment to Achieve Community Housing (BEACH)",
+      "Chelsea",
+      "Wellness Assistance Valuing Excellence (WAVE)",
+      "Front Desk"
+    ]
+  },
+  {
+    name: "Crisis and Outreach",
+    programNames: [
+      "Community Resources for Emergency Support and Treatment (CREST)",
+      "Crisis Diversion",
+      "Involuntary Outpatient Commitment",
+      "PACT I",
+      "PACT II",
+      "Access",
+      "LEAP (Arrive Together, On POINT, Barricaded Subjects)"
+    ]
+  },
+  {
+    name: "Outpatient and Recovery",
+    programNames: [
+      "Outpatient Services",
+      "Intensive Outpatient",
+      "Level I Outpatient",
+      "Medication Assisted Treatment (MAT)",
+      "Oasis",
+      "Empowering Mind, Body and Recovery after Challenging Experiences (EMBRACE)"
+    ]
+  },
+  {
+    name: "Housing and Residential Supports",
+    programNames: [
+      "Shore Haven",
+      "Supportive Housing Assistance to Reach Excellence (SHARE)",
+      "Progressive Assistance to Transition from Homelessness (PATH)",
+      "Housing Supports Program (HSP)",
+      "TIDES",
+      "Bayside"
+    ]
+  },
+  {
+    name: "Children and Family Services",
+    programNames: [
+      "Intensive Family Support Services",
+      "Integrated System of Care (ISC)",
+      "Intensive In Community Services (IIC)",
+      "Children & Families Outpatient Services",
+      "Healing through Outpatient Perinatal Education & Support (HOPES)",
+      "Keeping Families Together - OCEAN",
+      "Keeping Families Together - MONMOUTH",
+      "Supervised Visits",
+      "Directions",
+      "Youth Electronic Monitoring",
+      "Youth Recovery Services (YRS)",
+      "Family Crisis Intervention Unit (FCIU)",
+      "REAL Team",
+      "The NOOK",
+      "Ocean Academy",
+      "SOLAS"
+    ]
+  }
+];
+
+export function getProgramsForDivisions(divisionNames: string[]) {
+  const selectedPrograms = new Set<ProgramName>();
+
+  PROGRAM_DIVISIONS.filter((division) => divisionNames.includes(division.name)).forEach(
+    (division) => {
+      division.programNames.forEach((programName) => selectedPrograms.add(programName));
+    }
+  );
+
+  return PROGRAMS.filter((programName) => selectedPrograms.has(programName));
+}
 
 export const SKILLS: SkillName[] = [
   "Direct care",

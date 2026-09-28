@@ -5,6 +5,7 @@ import { MailPlus } from "lucide-react";
 import { createStaffAccountAction } from "@/app/actions";
 import { PROGRAMS } from "@/shared/lib/constants";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
+import { ProgramScopePicker } from "@/shared/components/ProgramScopePicker";
 import { SubmitButton } from "@/shared/components/SubmitButton";
 import type { AppRole } from "@/shared/types/domain";
 
@@ -52,28 +53,12 @@ export function StaffAccountInviteForm() {
       </label>
 
       {role === "employee" ? (
-        <fieldset>
-          <legend className="label">Starting programs</legend>
-          <div className="mt-2 max-h-52 overflow-auto rounded-lg border border-harbor-ocean/10 bg-white p-2">
-            <div className="grid gap-2">
-              {PROGRAMS.map((program, index) => (
-                <label
-                  key={program}
-                  className="flex items-start gap-2 rounded-md px-2 py-2 text-sm text-harbor-midnight/75 hover:bg-harbor-mist"
-                >
-                  <input
-                    type="checkbox"
-                    name="program_names"
-                    value={program}
-                    defaultChecked={index === 0}
-                    className="mt-0.5 h-4 w-4 rounded border-harbor-ocean/20 text-harbor-sky"
-                  />
-                  <span>{program}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </fieldset>
+        <ProgramScopePicker
+          allowedProgramNames={PROGRAMS}
+          defaultSelectedProgramNames={PROGRAMS.slice(0, 1)}
+          legend="Starting programs"
+          compact
+        />
       ) : null}
 
       <SubmitButton className="w-full">

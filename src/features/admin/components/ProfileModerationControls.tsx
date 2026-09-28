@@ -3,8 +3,8 @@
 import { useActionState } from "react";
 import { Check, PauseCircle } from "lucide-react";
 import { moderateProfileAction } from "@/app/actions";
-import { PROGRAMS } from "@/shared/lib/constants";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
+import { ProgramScopePicker } from "@/shared/components/ProgramScopePicker";
 import { SubmitButton } from "@/shared/components/SubmitButton";
 import type { AppRole, ProgramName } from "@/shared/types/domain";
 
@@ -44,29 +44,11 @@ export function ProfileModerationControls({
                 />
                 <span>Super admin access</span>
               </label>
-
-              <fieldset>
-                <legend className="label">Programs this admin oversees</legend>
-                <div className="mt-2 max-h-48 overflow-auto rounded-lg border border-harbor-ocean/10 bg-white p-2">
-                  <div className="grid gap-2">
-                    {PROGRAMS.map((program) => (
-                      <label
-                        key={program}
-                        className="flex items-start gap-2 rounded-md px-2 py-2 text-sm text-harbor-midnight/75 hover:bg-harbor-mist"
-                      >
-                        <input
-                          type="checkbox"
-                          name="program_names"
-                          value={program}
-                          defaultChecked={adminProgramNames.includes(program)}
-                          className="mt-0.5 h-4 w-4 rounded border-harbor-ocean/20 text-harbor-sky"
-                        />
-                        <span>{program}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </fieldset>
+              <ProgramScopePicker
+                defaultSelectedProgramNames={adminProgramNames}
+                legend="Programs this admin oversees"
+                compact
+              />
             </div>
           ) : null}
 

@@ -913,8 +913,8 @@ export async function supervisorPostShiftAction(
 
   const user = await getUserForAction(role === "admin" ? "admin" : "supervisor");
 
-  if (!["supervisor", "admin"].includes(user.role)) {
-    return { ok: false, message: "Only supervisors and admins can create this posting." };
+  if (user.role !== "supervisor") {
+    return { ok: false, message: "Admins review team shift requests instead of posting their own shifts." };
   }
 
   const scopeError = await scopedProgramAccessError(

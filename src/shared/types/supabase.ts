@@ -24,6 +24,8 @@ type ProgramName =
   | "Level I Outpatient"
   | "Medication Assisted Treatment (MAT)"
   | "Shore Haven"
+  | "Code Red/Code Blue"
+  | "Front Desk"
   | "Building Empowerment to Achieve Community Housing (BEACH)"
   | "Beacon/ Anchor"
   | "Chelsea"

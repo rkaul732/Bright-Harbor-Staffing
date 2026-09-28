@@ -309,14 +309,14 @@ function AdminDashboardHome({
           </div>
         </div>
 
-        <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <AdminSnapshotCard label="New since sign on" value={newTimeOffRequests.length} />
           <AdminSnapshotCard label="Still pending" value={pendingTimeOffRequests.length} />
           <AdminSnapshotCard label="Approved" value={approvedTimeOffRequests.length} />
           <AdminSnapshotCard label="Denied" value={deniedTimeOffRequests.length} />
         </div>
 
-        <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]">
+        <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]">
           <AdminHubCard title="New Requests" badge={pendingTimeOffRequests.length + " waiting"} />
           <AdminHubCard title="Team Schedule" badge={approvedTimeOffRequests.length + " approved"} />
           <AdminHubCard title="Reports" badge="Spreadsheet export" href="/reports" />
@@ -325,8 +325,16 @@ function AdminDashboardHome({
       </section>
 
       <section className="mt-4 grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
-        <div className="min-w-0 space-y-5">
-          <section className="panel p-4 sm:p-5">
+        <div className="min-w-0 space-y-4">
+          <AdminOperationsGrid
+            timeOffRequests={pendingTimeOffRequests}
+            teamPostedShifts={allShifts.filter((shift) => shift.owner_user_id)}
+            shiftRequests={data.requests.filter((request) => request.status === "pending_supervisor_approval")}
+            openShifts={openShifts}
+            coveredShifts={coveredShifts}
+          />
+
+          <section className="panel p-3 sm:p-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="label">New Requests</p>
@@ -360,6 +368,7 @@ function AdminDashboardHome({
             showByNameView
             initialMode="by-name"
             emptyLabel="No staffing shifts for this date."
+            compact
             headerAction={
               <button
                 type="button"
@@ -416,23 +425,6 @@ function AdminDashboardHome({
             <details>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
                 <span>
-                  <span className="label block">Post available shifts</span>
-                  <span className="mt-1 block text-lg font-medium text-harbor-midnight">
-                    Add coverage need
-                  </span>
-                </span>
-                <span className="text-sm font-medium text-harbor-ocean">Open</span>
-              </summary>
-              <div className="mt-4 border-t border-harbor-ocean/10 pt-4">
-                <SupervisorShiftPostForm role="admin" />
-              </div>
-            </details>
-          </section>
-
-          <section className="panel p-4">
-            <details>
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-                <span>
                   <span className="label block">Staff accounts</span>
                   <span className="mt-1 block text-lg font-medium text-harbor-midnight">
                     Create staff login
@@ -450,6 +442,74 @@ function AdminDashboardHome({
         </aside>
       </section>
     </DashboardShell>
+  );
+}
+
+function AdminOperationsGrid({
+  timeOffRequests,
+  teamPostedShifts,
+  shiftRequests,
+  openShifts,
+  coveredShifts
+}: {
+  timeOffRequests: TimeOffRequest[];
+  teamPostedShifts: ShiftPost[];
+  shiftRequests: ShiftRequest[];
+  openShifts: ShiftPost[];
+  coveredShifts: ShiftPost[];
+}) {
+  return (
+    <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <AdminActionWidget
+        label="Time off"
+        title="Pending requests"
+        value={timeOffRequests.length}
+        detail="Awaiting review"
+      />
+      <AdminActionWidget
+        label="Coverage posts"
+        title="Team shifts posted"
+        value={teamPostedShifts.length}
+        detail="Put up by employees"
+      />
+      <AdminActionWidget
+        label="Pick up shifts"
+        title="Pending pickup requests"
+        value={shiftRequests.length}
+        detail="Need approval"
+      />
+      <AdminActionWidget
+        label="Shift Coverage Stats"
+        title={openShifts.length + " open"}
+        value={coveredShifts.length}
+        detail="Covered shifts"
+      />
+    </section>
+  );
+}
+
+function AdminActionWidget({
+  label,
+  title,
+  value,
+  detail
+}: {
+  label: string;
+  title: string;
+  value: number;
+  detail: string;
+}) {
+  return (
+    <article className="rounded-lg border border-harbor-ocean/10 bg-white/95 p-3 shadow-line">
+      <p className="label text-harbor-ocean">{label}</p>
+      <div className="mt-2 flex items-end justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-medium text-harbor-midnight">{title}</h3>
+          <p className="mt-1 text-xs text-harbor-midnight/55">{detail}</p>
+        </div>
+        <p className="text-2xl font-medium text-harbor-midnight">{value}</p>
+      </div>
+    </article>
   );
 }
 

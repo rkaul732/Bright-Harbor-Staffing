@@ -58,7 +58,8 @@ export function CalendarBoard({
   timeOffRequests = [],
   showByNameView = false,
   initialMode = "month",
-  headerAction
+  headerAction,
+  compact = false
 }: {
   title: string;
   shifts: ShiftPost[];
@@ -68,6 +69,7 @@ export function CalendarBoard({
   showByNameView?: boolean;
   initialMode?: CalendarViewMode;
   headerAction?: React.ReactNode;
+  compact?: boolean;
 }) {
   const [mode, setMode] = useState<CalendarViewMode>(() =>
     initialMode === "by-name" && !showByNameView ? "month" : initialMode
@@ -117,11 +119,11 @@ export function CalendarBoard({
 
   function renderCalendarChrome() {
     return (
-      <div className="border-b border-harbor-ocean/10 bg-white px-4 py-4 sm:px-5">
+      <div className={cn("border-b border-harbor-ocean/10 bg-white", compact ? "px-3 py-3" : "px-4 py-4 sm:px-5")}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="label">{title}</p>
-            <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
+            <h2 className={cn("mt-1 font-medium text-harbor-midnight", compact ? "text-lg" : "text-xl")}>
               {formatMonthYear(monthDate)}
             </h2>
           </div>
@@ -170,7 +172,7 @@ export function CalendarBoard({
         </div>
 
         {mode !== "by-name" ? (
-          <label className="mt-4 flex items-center gap-2 rounded-lg border border-harbor-ocean/10 bg-harbor-mist px-3 py-2 sm:max-w-xs">
+          <label className={cn("flex items-center gap-2 rounded-lg border border-harbor-ocean/10 bg-harbor-mist px-3 py-2 sm:max-w-xs", compact ? "mt-2" : "mt-4")}>
             <ListFilter className="h-4 w-4 text-harbor-ocean" aria-hidden="true" />
             <select
               value={location}
@@ -192,12 +194,12 @@ export function CalendarBoard({
 
   function renderShiftMonth() {
     return (
-      <div className="p-1.5 sm:p-3">
+      <div className={compact ? "p-1.5" : "p-1.5 sm:p-3"}>
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-harbor-ocean/10 bg-harbor-ocean/10">
           {renderWeekdayHeaders()}
           {days.map((day) => {
             const allDateShifts = getShiftsForDate(day.iso);
-            const dateShifts = allDateShifts.slice(0, 2);
+            const dateShifts = allDateShifts.slice(0, compact ? 1 : 2);
 
             return (
               <button
@@ -208,14 +210,15 @@ export function CalendarBoard({
                   setMode("day");
                 }}
                 className={cn(
-                  "flex aspect-square min-h-0 min-w-0 flex-col items-start justify-start overflow-hidden bg-white p-1.5 text-left transition hover:bg-harbor-mist sm:p-2",
+                  "flex aspect-square min-h-0 min-w-0 flex-col items-start justify-start overflow-hidden bg-white text-left transition hover:bg-harbor-mist",
+                  compact ? "p-1" : "p-1.5 sm:p-2",
                   !day.isCurrentMonth && "bg-white/60 text-harbor-midnight/40",
                   selectedDate === day.iso && "ring-2 ring-inset ring-harbor-sky",
                   day.isToday && "bg-harbor-lemon/30"
                 )}
               >
                 <span className="self-start text-xs font-medium leading-none">{day.date.getDate()}</span>
-                <div className="mt-2 w-full min-w-0 space-y-1 overflow-hidden">
+                <div className={cn("w-full min-w-0 space-y-1 overflow-hidden", compact ? "mt-1" : "mt-2")}>
                   {dateShifts.map((shift) => (
                     <span
                       key={shift.id}
@@ -248,12 +251,12 @@ export function CalendarBoard({
 
   function renderByNameMonth() {
     return (
-      <div className="p-1.5 sm:p-3">
+      <div className={compact ? "p-1.5" : "p-1.5 sm:p-3"}>
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-harbor-ocean/10 bg-harbor-ocean/10">
           {renderWeekdayHeaders()}
           {days.map((day) => {
             const requests = timeOffByDate.get(day.iso) ?? [];
-            const visibleRequests = requests.slice(0, 3);
+            const visibleRequests = requests.slice(0, compact ? 2 : 3);
 
             return (
               <button
@@ -261,14 +264,15 @@ export function CalendarBoard({
                 type="button"
                 onClick={() => setSelectedDate(day.iso)}
                 className={cn(
-                  "flex aspect-square min-h-0 min-w-0 flex-col items-start justify-start overflow-hidden bg-white p-1.5 text-left transition hover:bg-harbor-mist sm:p-2",
+                  "flex aspect-square min-h-0 min-w-0 flex-col items-start justify-start overflow-hidden bg-white text-left transition hover:bg-harbor-mist",
+                  compact ? "p-1" : "p-1.5 sm:p-2",
                   !day.isCurrentMonth && "bg-white/60 text-harbor-midnight/40",
                   selectedDate === day.iso && "ring-2 ring-inset ring-harbor-sky",
                   day.isToday && "bg-harbor-lemon/30"
                 )}
               >
                 <span className="self-start text-xs font-medium leading-none">{day.date.getDate()}</span>
-                <div className="mt-2 w-full min-w-0 space-y-1 overflow-hidden">
+                <div className={cn("w-full min-w-0 space-y-1 overflow-hidden", compact ? "mt-1" : "mt-2")}>
                   {visibleRequests.map((request) => (
                     <span
                       key={`${request.id}-${day.iso}`}
@@ -307,7 +311,7 @@ export function CalendarBoard({
   }
 
   return (
-    <section className="panel overflow-hidden">
+    <section className={cn("panel overflow-hidden", compact && "max-w-[54rem] text-sm")}>
       {renderCalendarChrome()}
 
       {mode === "month" ? (
@@ -315,7 +319,7 @@ export function CalendarBoard({
       ) : mode === "by-name" ? (
         renderByNameMonth()
       ) : (
-        <div className="p-3 sm:p-4">
+        <div className={compact ? "p-3" : "p-3 sm:p-4"}>
           <label className="mb-4 block sm:max-w-xs">
             <span className="label">Selected day</span>
             <input

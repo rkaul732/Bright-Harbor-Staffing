@@ -191,6 +191,7 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
           postedShifts={recentCoveragePosts}
           savedShifts={recentSavedShifts}
           ads={visibleAdSlots}
+          showShiftWidgets={canExchangeShifts}
         />
       </div>
 
@@ -240,12 +241,14 @@ function EmployeeRightMenu({
   timeOffRequests,
   postedShifts,
   savedShifts,
-  ads
+  ads,
+  showShiftWidgets
 }: {
   timeOffRequests: TimeOffRequest[];
   postedShifts: ShiftPost[];
   savedShifts: ShiftPost[];
   ads: DashboardData["adSlots"];
+  showShiftWidgets: boolean;
 }) {
   return (
     <aside className="min-w-0 space-y-3">
@@ -265,37 +268,41 @@ function EmployeeRightMenu({
         </WidgetList>
       </EmployeeSideWidget>
 
-      <EmployeeSideWidget
-        title="Posted shifts"
-        subtitle="Most recent coverage posts"
-        count={postedShifts.length}
-      >
-        <WidgetList
-          emptyIcon={ClipboardList}
-          emptyTitle="No posted shifts"
-          emptyBody="Your coverage posts will appear here."
+      {showShiftWidgets ? (
+        <EmployeeSideWidget
+          title="Posted shifts"
+          subtitle="Most recent coverage posts"
+          count={postedShifts.length}
         >
-          {postedShifts.map((shift) => (
-            <ShiftCard key={shift.id} shift={shift} compact />
-          ))}
-        </WidgetList>
-      </EmployeeSideWidget>
+          <WidgetList
+            emptyIcon={ClipboardList}
+            emptyTitle="No posted shifts"
+            emptyBody="Your coverage posts will appear here."
+          >
+            {postedShifts.map((shift) => (
+              <ShiftCard key={shift.id} shift={shift} compact />
+            ))}
+          </WidgetList>
+        </EmployeeSideWidget>
+      ) : null}
 
-      <EmployeeSideWidget
-        title="Saved shifts"
-        subtitle="Most recent saved openings"
-        count={savedShifts.length}
-      >
-        <WidgetList
-          emptyIcon={Bookmark}
-          emptyTitle="No saved shifts"
-          emptyBody="Saved openings will appear here."
+      {showShiftWidgets ? (
+        <EmployeeSideWidget
+          title="Saved shifts"
+          subtitle="Most recent saved openings"
+          count={savedShifts.length}
         >
-          {savedShifts.map((shift) => (
-            <ShiftCard key={shift.id} shift={shift} compact />
-          ))}
-        </WidgetList>
-      </EmployeeSideWidget>
+          <WidgetList
+            emptyIcon={Bookmark}
+            emptyTitle="No saved shifts"
+            emptyBody="Saved openings will appear here."
+          >
+            {savedShifts.map((shift) => (
+              <ShiftCard key={shift.id} shift={shift} compact />
+            ))}
+          </WidgetList>
+        </EmployeeSideWidget>
+      ) : null}
 
       {ads.length > 0 ? (
         <EmployeeSideWidget
