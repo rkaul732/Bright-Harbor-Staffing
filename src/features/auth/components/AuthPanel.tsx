@@ -17,6 +17,16 @@ type AuthMode = "sign-in" | "sign-up";
 
 const roles: AppRole[] = ["employee", "admin"];
 
+async function recordLastLogin(supabase: ReturnType<typeof createSupabaseBrowserClient>) {
+  try {
+    await supabase.rpc("record_current_user_login", {
+      login_at: new Date().toISOString()
+    });
+  } catch {
+    // Last-login tracking should not block account access.
+  }
+}
+
 export function AuthPanel({
   initialRole = "employee",
   nextPath
@@ -84,6 +94,10 @@ export function AuthPanel({
       if (mode === "sign-up" && !result.data.session) {
         setMessage("Check your email to confirm your account, then sign in.");
         return;
+      }
+
+      if (result.data.session) {
+        await recordLastLogin(supabase);
       }
 
       router.push(nextPath || ROLE_DASHBOARD_PATHS[role]);

@@ -42,5 +42,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(authUrl);
   }
 
+  await supabase.rpc("record_current_user_login", {
+    login_at: new Date().toISOString()
+  });
+
   return response;
 }

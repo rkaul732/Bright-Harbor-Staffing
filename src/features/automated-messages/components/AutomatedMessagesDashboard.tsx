@@ -100,11 +100,11 @@ function programSummary(programNames: ProgramName[]) {
 
 function deliveryStatusClass(status: AutomatedEmailDelivery["status"]) {
   if (status === "sent") {
-    return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    return "bg-harbor-mist text-harbor-ocean border-harbor-ocean/20";
   }
 
   if (status === "failed") {
-    return "bg-rose-50 text-rose-700 border-rose-200";
+    return "bg-harbor-lemon/55 text-harbor-midnight border-harbor-midnight/20";
   }
 
   return "bg-harbor-mist text-harbor-ocean border-harbor-sky/20";
@@ -257,7 +257,7 @@ export function AutomatedMessagesDashboard({
                       className={cn(
                         "mt-3 inline-flex rounded-full border px-2 py-0.5 text-xs font-medium",
                         template.active
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          ? "border-harbor-ocean/20 bg-harbor-mist text-harbor-ocean"
                           : "border-harbor-ocean/10 bg-white text-harbor-midnight/50"
                       )}
                     >

@@ -10,7 +10,7 @@ export default function ErrorPage({
 }) {
   return (
     <main className="mx-auto flex min-h-[70vh] max-w-xl flex-col items-center justify-center px-4 text-center">
-      <p className="pill bg-red-50 text-red-700">Something went wrong</p>
+      <p className="pill bg-harbor-lemon/55 text-harbor-midnight">Something went wrong</p>
       <h1 className="mt-4 text-3xl font-medium text-harbor-midnight">
         The shift hub could not load.
       </h1>

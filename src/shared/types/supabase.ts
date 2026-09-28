@@ -78,6 +78,7 @@ type UserRow = {
   avatar_url: string | null;
   phone: string | null;
   created_at: string;
+  last_sign_in_at: string | null;
 };
 
 type WorkerProfileRow = {
@@ -91,6 +92,7 @@ type WorkerProfileRow = {
   account_information: Json;
   photo_url: string | null;
   created_at: string;
+  last_sign_in_at: string | null;
 };
 
 type SupervisorProfileRow = {
@@ -101,6 +103,7 @@ type SupervisorProfileRow = {
   front_desk_location_name: string | null;
   title: string | null;
   created_at: string;
+  last_sign_in_at: string | null;
 };
 
 type AdminProfileRow = {
@@ -110,6 +113,7 @@ type AdminProfileRow = {
   program_names: ProgramName[];
   is_super_admin: boolean;
   created_at: string;
+  last_sign_in_at: string | null;
 };
 
 type ShiftPostRow = {
@@ -290,6 +294,7 @@ export type Database = {
           avatar_url?: string | null;
           phone?: string | null;
           created_at?: string;
+          last_sign_in_at?: string | null;
         }
       >;
       worker_profiles: Table<
@@ -417,7 +422,12 @@ export type Database = {
       >;
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      record_current_user_login: {
+        Args: { login_at?: string };
+        Returns: undefined;
+      };
+    };
     Enums: {
       app_role: AppRole;
       profile_status: ProfileStatus;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import {
   CalendarDays,
   ChevronLeft,
@@ -78,14 +78,14 @@ export function MyCalendarBoard({
   programNames,
   availableShifts = [],
   showShiftTools = false,
-  widgetActions,
+  onRequestTimeOff,
   onPostShift
 }: {
   events: MyCalendarEvent[];
   programNames: ProgramName[];
   availableShifts?: ShiftPost[];
   showShiftTools?: boolean;
-  widgetActions?: ReactNode;
+  onRequestTimeOff?: () => void;
   onPostShift?: () => void;
 }) {
   const [mode, setMode] = useState<CalendarMode>("month");
@@ -103,11 +103,12 @@ export function MyCalendarBoard({
       (shift) => program === "all" || shift.program_name === program
     );
   }, [availableShifts, program]);
+  const calendarEvents = showOpenShifts ? [] : filteredEvents;
 
   const days = getMonthMatrix(monthDate);
 
   function getEventsForDate(iso: string) {
-    return filteredEvents.filter((event) => getEventDates(event).includes(iso));
+    return calendarEvents.filter((event) => getEventDates(event).includes(iso));
   }
 
   function getOpenShiftsForDate(iso: string) {
@@ -128,52 +129,49 @@ export function MyCalendarBoard({
             </h2>
           </div>
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-            {widgetActions}
+            {onRequestTimeOff ? (
+              <button type="button" onClick={onRequestTimeOff} className="word-button">
+                Request Time Off
+              </button>
+            ) : null}
             {showShiftTools ? (
               <>
-                {onPostShift ? (
-                  <button
-                    type="button"
-                    onClick={onPostShift}
-                    className="word-button"
-                  >
-                    Post Shift
-                  </button>
-                ) : null}
                 <button
                   type="button"
                   onClick={() => {
                     setShowOpenShifts((current) => !current);
-                    setMode("day");
+                    setMode("month");
                   }}
                   aria-pressed={showOpenShifts}
                   className={showOpenShifts ? "word-button font-semibold" : "word-button"}
                 >
-                  Open Shifts
-                  {selectedOpenShifts.length > 0 ? (
+                  Pick Up Shift
+                  {filteredOpenShifts.length > 0 ? (
                     <span className="text-xs text-harbor-ocean/70">
-                      ({selectedOpenShifts.length})
+                      ({filteredOpenShifts.length})
                     </span>
                   ) : null}
                 </button>
+                {onPostShift ? (
+                  <button type="button" onClick={onPostShift} className="word-button">
+                    Post Shift
+                  </button>
+                ) : null}
               </>
             ) : null}
-            <div className="inline-flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setMode("month")}
-                className={mode === "month" ? "word-button font-semibold" : "word-button"}
+            <label className="relative inline-flex items-center gap-1.5 rounded-full border border-harbor-ocean/10 bg-white px-2.5 py-1 text-[12px] font-medium text-harbor-ocean shadow-line">
+              <span>Calendar View</span>
+              <select
+                value={mode}
+                onChange={(event) => setMode(event.target.value as CalendarMode)}
+                className="appearance-none bg-transparent pr-4 text-[12px] font-medium text-harbor-midnight outline-none"
+                aria-label="Calendar View"
               >
-                Month
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("day")}
-                className={mode === "day" ? "word-button font-semibold" : "word-button"}
-              >
-                Day
-              </button>
-            </div>
+                <option value="month">Month</option>
+                <option value="day">Day</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 h-3 w-3 text-harbor-ocean" aria-hidden="true" />
+            </label>
             <button
               type="button"
               onClick={() => setMonthDate((date) => addMonths(date, -1))}
@@ -253,7 +251,7 @@ export function MyCalendarBoard({
                               ? "bg-harbor-sky/20"
                               : event.kind === "posted_shift"
                                 ? "bg-harbor-mist"
-                                : "bg-emerald-50"
+                                : "bg-harbor-mist"
                         )}
                       >
                         {event.program_name}: {getKindLabel(event.kind)}
@@ -294,7 +292,11 @@ export function MyCalendarBoard({
             <p className="text-sm">{formatLongDate(selectedDate)}</p>
           </div>
 
-          {dayEvents.length > 0 ? (
+          {showOpenShifts ? (
+            <div className="rounded-lg border border-harbor-sky/20 bg-harbor-mist/70 p-4 text-sm leading-6 text-harbor-midnight/65">
+              Showing available pickup shifts only. Select a date to review the shifts available for that day.
+            </div>
+          ) : dayEvents.length > 0 ? (
             <div className="grid gap-3 lg:grid-cols-2">
               {dayEvents.map((event) => (
                 <article
@@ -331,8 +333,17 @@ export function MyCalendarBoard({
           )}
 
           <div className="mt-4 text-xs text-harbor-midnight/50">
-            Showing {dayEvents.length} item{dayEvents.length === 1 ? "" : "s"} for{" "}
-            {formatShortDate(selectedDate)}.
+            {showOpenShifts ? (
+              <>
+                Showing {selectedOpenShifts.length} available shift
+                {selectedOpenShifts.length === 1 ? "" : "s"} for {formatShortDate(selectedDate)}.
+              </>
+            ) : (
+              <>
+                Showing {dayEvents.length} item{dayEvents.length === 1 ? "" : "s"} for{" "}
+                {formatShortDate(selectedDate)}.
+              </>
+            )}
           </div>
         </div>
       )}

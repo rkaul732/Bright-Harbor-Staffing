@@ -40,11 +40,11 @@ function getTimeOffDates(request: TimeOffRequest) {
 
 function getTimeOffStatusClass(status: TimeOffRequest["status"]) {
   if (status === "approved") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "border-harbor-ocean/25 bg-harbor-mist text-harbor-ocean";
   }
 
   if (status === "declined" || status === "cancelled") {
-    return "border-red-200 bg-red-50 text-red-700";
+    return "border-harbor-midnight/20 bg-harbor-lemon/55 text-harbor-midnight";
   }
 
   return "border-harbor-sky/25 bg-harbor-sky/10 text-harbor-ocean";

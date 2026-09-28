@@ -93,6 +93,7 @@ export type WorkerProfile = {
   account_information?: Record<string, string>;
   photo_url?: string | null;
   created_at: string;
+  last_sign_in_at?: string | null;
 };
 
 export type SupervisorProfile = {
@@ -103,6 +104,7 @@ export type SupervisorProfile = {
   front_desk_location_name?: string | null;
   title?: string | null;
   created_at: string;
+  last_sign_in_at?: string | null;
 };
 
 export type AdminProfile = {
@@ -112,6 +114,7 @@ export type AdminProfile = {
   program_names: ProgramName[];
   is_super_admin: boolean;
   created_at: string;
+  last_sign_in_at?: string | null;
 };
 
 export type ShiftPost = {

@@ -404,7 +404,7 @@ function AdminDashboardHome({
 
         <aside className="min-w-0 space-y-5">
           <section className="panel p-4">
-            <p className="label">Staffing snapshot</p>
+            <p className="label">Shift Coverage Stats</p>
             <div className="mt-4 grid gap-3">
               <AdminMiniMetric label="Open shifts" value={openShifts.length} />
               <AdminMiniMetric label="Covered shifts" value={coveredShifts.length} />

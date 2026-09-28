@@ -32,6 +32,22 @@ function listText(items?: string[]) {
   return items?.length ? items.join(", ") : "Not provided";
 }
 
+function formatLastLogin(value?: string | null) {
+  const date = value ? new Date(value) : null;
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return "Never";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
+}
+
 export function AdminEmployeesDashboard({ data }: { data: DashboardData }) {
   const employees = employeeRecords(data);
   const currentAdminProfile = data.adminProfiles.find(
@@ -129,7 +145,7 @@ function EmployeeMetric({ label, value }: { label: string; value: number }) {
 function EmployeeTable({ employees }: { employees: EmployeeRecord[] }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-harbor-ocean/10 bg-white shadow-line">
-      <table className="w-full min-w-[1120px] border-separate border-spacing-0 text-left text-sm">
+      <table className="w-full min-w-[1240px] border-separate border-spacing-0 text-left text-sm">
         <thead className="bg-harbor-mist text-[11px] font-medium uppercase tracking-[0.06em] text-harbor-ocean">
           <tr>
             <th className="border-b border-harbor-ocean/10 px-3 py-2">Employee</th>
@@ -140,6 +156,7 @@ function EmployeeTable({ employees }: { employees: EmployeeRecord[] }) {
             <th className="border-b border-harbor-ocean/10 px-3 py-2">Regular schedule</th>
             <th className="border-b border-harbor-ocean/10 px-3 py-2">Skills</th>
             <th className="border-b border-harbor-ocean/10 px-3 py-2">Created</th>
+            <th className="border-b border-harbor-ocean/10 px-3 py-2">Last login</th>
           </tr>
         </thead>
         <tbody>
@@ -180,6 +197,9 @@ function EmployeeRow({ employee }: { employee: EmployeeRecord }) {
       <EmployeeCell value={listText(profile?.skills)} />
       <td className="border-b border-harbor-ocean/10 px-3 py-2.5 text-harbor-midnight/70">
         {formatShortDate(user.created_at.slice(0, 10))}
+      </td>
+      <td className="border-b border-harbor-ocean/10 px-3 py-2.5 text-harbor-midnight/70">
+        {formatLastLogin(user.last_sign_in_at ?? profile?.last_sign_in_at)}
       </td>
     </tr>
   );

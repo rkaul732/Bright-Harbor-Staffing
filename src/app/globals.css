@@ -4,7 +4,7 @@
 
 :root {
   color-scheme: light;
-  --sky: #4ba0d8;
+  --sky: #4BA0D8;
   --ocean: #346990;
   --lemon: #f7f5ac;
   --mist: #eef5fb;
@@ -23,7 +23,7 @@ html {
 body {
   min-height: 100%;
   margin: 0;
-  background: linear-gradient(180deg, #f8fbfd 0%, #ffffff 48%, #eef5fb 100%);
+  background: linear-gradient(180deg, var(--mist) 0%, rgba(238, 245, 251, 0.45) 46%, #ffffff 100%);
   color: var(--midnight);
   font-family:
     Inter,

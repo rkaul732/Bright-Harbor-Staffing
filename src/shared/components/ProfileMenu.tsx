@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, LogOut } from "lucide-react";
 import { cn } from "@/shared/lib/cn";
+import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
+import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 
 function getInitials(name: string) {
   const initials = name
@@ -41,9 +43,28 @@ export function ProfileMenu({
   onProfileClick?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const menuRef = useRef<HTMLDivElement | null>(null);
   const initials = getInitials(fullName);
+
+  async function handleSignOut() {
+    setIsSigningOut(true);
+
+    try {
+      if (isSupabaseConfigured()) {
+        const supabase = createSupabaseBrowserClient();
+        await supabase.auth.signOut();
+      }
+
+      setOpen(false);
+      router.push("/");
+      router.refresh();
+    } finally {
+      setIsSigningOut(false);
+    }
+  }
 
   useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent) {
@@ -132,6 +153,18 @@ export function ProfileMenu({
             >
               Monthly Winners
             </Link>
+          </div>
+
+          <div className="border-t border-harbor-ocean/10 pt-2">
+            <button
+              type="button"
+              className={cn(menuItemClass(false), "flex items-center gap-2")}
+              onClick={handleSignOut}
+              disabled={isSigningOut}
+            >
+              <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+              {isSigningOut ? "Logging out..." : "Logout"}
+            </button>
           </div>
         </div>
       ) : null}

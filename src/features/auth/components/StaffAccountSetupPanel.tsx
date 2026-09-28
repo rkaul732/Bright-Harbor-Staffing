@@ -240,7 +240,7 @@ export function StaffAccountSetupPanel() {
         </SubmitButton>
         <ActionFeedback state={state} />
         {state.ok ? (
-          <div className="flex gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          <div className="flex gap-2 rounded-lg border border-harbor-ocean/20 bg-harbor-mist px-3 py-2 text-sm text-harbor-ocean">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <p>Setup complete. Redirecting...</p>
           </div>

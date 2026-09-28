@@ -3,9 +3,7 @@
 import { useState, type ReactNode } from "react";
 import {
   Bookmark,
-  CalendarCheck,
   CalendarClock,
-  Clock3,
   ClipboardList,
   Send,
   X
@@ -28,30 +26,15 @@ import {
   MyCalendarBoard,
   type MyCalendarEvent
 } from "@/features/dashboard/components/MyCalendarBoard";
-import {
-  formatLongDate,
-  isPastShift,
-  isThisWeek,
-  isUpcomingShift,
-  sortShifts
-} from "@/shared/lib/dates";
+import { formatLongDate, sortShifts } from "@/shared/lib/dates";
 import type {
   DashboardData,
   ProgramName,
   ShiftPost,
-  ShiftRequest,
   TimeOffRequest
 } from "@/shared/types/domain";
 
-type EmployeeModalKey =
-  | "post-shift"
-  | "time-off"
-  | "posted-shifts"
-  | "pickup-requests"
-  | "scheduled-shifts"
-  | "profile"
-  | "saved-shifts"
-  | "program-notices";
+type EmployeeModalKey = "post-shift" | "time-off" | "profile";
 
 function getEmployeeScheduledShifts(data: DashboardData) {
   const approvedShiftIds = data.requests
@@ -89,9 +72,6 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
   const visibleShiftIds = new Set(visibleShifts.map((shift) => shift.id));
   const visibleData = { ...data, shifts: visibleShifts };
   const scheduledShifts = getEmployeeScheduledShifts(visibleData);
-  const previousShifts = scheduledShifts.filter(isPastShift);
-  const thisWeekShifts = scheduledShifts.filter(isThisWeek);
-  const upcomingShifts = scheduledShifts.filter(isUpcomingShift);
   const pickupRequests = data.requests.filter(
     (request) =>
       request.requestor_id === data.currentUser.id && visibleShiftIds.has(request.shift_id)
@@ -107,10 +87,6 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
         shift.openings > shift.filled_openings
     )
   );
-  const savedShiftIds = data.savedShifts
-    .filter((saved) => saved.user_id === data.currentUser.id)
-    .map((saved) => saved.shift_id);
-  const savedShifts = visibleShifts.filter((shift) => savedShiftIds.includes(shift.id));
   const myTimeOffRequests = [...data.timeOffRequests]
     .filter(
       (request) =>
@@ -174,52 +150,20 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
   ];
 
 
-  const widgetActions = (
-    <>
-      <WidgetButton
-        label="Time Off Requests"
-        count={myTimeOffRequests.length}
-        active={activeModal === "time-off"}
-        onClick={() => setActiveModal("time-off")}
-      />
-      {canExchangeShifts ? (
-        <>
-          <WidgetButton
-            label="Posted Shifts"
-            count={myCoveragePosts.length}
-            active={activeModal === "posted-shifts"}
-            onClick={() => setActiveModal("posted-shifts")}
-          />
-          <WidgetButton
-            label="Pick Up Shift"
-            count={pickupRequests.length}
-            active={activeModal === "pickup-requests"}
-            onClick={() => setActiveModal("pickup-requests")}
-          />
-          <WidgetButton
-            label="Scheduled Shifts"
-            count={scheduledShifts.length}
-            active={activeModal === "scheduled-shifts"}
-            onClick={() => setActiveModal("scheduled-shifts")}
-          />
-          <WidgetButton
-            label="Saved Shifts"
-            count={savedShifts.length}
-            active={activeModal === "saved-shifts"}
-            onClick={() => setActiveModal("saved-shifts")}
-          />
-        </>
-      ) : null}
-      {visibleAdSlots.length > 0 ? (
-        <WidgetButton
-          label="Program Notices"
-          count={visibleAdSlots.length}
-          active={activeModal === "program-notices"}
-          onClick={() => setActiveModal("program-notices")}
-        />
-      ) : null}
-    </>
-  );
+  const recentTimeOffRequests = [...myTimeOffRequests]
+    .sort((first, second) => second.created_at.localeCompare(first.created_at))
+    .slice(0, 3);
+  const recentCoveragePosts = [...myCoveragePosts]
+    .sort((first, second) => second.created_at.localeCompare(first.created_at))
+    .slice(0, 3);
+  const recentSavedShifts = data.savedShifts
+    .filter((saved) => saved.user_id === data.currentUser.id && visibleShiftIds.has(saved.shift_id))
+    .sort((first, second) => second.created_at.localeCompare(first.created_at))
+    .flatMap((saved) => {
+      const shift = visibleShifts.find((item) => item.id === saved.shift_id);
+      return shift ? [shift] : [];
+    })
+    .slice(0, 3);
 
   return (
     <DashboardShell role="employee" data={data} onProfileClick={() => setActiveModal("profile")}>
@@ -231,14 +175,24 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
         </section>
       ) : null}
 
-      <MyCalendarBoard
-        events={myCalendarEvents}
-        programNames={selectedProgramNames}
-        availableShifts={canExchangeShifts ? availableShifts : []}
-        showShiftTools={canExchangeShifts}
-        widgetActions={widgetActions}
-        onPostShift={() => setActiveModal("post-shift")}
-      />
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)]">
+        <div className="min-w-0">
+          <MyCalendarBoard
+            events={myCalendarEvents}
+            programNames={selectedProgramNames}
+            availableShifts={canExchangeShifts ? availableShifts : []}
+            showShiftTools={canExchangeShifts}
+            onRequestTimeOff={() => setActiveModal("time-off")}
+            onPostShift={() => setActiveModal("post-shift")}
+          />
+        </div>
+        <EmployeeRightMenu
+          timeOffRequests={recentTimeOffRequests}
+          postedShifts={recentCoveragePosts}
+          savedShifts={recentSavedShifts}
+          ads={visibleAdSlots}
+        />
+      </div>
 
       <EmployeeWidgetModal
         title="Post Shift"
@@ -258,74 +212,12 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
       </EmployeeWidgetModal>
 
       <EmployeeWidgetModal
-        title="Time Off Requests"
-        eyebrow="My requests"
+        title="Request Time Off"
+        eyebrow="Submit for approval"
         open={activeModal === "time-off"}
         onClose={() => setActiveModal(null)}
       >
-        <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-          <TimeOffRequestForm programNames={selectedProgramNames} />
-          <WidgetList
-            emptyIcon={CalendarCheck}
-            emptyTitle="No time off requests"
-            emptyBody="Submitted requests will appear here."
-          >
-            {myTimeOffRequests.map((request) => (
-              <TimeOffCard key={request.id} request={request} />
-            ))}
-          </WidgetList>
-        </div>
-      </EmployeeWidgetModal>
-
-      <EmployeeWidgetModal
-        title="Shifts Posted"
-        eyebrow="Coverage I put up"
-        open={activeModal === "posted-shifts"}
-        onClose={() => setActiveModal(null)}
-      >
-        <WidgetList
-          emptyIcon={ClipboardList}
-          emptyTitle="No shifts posted"
-          emptyBody="When you need coverage, your posts will appear here."
-        >
-          {myCoveragePosts.map((shift) => (
-            <ShiftCard key={shift.id} shift={shift} compact />
-          ))}
-        </WidgetList>
-      </EmployeeWidgetModal>
-
-      <EmployeeWidgetModal
-        title="Pickup Requests"
-        eyebrow="Requests routed for approval"
-        open={activeModal === "pickup-requests"}
-        onClose={() => setActiveModal(null)}
-      >
-        <WidgetList
-          emptyIcon={Send}
-          emptyTitle="No pickup requests"
-          emptyBody="Requests routed for approval will appear here."
-        >
-          {pickupRequests.map((request) => (
-            <PickupRequestCard
-              key={request.id}
-              request={request}
-              shift={visibleShifts.find((shift) => shift.id === request.shift_id)}
-            />
-          ))}
-        </WidgetList>
-      </EmployeeWidgetModal>
-
-      <EmployeeWidgetModal
-        title="Scheduled Shifts"
-        eyebrow="My timeline"
-        open={activeModal === "scheduled-shifts"}
-        onClose={() => setActiveModal(null)}
-      >
-        <div className="grid gap-4 lg:grid-cols-3">
-          <ShiftColumn title="Previous" shifts={previousShifts} />
-          <ShiftColumn title="This week" shifts={thisWeekShifts} />
-          <ShiftColumn title="Upcoming" shifts={upcomingShifts} />
-        </div>
+        <TimeOffRequestForm programNames={selectedProgramNames} />
       </EmployeeWidgetModal>
 
       <EmployeeWidgetModal
@@ -340,12 +232,59 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
         </div>
         <WorkerProfileForm data={data} />
       </EmployeeWidgetModal>
+    </DashboardShell>
+  );
+}
 
-      <EmployeeWidgetModal
-        title="Saved Shifts"
-        eyebrow="For later"
-        open={activeModal === "saved-shifts"}
-        onClose={() => setActiveModal(null)}
+function EmployeeRightMenu({
+  timeOffRequests,
+  postedShifts,
+  savedShifts,
+  ads
+}: {
+  timeOffRequests: TimeOffRequest[];
+  postedShifts: ShiftPost[];
+  savedShifts: ShiftPost[];
+  ads: DashboardData["adSlots"];
+}) {
+  return (
+    <aside className="min-w-0 space-y-3">
+      <EmployeeSideWidget
+        title="Time off requests"
+        subtitle="Most recent requests"
+        count={timeOffRequests.length}
+      >
+        <WidgetList
+          emptyIcon={CalendarClock}
+          emptyTitle="No time off requests"
+          emptyBody="Submitted requests will appear here."
+        >
+          {timeOffRequests.map((request) => (
+            <TimeOffCard key={request.id} request={request} />
+          ))}
+        </WidgetList>
+      </EmployeeSideWidget>
+
+      <EmployeeSideWidget
+        title="Posted shifts"
+        subtitle="Most recent coverage posts"
+        count={postedShifts.length}
+      >
+        <WidgetList
+          emptyIcon={ClipboardList}
+          emptyTitle="No posted shifts"
+          emptyBody="Your coverage posts will appear here."
+        >
+          {postedShifts.map((shift) => (
+            <ShiftCard key={shift.id} shift={shift} compact />
+          ))}
+        </WidgetList>
+      </EmployeeSideWidget>
+
+      <EmployeeSideWidget
+        title="Saved shifts"
+        subtitle="Most recent saved openings"
+        count={savedShifts.length}
       >
         <WidgetList
           emptyIcon={Bookmark}
@@ -356,42 +295,45 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
             <ShiftCard key={shift.id} shift={shift} compact />
           ))}
         </WidgetList>
-      </EmployeeWidgetModal>
+      </EmployeeSideWidget>
 
-      <EmployeeWidgetModal
-        title="Program Notices"
-        eyebrow="Promoted openings"
-        open={activeModal === "program-notices"}
-        onClose={() => setActiveModal(null)}
-      >
-        <AdSlots ads={visibleAdSlots} />
-      </EmployeeWidgetModal>
-    </DashboardShell>
+      {ads.length > 0 ? (
+        <EmployeeSideWidget
+          title="Program notices"
+          subtitle="Promoted openings"
+          count={ads.length}
+        >
+          <AdSlots ads={ads} />
+        </EmployeeSideWidget>
+      ) : null}
+    </aside>
   );
 }
 
-function WidgetButton({
-  label,
+function EmployeeSideWidget({
+  title,
+  subtitle,
   count,
-  active = false,
-  onClick
+  children
 }: {
-  label: string;
-  count?: number;
-  active?: boolean;
-  onClick: () => void;
+  title: string;
+  subtitle: string;
+  count: number;
+  children: ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={active ? "word-button font-semibold" : "word-button"}
-    >
-      {label}
-      {typeof count === "number" ? (
-        <span className="text-xs text-harbor-ocean/70">({count})</span>
-      ) : null}
-    </button>
+    <section className="rounded-lg border border-harbor-ocean/10 bg-white/95 p-3 shadow-line">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <p className="label">{subtitle}</p>
+          <h2 className="mt-1 text-base font-medium text-harbor-midnight">{title}</h2>
+        </div>
+        <span className="rounded-full border border-harbor-sky/20 bg-harbor-mist px-2 py-0.5 text-xs font-medium text-harbor-ocean">
+          {count}
+        </span>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -452,7 +394,7 @@ function WidgetList({
   const items = children.filter(Boolean);
 
   return (
-    <div className="grid gap-3 xl:grid-cols-2">
+    <div className="grid gap-3">
       {items.length > 0 ? (
         items
       ) : (
@@ -479,38 +421,8 @@ function TimeOffCard({ request }: { request: TimeOffRequest }) {
       <p className="mt-3 text-sm leading-6 text-harbor-midnight/65">
         {request.reason}
       </p>
-      {request.review_comment ? (
-        <p className="mt-3 rounded-lg bg-harbor-mist p-3 text-sm leading-6 text-harbor-midnight/70">
-          <span className="font-medium text-harbor-midnight">Admin comment:</span>{" "}
-          {request.review_comment}
-        </p>
-      ) : null}
-    </article>
-  );
-}
-
-function PickupRequestCard({
-  request,
-  shift
-}: {
-  request: ShiftRequest;
-  shift?: ShiftPost;
-}) {
-  return (
-    <article className="rounded-lg border border-harbor-ocean/10 bg-white p-3 shadow-line">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium text-harbor-midnight">
-            {shift?.title ?? "Shift request"}
-          </p>
-          <p className="mt-1 text-xs text-harbor-midnight/55">
-            {shift?.location_name ?? "Location pending"}
-          </p>
-        </div>
-        <StatusBadge value={request.status} />
-      </div>
-      <p className="mt-3 text-xs text-harbor-midnight/60">
-        Routed to {request.supervisor_email}
+      <p className="mt-2 text-xs text-harbor-midnight/50">
+        {request.program_name}
       </p>
       {request.review_comment ? (
         <p className="mt-3 rounded-lg bg-harbor-mist p-3 text-sm leading-6 text-harbor-midnight/70">
@@ -519,24 +431,5 @@ function PickupRequestCard({
         </p>
       ) : null}
     </article>
-  );
-}
-
-function ShiftColumn({ title, shifts }: { title: string; shifts: ShiftPost[] }) {
-  return (
-    <div>
-      <h3 className="text-sm font-medium text-harbor-midnight">{title}</h3>
-      <div className="mt-3 space-y-3">
-        {shifts.length > 0 ? (
-          shifts.map((shift) => <ShiftCard key={shift.id} shift={shift} compact />)
-        ) : (
-          <EmptyState
-            icon={CalendarClock}
-            title="No shifts"
-            body="Nothing is listed in this group yet."
-          />
-        )}
-      </div>
-    </div>
   );
 }

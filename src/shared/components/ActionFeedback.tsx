@@ -15,8 +15,8 @@ export function ActionFeedback({
     <div
       className={`mt-3 flex gap-2 rounded-lg border px-3 py-2 text-sm ${
         state.ok
-          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-          : "border-red-200 bg-red-50 text-red-800"
+          ? "border-harbor-ocean/20 bg-harbor-mist text-harbor-ocean"
+          : "border-harbor-midnight/20 bg-harbor-lemon/55 text-harbor-midnight"
       }`}
     >
       {state.ok ? (
