@@ -4,17 +4,31 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   APPROVAL_SUPERVISOR_EMAIL,
+  CODE_RED_BLUE_PROGRAM,
+  CODE_RED_BLUE_SUPERVISOR_EMAIL,
   FIXED_EMERGENCY_PAY_RATE,
   FIXED_STANDARD_PAY_RATE,
   PROGRAMS,
   LOCATIONS,
   SKILLS,
   ROLE_DASHBOARD_PATHS,
-  canUseShiftExchange
+  canUseShiftExchange,
+  getShiftSupervisorEmail
 } from "@/shared/lib/constants";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
 import { createSupabaseAdminClient, hasSupabaseServiceRoleKey } from "@/shared/lib/supabase/admin";
+import {
+  createCodeRedShift,
+  getCodeRedAvailabilityDates,
+  getCodeRedCoverageOption,
+  getCodeRedTemplateFromSlug,
+  getCodeRedTemplateFromTitle,
+  getCodeRedWeekDates,
+  getGeneratedCodeRedShiftFromId,
+  isCodeRedShift,
+  isGeneratedCodeRedShiftId
+} from "@/shared/lib/shift-templates";
 import type {
   AutomatedMessageEvent,
   AppRole,
@@ -22,6 +36,7 @@ import type {
   ProgramName,
   ProfileStatus,
   RequestStatus,
+  ShiftPost,
   SkillName
 } from "@/shared/types/domain";
 
@@ -80,6 +95,22 @@ function asPrograms(formData: FormData) {
   return formData
     .getAll("program_names")
     .filter((value): value is ProgramName => programSchema.safeParse(value).success);
+}
+
+function asAvailability(formData: FormData) {
+  const selected = formData
+    .getAll("availability")
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map((value) => value.trim());
+
+  if (selected.length > 0) {
+    return selected;
+  }
+
+  return asString(formData.get("availability"))
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function asBoolean(value: FormDataEntryValue | null) {
@@ -451,7 +482,7 @@ export async function employeePostShiftAction(
   if (!isSupabaseConfigured()) {
     return {
       ok: true,
-      message: `Demo mode: coverage request routed to ${APPROVAL_SUPERVISOR_EMAIL}.`
+      message: `Demo mode: coverage request routed to ${getShiftSupervisorEmail(parsed.data.program_name)}.`
     };
   }
 
@@ -469,7 +500,7 @@ export async function employeePostShiftAction(
     created_by: user.id,
     posted_by_role: "employee" as const,
     owner_user_id: user.id,
-    supervisor_email: APPROVAL_SUPERVISOR_EMAIL
+    supervisor_email: getShiftSupervisorEmail(parsed.data.program_name)
   };
 
   const { error } = await supabase.from("shift_posts").insert(insert);
@@ -481,7 +512,7 @@ export async function employeePostShiftAction(
   revalidateDashboards();
   return {
     ok: true,
-    message: `Posted for coverage and routed to ${APPROVAL_SUPERVISOR_EMAIL}.`
+    message: `Posted for coverage and routed to ${getShiftSupervisorEmail(parsed.data.program_name)}.`
   };
 }
 
@@ -492,10 +523,7 @@ export async function updateWorkerProfileAction(
   const user = await getUserForAction("employee");
   const programNames = asPrograms(formData);
   const skills = asSkills(formData);
-  const availability = asString(formData.get("availability"))
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
+  const availability = asAvailability(formData);
   const phone = asString(formData.get("phone"));
   const fullName = asString(formData.get("full_name")) || user.full_name;
   const preferredContact = asString(formData.get("preferred_contact"));
@@ -760,10 +788,7 @@ export async function completeStaffSetupAction(
   if (role === "employee") {
     const programNames = asPrograms(formData);
     const skills = asSkills(formData);
-    const availability = asString(formData.get("availability"))
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
+    const availability = asAvailability(formData);
     const preferredContact = asString(formData.get("preferred_contact"));
 
     if (programNames.length === 0) {
@@ -940,7 +965,7 @@ export async function supervisorPostShiftAction(
     created_by: user.id,
     posted_by_role: user.role,
     owner_user_id: null,
-    supervisor_email: APPROVAL_SUPERVISOR_EMAIL
+    supervisor_email: getShiftSupervisorEmail(parsed.data.program_name)
   });
 
   if (error) {
@@ -957,6 +982,13 @@ export async function requestShiftAction(
 ): Promise<ActionState> {
   const shiftId = asString(formData.get("shift_id"));
   const note = asString(formData.get("note"));
+  const requestScope = asString(formData.get("request_scope")) || "single";
+  const coverage = getCodeRedCoverageOption(asString(formData.get("coverage_option")));
+  const codeRedTemplateSlug = asString(formData.get("code_red_template_slug"));
+  const codeRedShiftDate = asString(formData.get("code_red_shift_date"));
+  const availabilityDates = formData
+    .getAll("availability_dates")
+    .filter((value): value is string => dateSchema.safeParse(value).success);
   const user = await getUserForAction("employee");
   const programNames = await getWorkerProgramsForAction(user.id);
 
@@ -974,28 +1006,128 @@ export async function requestShiftAction(
   if (!isSupabaseConfigured()) {
     return {
       ok: true,
-      message: `Demo mode: request routed to ${APPROVAL_SUPERVISOR_EMAIL} for approval.`
+      message: "Demo mode: request routed to " + APPROVAL_SUPERVISOR_EMAIL + " for approval."
     };
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data: shift } = await supabase
-    .from("shift_posts")
-    .select("program_name")
-    .eq("id", shiftId)
-    .single();
+  let shift = isGeneratedCodeRedShiftId(shiftId)
+    ? getGeneratedCodeRedShiftFromId(shiftId)
+    : null;
+
+  if (!shift) {
+    const { data } = await supabase
+      .from("shift_posts")
+      .select("*")
+      .eq("id", shiftId)
+      .single();
+
+    shift = (data ?? null) as ShiftPost | null;
+  }
 
   if (!shift || !programNames.includes(shift.program_name as ProgramName)) {
     return { ok: false, message: "Choose a shift from one of your programs." };
   }
 
+  if (isCodeRedShift(shift)) {
+    const template =
+      getCodeRedTemplateFromSlug(codeRedTemplateSlug) ??
+      getCodeRedTemplateFromTitle(shift.title);
+
+    if (!template) {
+      return { ok: false, message: "Choose a valid Code Red/Code Blue shift." };
+    }
+
+    const baseDate = dateSchema.safeParse(codeRedShiftDate).success
+      ? codeRedShiftDate
+      : shift.shift_date;
+    const requestDates =
+      requestScope === "week"
+        ? getCodeRedWeekDates(baseDate)
+        : requestScope === "availability"
+          ? availabilityDates.length > 0
+            ? availabilityDates
+            : getCodeRedAvailabilityDates(baseDate).slice(0, 1)
+          : [baseDate];
+    const requestedShifts = requestDates.map((date) => ({
+      ...createCodeRedShift(date, template),
+      created_by: user.id
+    }));
+    const scopeLabel =
+      requestScope === "week"
+        ? "same shift for the week"
+        : requestScope === "availability"
+          ? "specific availability dates"
+          : "this shift";
+    const requestNote = [
+      "Coverage requested: " + coverage.label + " (" + coverage.detail + ").",
+      "Request type: " + scopeLabel + ".",
+      note || null
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    if (!hasSupabaseServiceRoleKey()) {
+      return {
+        ok: false,
+        message: "Add SUPABASE_SERVICE_ROLE_KEY in Netlify so Code Red/Code Blue requests can be saved."
+      };
+    }
+
+    const adminClient = createSupabaseAdminClient();
+    const { error: shiftError } = await adminClient
+      .from("shift_posts")
+      .upsert(requestedShifts, { onConflict: "id" });
+
+    if (shiftError) {
+      return { ok: false, message: shiftError.message };
+    }
+
+    const { error } = await supabase.from("requests").upsert(
+      requestedShifts.map((item) => ({
+        shift_id: item.id,
+        requestor_id: user.id,
+        requestor_name: user.full_name,
+        note: requestNote,
+        status: "pending_supervisor_approval" as const,
+        supervisor_email: getShiftSupervisorEmail(item.program_name)
+      })),
+      { onConflict: "shift_id,requestor_id", ignoreDuplicates: true }
+    );
+
+    if (error) {
+      return { ok: false, message: error.message };
+    }
+
+    await supabase.from("notifications").insert({
+      user_id: null,
+      role: "supervisor",
+      title: "Code Red/Code Blue approval needed",
+      body:
+        user.full_name +
+        " requested " +
+        requestedShifts.length +
+        " Code Red/Code Blue shift" +
+        (requestedShifts.length === 1 ? "" : "s") +
+        ". Approval routed to " +
+        CODE_RED_BLUE_SUPERVISOR_EMAIL +
+        "."
+    });
+
+    revalidateDashboards();
+    return {
+      ok: true,
+      message: "Request sent to " + CODE_RED_BLUE_SUPERVISOR_EMAIL + "."
+    };
+  }
+
   const { error } = await supabase.from("requests").insert({
-    shift_id: shiftId,
+    shift_id: shift.id,
     requestor_id: user.id,
     requestor_name: user.full_name,
     note: note || null,
     status: "pending_supervisor_approval",
-    supervisor_email: APPROVAL_SUPERVISOR_EMAIL
+    supervisor_email: getShiftSupervisorEmail(shift.program_name)
   });
 
   if (error) {
@@ -1006,11 +1138,15 @@ export async function requestShiftAction(
     user_id: null,
     role: "supervisor",
     title: "Shift approval needed",
-    body: `${user.full_name} requested a shift. Approval routed to ${APPROVAL_SUPERVISOR_EMAIL}.`
+    body:
+      user.full_name +
+      " requested a shift. Approval routed to " +
+      getShiftSupervisorEmail(shift.program_name) +
+      "."
   });
 
   revalidateDashboards();
-  return { ok: true, message: `Request sent to ${APPROVAL_SUPERVISOR_EMAIL}.` };
+  return { ok: true, message: "Request sent to " + getShiftSupervisorEmail(shift.program_name) + "." };
 }
 
 export async function saveShiftAction(
@@ -1030,14 +1166,40 @@ export async function saveShiftAction(
 
   const supabase = await createSupabaseServerClient();
   const programNames = await getWorkerProgramsForAction(user.id);
-  const { data: shift } = await supabase
-    .from("shift_posts")
-    .select("program_name")
-    .eq("id", shiftId)
-    .single();
+  let shift = isGeneratedCodeRedShiftId(shiftId)
+    ? getGeneratedCodeRedShiftFromId(shiftId)
+    : null;
+
+  if (!shift) {
+    const { data } = await supabase
+      .from("shift_posts")
+      .select("*")
+      .eq("id", shiftId)
+      .single();
+
+    shift = (data ?? null) as ShiftPost | null;
+  }
 
   if (!shift || !programNames.includes(shift.program_name as ProgramName)) {
     return { ok: false, message: "Choose a shift from one of your programs." };
+  }
+
+  if (isCodeRedShift(shift) && isGeneratedCodeRedShiftId(shift.id)) {
+    if (!hasSupabaseServiceRoleKey()) {
+      return {
+        ok: false,
+        message: "Add SUPABASE_SERVICE_ROLE_KEY in Netlify so generated Code Red/Code Blue shifts can be saved."
+      };
+    }
+
+    const adminClient = createSupabaseAdminClient();
+    const { error: shiftError } = await adminClient
+      .from("shift_posts")
+      .upsert([{ ...shift, created_by: user.id }], { onConflict: "id" });
+
+    if (shiftError) {
+      return { ok: false, message: shiftError.message };
+    }
   }
 
   const { error } = await supabase
@@ -1281,6 +1443,12 @@ export async function updateRequestStatusAction(
     .eq("id", shiftId)
     .single();
 
+  const { data: requestToReview } = await supabase
+    .from("requests")
+    .select("note")
+    .eq("id", requestId)
+    .single();
+
   if (!shift) {
     return { ok: false, message: "Shift not found." };
   }
@@ -1310,7 +1478,13 @@ export async function updateRequestStatusAction(
   }
 
   if (status === "approved") {
-    const filled = Math.min(shift.openings, (shift.filled_openings ?? 0) + 1);
+    const coverageUnits =
+      shift.program_name === CODE_RED_BLUE_PROGRAM &&
+      typeof requestToReview?.note === "string" &&
+      requestToReview.note.includes("Full shift")
+        ? 2
+        : 1;
+    const filled = Math.min(shift.openings, (shift.filled_openings ?? 0) + coverageUnits);
     await supabase
       .from("shift_posts")
       .update({

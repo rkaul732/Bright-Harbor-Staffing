@@ -1,9 +1,12 @@
 import {
   FIXED_EMERGENCY_PAY_RATE,
   APPROVAL_SUPERVISOR_EMAIL,
+  CODE_RED_BLUE_PROGRAM,
+  CODE_RED_BLUE_SUPERVISOR_EMAIL,
   FIXED_STANDARD_PAY_RATE
 } from "@/shared/lib/constants";
 import { toISODate } from "@/shared/lib/dates";
+import { withGeneratedCodeRedShifts } from "@/shared/lib/shift-templates";
 import type {
   AdSlot,
   AdminProfile,
@@ -52,6 +55,16 @@ const users: AppUser[] = [
     last_sign_in_at: dateFromToday(-1)
   },
   {
+    id: "user-supervisor-code-red",
+    email: CODE_RED_BLUE_SUPERVISOR_EMAIL,
+    full_name: "Sarah Petrasek",
+    role: "supervisor",
+    avatar_url: null,
+    phone: "732-555-0184",
+    created_at: dateFromToday(-120),
+    last_sign_in_at: dateFromToday(-1)
+  },
+  {
     id: "user-supervisor-1",
     email: APPROVAL_SUPERVISOR_EMAIL,
     full_name: "B. Pataky",
@@ -79,7 +92,7 @@ const workerProfiles: WorkerProfile[] = [
     user_id: "user-employee-1",
     status: "approved",
     program_name: "Beacon/ Anchor",
-    program_names: ["Beacon/ Anchor", "Bayside"],
+    program_names: ["Beacon/ Anchor", "Bayside", CODE_RED_BLUE_PROGRAM],
     availability: ["Weeknights", "Saturday mornings"],
     skills: ["Direct care", "Driving"],
     account_information: { preferredContact: "Text" },
@@ -103,6 +116,15 @@ const workerProfiles: WorkerProfile[] = [
 const supervisorProfiles: SupervisorProfile[] = [
   {
     id: "supervisor-profile-1",
+    user_id: "user-supervisor-code-red",
+    status: "approved",
+    location_name: "Toms River",
+    front_desk_location_name: CODE_RED_BLUE_PROGRAM,
+    title: "Code Red/Code Blue Supervisor",
+    created_at: dateFromToday(-170)
+  },
+  {
+    id: "supervisor-profile-2",
     user_id: "user-supervisor-1",
     status: "approved",
     location_name: "Toms River",
@@ -516,7 +538,7 @@ export function getDemoDashboardData(role: AppRole): DashboardData {
     workerProfiles,
     supervisorProfiles,
     adminProfiles,
-    shifts,
+    shifts: withGeneratedCodeRedShifts(shifts),
     requests,
     timeOffRequests,
     messages,

@@ -56,6 +56,18 @@ values
     now()
   ),
   (
+    '00000000-0000-0000-0000-000000000202',
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated',
+    'authenticated',
+    'spetrasek@brightharbor.org',
+    crypt('Bright123!', gen_salt('bf')),
+    now(),
+    '{"role":"supervisor","full_name":"Sarah Petrasek","setup_required":true,"program_name":"Code Red/Code Blue","program_names":["Code Red/Code Blue"]}',
+    now(),
+    now()
+  ),
+  (
     '00000000-0000-0000-0000-000000000301',
     '00000000-0000-0000-0000-000000000000',
     'authenticated',
@@ -93,6 +105,7 @@ where email in (
   'employee@example.com',
   'morgan@example.com',
   'bpataky@brightharbor.org',
+  'spetrasek@brightharbor.org',
   'admin@example.com'
 )
 on conflict (provider, provider_id) do nothing;
@@ -124,6 +137,14 @@ set
   front_desk_location_name = 'Toms River Staffing',
   title = 'Staffing Coordinator'
 where user_id = '00000000-0000-0000-0000-000000000201';
+
+update public.supervisor_profiles
+set
+  status = 'pending',
+  location_name = 'Toms River',
+  front_desk_location_name = 'Code Red/Code Blue',
+  title = 'Code Red/Code Blue Supervisor'
+where user_id = '00000000-0000-0000-0000-000000000202';
 
 update public.admin_profiles
 set

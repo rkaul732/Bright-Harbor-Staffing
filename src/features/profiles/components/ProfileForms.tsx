@@ -13,6 +13,7 @@ import {
   getProfileProgramNames
 } from "@/shared/lib/constants";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
+import { AvailabilityCheckboxGroup } from "@/shared/components/AvailabilityCheckboxGroup";
 import { SubmitButton } from "@/shared/components/SubmitButton";
 import type { DashboardData } from "@/shared/types/domain";
 
@@ -79,15 +80,7 @@ export function WorkerProfileForm({ data }: { data: DashboardData }) {
         </div>
       </fieldset>
 
-      <label className="block">
-        <span className="label">Regular work schedule</span>
-        <input
-          name="availability"
-          defaultValue={profile?.availability.join(", ") ?? ""}
-          className="field mt-1.5"
-          placeholder="Monday-Friday 9-5, weekends, overnights"
-        />
-      </label>
+      <AvailabilityCheckboxGroup defaultSelected={profile?.availability ?? []} />
 
       <fieldset>
         <legend className="label">Skills</legend>

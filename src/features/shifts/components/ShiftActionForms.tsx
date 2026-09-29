@@ -13,6 +13,13 @@ import {
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
 import { SubmitButton } from "@/shared/components/SubmitButton";
 import { cn } from "@/shared/lib/cn";
+import { formatShortDate } from "@/shared/lib/dates";
+import {
+  CODE_RED_COVERAGE_OPTIONS,
+  getCodeRedAvailabilityDates,
+  getCodeRedTemplateFromTitle,
+  isCodeRedShift
+} from "@/shared/lib/shift-templates";
 import type { AppRole, ShiftPost, ShiftRequest } from "@/shared/types/domain";
 
 const initialState = { ok: false, message: "" };
@@ -26,6 +33,10 @@ export function RequestShiftForm({
 }) {
   const [state, formAction] = useActionState(requestShiftAction, initialState);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [requestScope, setRequestScope] = useState("single");
+  const codeRedShift = isCodeRedShift(shift);
+  const codeRedTemplate = codeRedShift ? getCodeRedTemplateFromTitle(shift.title) : null;
+  const availabilityDates = codeRedShift ? getCodeRedAvailabilityDates(shift.shift_date) : [];
 
   return (
     <>
@@ -72,6 +83,99 @@ export function RequestShiftForm({
 
             <form action={formAction} className="mt-5 space-y-3">
               <input type="hidden" name="shift_id" value={shift.id} />
+              {codeRedTemplate ? (
+                <>
+                  <input type="hidden" name="code_red_template_slug" value={codeRedTemplate.slug} />
+                  <input type="hidden" name="code_red_shift_date" value={shift.shift_date} />
+                </>
+              ) : null}
+
+              {codeRedShift ? (
+                <div className="space-y-4 rounded-lg border border-harbor-ocean/10 bg-harbor-mist/45 p-3">
+                  <fieldset>
+                    <legend className="label">Coverage length</legend>
+                    <div className="mt-2 grid gap-2">
+                      {CODE_RED_COVERAGE_OPTIONS.map((option, index) => (
+                        <label
+                          key={option.value}
+                          className="flex items-start gap-2 rounded-lg border border-harbor-ocean/10 bg-white px-3 py-2 text-sm text-harbor-midnight/75"
+                        >
+                          <input
+                            name="coverage_option"
+                            type="radio"
+                            value={option.value}
+                            defaultChecked={index === 0}
+                            className="mt-0.5 h-4 w-4 border-harbor-ocean/20 text-harbor-sky"
+                          />
+                          <span>
+                            <span className="block font-medium text-harbor-midnight">{option.label}</span>
+                            <span className="text-xs text-harbor-midnight/55">{option.detail}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+
+                  <fieldset>
+                    <legend className="label">Request type</legend>
+                    <div className="mt-2 grid gap-2">
+                      {[
+                        ["single", "This shift only"],
+                        ["week", "This same shift for the week"],
+                        ["availability", "Specific days I am available"]
+                      ].map(([value, label]) => (
+                        <label
+                          key={value}
+                          className="flex items-center gap-2 rounded-lg border border-harbor-ocean/10 bg-white px-3 py-2 text-sm text-harbor-midnight/75"
+                        >
+                          <input
+                            name="request_scope"
+                            type="radio"
+                            value={value}
+                            checked={requestScope === value}
+                            onChange={() => setRequestScope(value)}
+                            className="h-4 w-4 border-harbor-ocean/20 text-harbor-sky"
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+
+                  {requestScope === "availability" ? (
+                    <fieldset>
+                      <legend className="label">Available dates</legend>
+                      <div className="mt-2 grid max-h-44 gap-2 overflow-auto sm:grid-cols-2">
+                        {availabilityDates.map((date, index) => (
+                          <label
+                            key={date}
+                            className="flex items-center gap-2 rounded-lg border border-harbor-ocean/10 bg-white px-3 py-2 text-xs text-harbor-midnight/75"
+                          >
+                            <input
+                              name="availability_dates"
+                              type="checkbox"
+                              value={date}
+                              defaultChecked={index === 0}
+                              className="h-4 w-4 rounded border-harbor-ocean/20 text-harbor-sky"
+                            />
+                            {formatShortDate(date)}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <label className="block">
+                <span className="label">Optional note</span>
+                <textarea
+                  name="note"
+                  className="field mt-1.5 min-h-20"
+                  placeholder="Add anything the supervisor should know."
+                />
+              </label>
+
               <SubmitButton className="w-full">
                 <Send className="h-4 w-4" aria-hidden="true" />
                 Request

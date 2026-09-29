@@ -11,6 +11,7 @@ import {
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import { cn } from "@/shared/lib/cn";
+import { AvailabilityCheckboxGroup } from "@/shared/components/AvailabilityCheckboxGroup";
 import type { AppRole, ProgramName } from "@/shared/types/domain";
 
 type AuthMode = "sign-in" | "sign-up";
@@ -39,8 +40,10 @@ export function AuthPanel({
   const [mode, setMode] = useState<AuthMode>("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [programNames, setProgramNames] = useState<ProgramName[]>([PROGRAMS[0]]);
+  const [availability, setAvailability] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -52,6 +55,11 @@ export function AuthPanel({
 
     if (!email.includes("@") || password.length < 6) {
       setMessage("Use a valid email and a password with at least 6 characters.");
+      return;
+    }
+
+    if (mode === "sign-up" && (!firstName.trim() || !lastName.trim())) {
+      setMessage("Enter your first and last name.");
       return;
     }
 
@@ -69,6 +77,7 @@ export function AuthPanel({
       }
 
       const supabase = createSupabaseBrowserClient();
+      const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
       const result =
         mode === "sign-in"
           ? await supabase.auth.signInWithPassword({ email, password })
@@ -79,8 +88,11 @@ export function AuthPanel({
                 data: {
                   role,
                   full_name: fullName || email.split("@")[0],
+                  first_name: firstName.trim() || undefined,
+                  last_name: lastName.trim() || undefined,
                   program_name: role === "employee" ? programNames[0] : undefined,
-                  program_names: role === "employee" ? programNames : undefined
+                  program_names: role === "employee" ? programNames : undefined,
+                  availability: role === "employee" ? availability : undefined
                 },
                 emailRedirectTo: `${window.location.origin}${ROLE_DASHBOARD_PATHS[role]}`
               }
@@ -142,16 +154,30 @@ export function AuthPanel({
       <form onSubmit={handleSubmit} className="mt-5 space-y-4">
         {mode === "sign-up" ? (
           <div className="space-y-4">
-            <label className="block">
-              <span className="label">Full name</span>
-              <input
-                value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
-                className="field mt-1.5"
-                placeholder="Jamie Rivera"
-                autoComplete="name"
-              />
-            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="label">First name</span>
+                <input
+                  value={firstName}
+                  onChange={(event) => setFirstName(event.target.value)}
+                  className="field mt-1.5"
+                  placeholder="Jamie"
+                  autoComplete="given-name"
+                  required
+                />
+              </label>
+              <label className="block">
+                <span className="label">Last name</span>
+                <input
+                  value={lastName}
+                  onChange={(event) => setLastName(event.target.value)}
+                  className="field mt-1.5"
+                  placeholder="Rivera"
+                  autoComplete="family-name"
+                  required
+                />
+              </label>
+            </div>
             {role === "employee" ? (
               <fieldset>
                 <legend className="label">Programs</legend>
@@ -181,6 +207,12 @@ export function AuthPanel({
                   </div>
                 </div>
               </fieldset>
+            ) : null}
+            {role === "employee" ? (
+              <AvailabilityCheckboxGroup
+                selected={availability}
+                onChange={setAvailability}
+              />
             ) : null}
           </div>
         ) : null}

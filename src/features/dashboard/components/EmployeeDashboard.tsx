@@ -20,13 +20,14 @@ import {
   getProfileProgramNames
 } from "@/shared/lib/constants";
 import { EmployeeCoveragePostForm } from "@/features/shifts/components/ShiftPostForms";
+import { RequestShiftForm } from "@/features/shifts/components/ShiftActionForms";
 import { WorkerProfileForm } from "@/features/profiles/components/ProfileForms";
 import { TimeOffRequestForm } from "@/features/time-off/components/TimeOffForms";
 import {
   MyCalendarBoard,
   type MyCalendarEvent
 } from "@/features/dashboard/components/MyCalendarBoard";
-import { formatLongDate, sortShifts } from "@/shared/lib/dates";
+import { formatLongDate, parseLocalDate, sortShifts } from "@/shared/lib/dates";
 import type {
   DashboardData,
   ProgramName,
@@ -54,6 +55,26 @@ function isInSelectedPrograms(
   programNames: ProgramName[]
 ) {
   return Boolean(programName && programNames.includes(programName as ProgramName));
+}
+
+function isPriorityWeekendShift(shift: ShiftPost) {
+  const day = parseLocalDate(shift.shift_date).getDay();
+  return day === 0 || day === 5 || day === 6;
+}
+
+function getPriorityAvailableShifts(shifts: ShiftPost[]) {
+  const priority = new Map<string, ShiftPost>();
+
+  sortShifts(shifts)
+    .filter(isPriorityWeekendShift)
+    .slice(0, 6)
+    .forEach((shift) => priority.set(shift.id, shift));
+
+  sortShifts(shifts)
+    .slice(0, 3)
+    .forEach((shift) => priority.set(shift.id, shift));
+
+  return sortShifts([...priority.values()]).slice(0, 9);
 }
 
 export function EmployeeDashboard({ data }: { data: DashboardData }) {
@@ -87,6 +108,7 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
         shift.openings > shift.filled_openings
     )
   );
+  const priorityAvailableShifts = getPriorityAvailableShifts(availableShifts);
   const myTimeOffRequests = [...data.timeOffRequests]
     .filter(
       (request) =>
@@ -187,6 +209,7 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
           />
         </div>
         <EmployeeRightMenu
+          priorityShifts={priorityAvailableShifts}
           timeOffRequests={recentTimeOffRequests}
           postedShifts={recentCoveragePosts}
           savedShifts={recentSavedShifts}
@@ -238,12 +261,14 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
 }
 
 function EmployeeRightMenu({
+  priorityShifts,
   timeOffRequests,
   postedShifts,
   savedShifts,
   ads,
   showShiftWidgets
 }: {
+  priorityShifts: ShiftPost[];
   timeOffRequests: TimeOffRequest[];
   postedShifts: ShiftPost[];
   savedShifts: ShiftPost[];
@@ -252,6 +277,25 @@ function EmployeeRightMenu({
 }) {
   return (
     <aside className="min-w-0 space-y-3">
+      {showShiftWidgets ? (
+        <EmployeeSideWidget
+          title="Priority open shifts"
+          subtitle="Weekends and nearest openings"
+          count={priorityShifts.length}
+        >
+          <WidgetList
+            emptyIcon={Send}
+            emptyTitle="No priority openings"
+            emptyBody="Open Friday, Saturday, Sunday, and nearest shifts will appear here."
+          >
+            {priorityShifts.map((shift) => (
+              <ShiftCard key={shift.id} shift={shift} compact>
+                <RequestShiftForm shift={shift} />
+              </ShiftCard>
+            ))}
+          </WidgetList>
+        </EmployeeSideWidget>
+      ) : null}
       <EmployeeSideWidget
         title="Time off requests"
         subtitle="Most recent requests"

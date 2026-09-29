@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { getDemoDashboardData } from "@/shared/lib/demo-data";
+import { CODE_RED_BLUE_PROGRAM, CODE_RED_BLUE_SUPERVISOR_EMAIL } from "@/shared/lib/constants";
+import { withGeneratedCodeRedShifts } from "@/shared/lib/shift-templates";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
 import type {
@@ -56,22 +58,11 @@ function workerProgramNames(profile: WorkerProfile) {
   return profile.program_names?.length ? profile.program_names : [profile.program_name];
 }
 
-function scopeDashboardDataForCurrentUser(
-  data: DashboardCollections
+function filterCollectionsByProgram(
+  data: DashboardCollections,
+  programNames: ProgramName[]
 ): DashboardCollections {
-  if (data.currentUser.role !== "admin") {
-    return data;
-  }
-
-  const currentAdminProfile = data.adminProfiles.find(
-    (profile) => profile.user_id === data.currentUser.id
-  );
-
-  if (currentAdminProfile?.is_super_admin) {
-    return data;
-  }
-
-  const scopedPrograms = new Set<ProgramName>(currentAdminProfile?.program_names ?? []);
+  const scopedPrograms = new Set<ProgramName>(programNames);
   const canSeeProgram = (programName: string) =>
     scopedPrograms.has(programName as ProgramName);
 
@@ -109,8 +100,6 @@ function scopeDashboardDataForCurrentUser(
     ...data,
     users: data.users.filter((user) => visibleUserIds.has(user.id)),
     workerProfiles,
-    supervisorProfiles: [],
-    adminProfiles: currentAdminProfile ? [currentAdminProfile] : [],
     shifts,
     requests,
     timeOffRequests,
@@ -123,6 +112,34 @@ function scopeDashboardDataForCurrentUser(
     monthlyWinners: data.monthlyWinners.filter((winner) =>
       visibleUserIds.has(winner.user_id)
     )
+  };
+}
+
+function scopeDashboardDataForCurrentUser(
+  data: DashboardCollections
+): DashboardCollections {
+  if (data.currentUser.role === "supervisor") {
+    return data.currentUser.email.toLowerCase() === CODE_RED_BLUE_SUPERVISOR_EMAIL
+      ? filterCollectionsByProgram(data, [CODE_RED_BLUE_PROGRAM])
+      : data;
+  }
+
+  if (data.currentUser.role !== "admin") {
+    return data;
+  }
+
+  const currentAdminProfile = data.adminProfiles.find(
+    (profile) => profile.user_id === data.currentUser.id
+  );
+
+  if (currentAdminProfile?.is_super_admin) {
+    return data;
+  }
+
+  return {
+    ...filterCollectionsByProgram(data, currentAdminProfile?.program_names ?? []),
+    supervisorProfiles: [],
+    adminProfiles: currentAdminProfile ? [currentAdminProfile] : []
   };
 }
 
@@ -185,7 +202,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
       is_super_admin: profile.is_super_admin === true
     })
   );
-  const shifts = (shiftsResult.data ?? []) as ShiftPost[];
+  const shifts = withGeneratedCodeRedShifts((shiftsResult.data ?? []) as ShiftPost[]);
   const requests = (requestsResult.data ?? []) as ShiftRequest[];
   const timeOffRequests = (timeOffRequestsResult.data ?? []) as TimeOffRequest[];
   const messages = (messagesResult.data ?? []) as Message[];
@@ -193,6 +210,10 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
   const notifications = (notificationsResult.data ?? []) as Notification[];
   const adSlots = (adSlotsResult.data ?? []) as AdSlot[];
   const monthlyWinners = (winnersResult.data ?? []) as MonthlyWinner[];
+
+  if (user.user_metadata?.setup_required && !user.user_metadata?.setup_completed_at) {
+    redirect("/auth/setup");
+  }
 
   const storedCurrentUser = users.find((appUser) => appUser.id === user.id);
   const currentUser = storedCurrentUser

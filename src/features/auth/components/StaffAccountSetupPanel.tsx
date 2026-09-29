@@ -8,6 +8,7 @@ import { LOCATIONS, PROGRAMS, SKILLS } from "@/shared/lib/constants";
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
+import { AvailabilityCheckboxGroup } from "@/shared/components/AvailabilityCheckboxGroup";
 import { SubmitButton } from "@/shared/components/SubmitButton";
 import type { AppRole, ProgramName } from "@/shared/types/domain";
 
@@ -23,6 +24,7 @@ export function StaffAccountSetupPanel() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [programNames, setProgramNames] = useState<ProgramName[]>([PROGRAMS[0]]);
+  const [availability, setAvailability] = useState<string[]>([]);
 
   useEffect(() => {
     if (!configured) {
@@ -48,6 +50,9 @@ export function StaffAccountSetupPanel() {
       setEmail(user?.email ?? "");
       if (metadataPrograms.length > 0) {
         setProgramNames(metadataPrograms);
+      }
+      if (Array.isArray(metadata.availability)) {
+        setAvailability(metadata.availability.filter((item): item is string => typeof item === "string"));
       }
       setLoading(false);
     });
@@ -171,14 +176,10 @@ export function StaffAccountSetupPanel() {
               </div>
             </fieldset>
 
-            <label className="block">
-              <span className="label">Regular work schedule</span>
-              <input
-                name="availability"
-                className="field mt-1.5"
-                placeholder="Monday-Friday 9-5, weekends, overnights"
-              />
-            </label>
+            <AvailabilityCheckboxGroup
+              selected={availability}
+              onChange={setAvailability}
+            />
 
             <label className="block">
               <span className="label">Preferred contact</span>

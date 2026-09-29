@@ -50,6 +50,28 @@ function getTimeOffStatusClass(status: TimeOffRequest["status"]) {
   return "border-harbor-sky/25 bg-harbor-sky/10 text-harbor-ocean";
 }
 
+function getShiftStaffingClass(shift: ShiftPost) {
+  if (shift.status === "cancelled") {
+    return "border-harbor-midnight/20 bg-harbor-mist text-harbor-midnight/60";
+  }
+
+  if (shift.filled_openings >= shift.openings) {
+    return "border-[#9bd8b2] bg-[#e7f7ed] text-[#13653b]";
+  }
+
+  if (shift.filled_openings > 0) {
+    return "border-[#f5c27c] bg-[#fff0dc] text-[#9a5a10]";
+  }
+
+  return "border-[#f2a3a3] bg-[#fde8e8] text-[#9b1c1c]";
+}
+
+function getNeedsCount(shifts: ShiftPost[]) {
+  return shifts.filter(
+    (shift) => shift.status !== "cancelled" && shift.filled_openings < shift.openings
+  ).length;
+}
+
 export function CalendarBoard({
   title,
   shifts,
@@ -217,21 +239,24 @@ export function CalendarBoard({
                   day.isToday && "bg-harbor-lemon/30"
                 )}
               >
-                <span className="self-start text-xs font-medium leading-none">{day.date.getDate()}</span>
+                <div className="flex w-full items-start justify-between gap-1">
+                  <span className="self-start text-xs font-medium leading-none">{day.date.getDate()}</span>
+                  {getNeedsCount(allDateShifts) > 0 ? (
+                    <span className="truncate text-[10px] font-medium leading-none text-[#9b1c1c]">
+                      Needs {getNeedsCount(allDateShifts)}
+                    </span>
+                  ) : null}
+                </div>
                 <div className={cn("w-full min-w-0 space-y-1 overflow-hidden", compact ? "mt-1" : "mt-2")}>
                   {dateShifts.map((shift) => (
                     <span
                       key={shift.id}
                       className={cn(
-                        "block max-w-full truncate rounded-md px-2 py-1 text-[11px] text-harbor-midnight",
-                        shift.category === "emergency"
-                          ? "bg-harbor-lemon"
-                          : shift.urgent
-                            ? "bg-harbor-sky/20"
-                            : "bg-harbor-mist"
+                        "block max-w-full truncate rounded-md border px-2 py-1 text-[11px]",
+                        getShiftStaffingClass(shift)
                       )}
                     >
-                      {shift.location_name}
+                      {shift.title}
                     </span>
                   ))}
                   {dateShifts.length < allDateShifts.length ? (
