@@ -6,6 +6,7 @@ import { PROGRAMS, getProfileProgramNames } from "@/shared/lib/constants";
 import { formatShortDate } from "@/shared/lib/dates";
 import { hasSuperAdminAccess } from "@/shared/lib/access";
 import { EmployeeAccountInviteForm } from "@/features/employees/components/EmployeeAccountInviteForm";
+import { EmployeeProfileApprovalControls } from "@/features/employees/components/EmployeeProfileApprovalControls";
 import type { AppUser, DashboardData, WorkerProfile } from "@/shared/types/domain";
 
 type EmployeeRecord = {
@@ -40,11 +41,9 @@ function formatLastLogin(value?: string | null) {
   }
 
   return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
+    month: "2-digit",
+    day: "2-digit",
+    year: "2-digit"
   }).format(date);
 }
 
@@ -145,18 +144,19 @@ function EmployeeMetric({ label, value }: { label: string; value: number }) {
 function EmployeeTable({ employees }: { employees: EmployeeRecord[] }) {
   return (
     <div className="overflow-x-auto rounded-lg border border-harbor-ocean/10 bg-white shadow-line">
-      <table className="w-full min-w-[1240px] border-separate border-spacing-0 text-left text-sm">
+      <table className="w-full min-w-[1320px] border-separate border-spacing-0 text-left text-sm">
         <thead className="bg-harbor-mist text-[11px] font-medium uppercase tracking-[0.06em] text-harbor-ocean">
           <tr>
             <th className="border-b border-harbor-ocean/10 px-3 py-2">Employee</th>
             <th className="border-b border-harbor-ocean/10 px-3 py-2">Email</th>
             <th className="border-b border-harbor-ocean/10 px-3 py-2">Phone</th>
-            <th className="border-b border-harbor-ocean/10 px-3 py-2">Status</th>
             <th className="border-b border-harbor-ocean/10 px-3 py-2">Programs</th>
             <th className="border-b border-harbor-ocean/10 px-3 py-2">Regular schedule</th>
             <th className="border-b border-harbor-ocean/10 px-3 py-2">Skills</th>
             <th className="border-b border-harbor-ocean/10 px-3 py-2">Created</th>
             <th className="border-b border-harbor-ocean/10 px-3 py-2">Last login</th>
+            <th className="border-b border-harbor-ocean/10 px-3 py-2">Status</th>
+            <th className="border-b border-harbor-ocean/10 px-3 py-2">Approval</th>
           </tr>
         </thead>
         <tbody>
@@ -183,6 +183,15 @@ function EmployeeRow({ employee }: { employee: EmployeeRecord }) {
       <td className="border-b border-harbor-ocean/10 px-3 py-2.5 text-harbor-midnight/70">
         {user.phone || "Not provided"}
       </td>
+      <EmployeeCell value={programText(profile)} />
+      <EmployeeCell value={listText(profile?.availability)} />
+      <EmployeeCell value={listText(profile?.skills)} />
+      <td className="border-b border-harbor-ocean/10 px-3 py-2.5 text-harbor-midnight/70">
+        {formatShortDate(user.created_at.slice(0, 10))}
+      </td>
+      <td className="border-b border-harbor-ocean/10 px-3 py-2.5 text-harbor-midnight/70">
+        {formatLastLogin(user.last_sign_in_at ?? profile?.last_sign_in_at)}
+      </td>
       <td className="border-b border-harbor-ocean/10 px-3 py-2.5">
         {profile ? (
           <StatusBadge value={profile.status} />
@@ -192,14 +201,8 @@ function EmployeeRow({ employee }: { employee: EmployeeRecord }) {
           </span>
         )}
       </td>
-      <EmployeeCell value={programText(profile)} />
-      <EmployeeCell value={listText(profile?.availability)} />
-      <EmployeeCell value={listText(profile?.skills)} />
-      <td className="border-b border-harbor-ocean/10 px-3 py-2.5 text-harbor-midnight/70">
-        {formatShortDate(user.created_at.slice(0, 10))}
-      </td>
-      <td className="border-b border-harbor-ocean/10 px-3 py-2.5 text-harbor-midnight/70">
-        {formatLastLogin(user.last_sign_in_at ?? profile?.last_sign_in_at)}
+      <td className="border-b border-harbor-ocean/10 px-3 py-2.5">
+        <EmployeeProfileApprovalControls profile={profile} />
       </td>
     </tr>
   );
