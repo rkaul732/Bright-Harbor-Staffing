@@ -4,6 +4,7 @@ import { APP_NAME } from "@/shared/lib/constants";
 
 const roleLinks = [
   { label: "Employee Login", href: "/auth?role=employee" },
+  { label: "Supervisor Login", href: "/auth?role=supervisor" },
   { label: "Admin Login", href: "/auth?role=admin" }
 ];
 
@@ -22,7 +23,7 @@ export default function LandingPage() {
             Bright Harbor programs.
           </p>
 
-          <div className="mt-9 grid gap-3 sm:max-w-lg sm:grid-cols-2">
+          <div className="mt-9 grid gap-3 sm:max-w-2xl sm:grid-cols-3">
             {roleLinks.map((link) => (
               <Link key={link.href} href={link.href} className="word-button justify-start py-2 text-sm">
                 {link.label}

@@ -101,6 +101,7 @@ type SupervisorProfileRow = {
   id: string;
   user_id: string;
   status: ProfileStatus;
+  program_names: ProgramName[];
   location_name: string | null;
   front_desk_location_name: string | null;
   title: string | null;

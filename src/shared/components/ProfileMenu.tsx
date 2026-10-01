@@ -31,6 +31,7 @@ export function ProfileMenu({
   fullName,
   email,
   canAccessAdmin,
+  canAccessEmployees = false,
   canAccessAutomatedMessages = false,
   canEditProfile = false,
   onProfileClick
@@ -38,6 +39,7 @@ export function ProfileMenu({
   fullName: string;
   email: string;
   canAccessAdmin: boolean;
+  canAccessEmployees?: boolean;
   canAccessAutomatedMessages?: boolean;
   canEditProfile?: boolean;
   onProfileClick?: () => void;
@@ -119,15 +121,17 @@ export function ProfileMenu({
                 My Profile
               </button>
             ) : null}
+            {canAccessEmployees ? (
+              <Link
+                href="/employees"
+                className={menuItemClass(pathname.startsWith("/employees"))}
+                onClick={() => setOpen(false)}
+              >
+                Employees
+              </Link>
+            ) : null}
             {canAccessAdmin ? (
               <>
-                <Link
-                  href="/employees"
-                  className={menuItemClass(pathname.startsWith("/employees"))}
-                  onClick={() => setOpen(false)}
-                >
-                  Employees
-                </Link>
                 <Link
                   href="/reports"
                   className={menuItemClass(pathname.startsWith("/reports"))}

@@ -118,6 +118,7 @@ const supervisorProfiles: SupervisorProfile[] = [
     id: "supervisor-profile-1",
     user_id: "user-supervisor-code-red",
     status: "approved",
+    program_names: [CODE_RED_BLUE_PROGRAM],
     location_name: "Toms River",
     front_desk_location_name: CODE_RED_BLUE_PROGRAM,
     title: "Code Red/Code Blue Supervisor",
@@ -127,6 +128,13 @@ const supervisorProfiles: SupervisorProfile[] = [
     id: "supervisor-profile-2",
     user_id: "user-supervisor-1",
     status: "approved",
+    program_names: [
+      "Beacon/ Anchor",
+      "Building Empowerment to Achieve Community Housing (BEACH)",
+      "Chelsea",
+      "Front Desk",
+      "Wellness Assistance Valuing Excellence (WAVE)"
+    ],
     location_name: "Toms River",
     front_desk_location_name: "Toms River Staffing",
     title: "Staffing Coordinator",

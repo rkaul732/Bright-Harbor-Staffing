@@ -58,6 +58,10 @@ function workerProgramNames(profile: WorkerProfile) {
   return profile.program_names?.length ? profile.program_names : [profile.program_name];
 }
 
+function supervisorProgramNames(profile?: SupervisorProfile) {
+  return profile?.program_names?.length ? profile.program_names : [];
+}
+
 function filterCollectionsByProgram(
   data: DashboardCollections,
   programNames: ProgramName[]
@@ -119,9 +123,21 @@ function scopeDashboardDataForCurrentUser(
   data: DashboardCollections
 ): DashboardCollections {
   if (data.currentUser.role === "supervisor") {
-    return data.currentUser.email.toLowerCase() === CODE_RED_BLUE_SUPERVISOR_EMAIL
-      ? filterCollectionsByProgram(data, [CODE_RED_BLUE_PROGRAM])
-      : data;
+    const currentSupervisorProfile = data.supervisorProfiles.find(
+      (profile) => profile.user_id === data.currentUser.id
+    );
+    const assignedPrograms = supervisorProgramNames(currentSupervisorProfile);
+    const fallbackPrograms: ProgramName[] =
+      assignedPrograms.length === 0 &&
+      data.currentUser.email.toLowerCase() === CODE_RED_BLUE_SUPERVISOR_EMAIL
+        ? [CODE_RED_BLUE_PROGRAM]
+        : assignedPrograms;
+
+    return {
+      ...filterCollectionsByProgram(data, fallbackPrograms),
+      supervisorProfiles: currentSupervisorProfile ? [currentSupervisorProfile] : [],
+      adminProfiles: []
+    };
   }
 
   if (data.currentUser.role !== "admin") {
@@ -194,7 +210,12 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
 
   const users = (usersResult.data ?? []) as AppUser[];
   const workerProfiles = (workerProfilesResult.data ?? []) as WorkerProfile[];
-  const supervisorProfiles = (supervisorProfilesResult.data ?? []) as SupervisorProfile[];
+  const supervisorProfiles = ((supervisorProfilesResult.data ?? []) as SupervisorProfile[]).map(
+    (profile) => ({
+      ...profile,
+      program_names: Array.isArray(profile.program_names) ? profile.program_names : []
+    })
+  );
   const adminProfiles = ((adminProfilesResult.data ?? []) as AdminProfile[]).map(
     (profile) => ({
       ...profile,

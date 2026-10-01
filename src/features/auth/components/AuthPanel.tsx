@@ -16,7 +16,7 @@ import type { AppRole, ProgramName } from "@/shared/types/domain";
 
 type AuthMode = "sign-in" | "sign-up";
 
-const roles: AppRole[] = ["employee", "admin"];
+const roles: AppRole[] = ["employee", "supervisor", "admin"];
 
 async function recordLastLogin(supabase: ReturnType<typeof createSupabaseBrowserClient>) {
   try {
@@ -60,6 +60,11 @@ export function AuthPanel({
 
     if (mode === "sign-up" && (!firstName.trim() || !lastName.trim())) {
       setMessage("Enter your first and last name.");
+      return;
+    }
+
+    if (mode === "sign-up" && role !== "employee") {
+      setMessage("Supervisor and admin accounts are created by invitation. Use your setup email or sign in.");
       return;
     }
 
@@ -133,7 +138,7 @@ export function AuthPanel({
         </p>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 rounded-lg bg-harbor-mist p-1">
+      <div className="mt-5 grid grid-cols-3 rounded-lg bg-harbor-mist p-1">
         {roles.map((item) => (
           <button
             key={item}

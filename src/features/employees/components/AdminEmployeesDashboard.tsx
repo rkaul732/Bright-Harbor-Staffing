@@ -52,24 +52,32 @@ export function AdminEmployeesDashboard({ data }: { data: DashboardData }) {
   const currentAdminProfile = data.adminProfiles.find(
     (profile) => profile.user_id === data.currentUser.id
   );
+  const currentSupervisorProfile = data.supervisorProfiles.find(
+    (profile) => profile.user_id === data.currentUser.id
+  );
+  const isSupervisorView = data.currentUser.role === "supervisor";
   const inviteProgramNames = hasSuperAdminAccess(data)
     ? PROGRAMS
-    : (currentAdminProfile?.program_names ?? []);
+    : (currentAdminProfile?.program_names ?? currentSupervisorProfile?.program_names ?? []);
   const approvedProfiles = employees.filter((employee) => employee.profile?.status === "approved");
   const pendingProfiles = employees.filter((employee) => employee.profile?.status === "pending");
   const missingProfiles = employees.filter((employee) => !employee.profile);
 
   return (
-    <DashboardShell role="admin" data={data}>
+    <DashboardShell role={isSupervisorView ? "supervisor" : "admin"} data={data}>
       <section className="rounded-lg border border-harbor-ocean/10 bg-white/95 p-3 shadow-soft sm:p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="label text-harbor-sky">Admin</p>
+            <p className="label text-harbor-sky">
+              {isSupervisorView ? "Supervisor" : "Admin"}
+            </p>
             <h1 className="mt-2 text-3xl font-medium leading-tight text-harbor-midnight sm:text-4xl">
               Employees
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-harbor-midnight/62">
-              Super admins can see all employee accounts. Program admins see employees in their assigned programs.
+              {isSupervisorView
+                ? "Supervisors can see and approve employee profiles in their assigned programs."
+                : "Super admins can see all employee accounts. Program admins see employees in their assigned programs."}
             </p>
           </div>
           <span className="pill w-fit">{employees.length} employee accounts</span>
@@ -83,7 +91,8 @@ export function AdminEmployeesDashboard({ data }: { data: DashboardData }) {
         </div>
       </section>
 
-      <section className="panel mt-4 p-3 sm:p-4">
+      {!isSupervisorView ? (
+        <section className="panel mt-4 p-3 sm:p-4">
         <details>
           <summary className="flex cursor-pointer list-none flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span>
@@ -101,7 +110,8 @@ export function AdminEmployeesDashboard({ data }: { data: DashboardData }) {
             <EmployeeAccountInviteForm programNames={inviteProgramNames} />
           </div>
         </details>
-      </section>
+        </section>
+      ) : null}
 
       <section className="panel mt-4 p-3 sm:p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -110,7 +120,7 @@ export function AdminEmployeesDashboard({ data }: { data: DashboardData }) {
             <h2 className="mt-1 text-xl font-medium text-harbor-midnight">Accounts and profiles</h2>
           </div>
           <p className="text-xs text-harbor-midnight/55">
-            Showing only employees available to your admin access.
+            Showing only employees available to your {isSupervisorView ? "supervisor" : "admin"} access.
           </p>
         </div>
 

@@ -52,11 +52,11 @@ export function StaffAccountInviteForm() {
         </select>
       </label>
 
-      {role === "employee" ? (
+      {role === "employee" || role === "supervisor" ? (
         <ProgramScopePicker
           allowedProgramNames={PROGRAMS}
           defaultSelectedProgramNames={PROGRAMS.slice(0, 1)}
-          legend="Starting programs"
+          legend={role === "supervisor" ? "Supervisor assigned programs" : "Starting programs"}
           compact
         />
       ) : null}

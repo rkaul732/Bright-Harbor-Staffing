@@ -235,6 +235,11 @@ type AdminScope = {
   programNames: ProgramName[];
 };
 
+type SupervisorScope = {
+  isApproved: boolean;
+  programNames: ProgramName[];
+};
+
 function normalizeProgramNames(value: unknown) {
   return Array.isArray(value)
     ? value.filter((programName): programName is ProgramName =>
@@ -264,6 +269,30 @@ async function getAdminScopeForAction(userId: string): Promise<AdminScope> {
   };
 }
 
+async function getSupervisorScopeForAction(userId: string): Promise<SupervisorScope> {
+  if (!isSupabaseConfigured()) {
+    return {
+      isApproved: true,
+      programNames: ["Beacon/ Anchor", "Code Red/Code Blue", "Front Desk"]
+    };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("supervisor_profiles")
+    .select("status,program_names")
+    .eq("user_id", userId)
+    .maybeSingle();
+  const profile = data as
+    | { status?: unknown; program_names?: unknown }
+    | null;
+
+  return {
+    isApproved: profile?.status === "approved",
+    programNames: normalizeProgramNames(profile?.program_names)
+  };
+}
+
 async function isSuperAdminForAction(user: ActionUser) {
   if (user.role !== "admin") {
     return false;
@@ -280,7 +309,20 @@ async function scopedProgramAccessError(
   options: { requireAll?: boolean } = {}
 ): Promise<ActionState | null> {
   if (user.role === "supervisor") {
-    return null;
+    const scope = await getSupervisorScopeForAction(user.id);
+    const allowedPrograms = new Set(scope.programNames);
+    const hasAccess = (options.requireAll ?? true)
+      ? programNames.every((programName) => allowedPrograms.has(programName))
+      : programNames.some((programName) => allowedPrograms.has(programName));
+
+    if (scope.isApproved && programNames.length > 0 && hasAccess) {
+      return null;
+    }
+
+    return {
+      ok: false,
+      message: "You can only " + action + " for programs assigned to your supervisor profile."
+    };
   }
 
   if (user.role !== "admin") {
@@ -628,7 +670,7 @@ export async function createStaffAccountAction(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the staff account form." };
   }
 
-  if (parsed.data.role === "employee" && programNames.length === 0) {
+  if ((parsed.data.role === "employee" || parsed.data.role === "supervisor") && programNames.length === 0) {
     return { ok: false, message: "Choose at least one starting program." };
   }
 
@@ -675,8 +717,14 @@ export async function createStaffAccountAction(
   const metadata = {
     role: parsed.data.role,
     full_name: parsed.data.full_name,
-    program_name: parsed.data.role === "employee" ? programNames[0] : undefined,
-    program_names: parsed.data.role === "employee" ? programNames : undefined,
+    program_name:
+      parsed.data.role === "employee" || parsed.data.role === "supervisor"
+        ? programNames[0]
+        : undefined,
+    program_names:
+      parsed.data.role === "employee" || parsed.data.role === "supervisor"
+        ? programNames
+        : undefined,
     invited_by: currentUser.id,
     invited_by_email: currentUser.email,
     setup_required: true
@@ -717,7 +765,8 @@ export async function createStaffAccountAction(
       await adminClient.from("supervisor_profiles").upsert(
         {
           user_id: invitedUser.id,
-          status: "pending"
+          status: "pending",
+          program_names: programNames
         },
         { onConflict: "user_id" }
       );
@@ -815,10 +864,17 @@ export async function completeStaffSetupAction(
       return { ok: false, message: error.message };
     }
   } else {
+    const programNames = asPrograms(formData);
+
+    if (programNames.length === 0) {
+      return { ok: false, message: "Choose at least one assigned program." };
+    }
+
     const { error } = await supabase.from("supervisor_profiles").upsert(
       {
         user_id: user.id,
         status: "pending",
+        program_names: programNames,
         location_name: asString(formData.get("location_name")) || null,
         front_desk_location_name: asString(formData.get("front_desk_location_name")) || null,
         title: asString(formData.get("title")) || null
@@ -850,6 +906,7 @@ export async function updateSupervisorProfileAction(
   formData: FormData
 ): Promise<ActionState> {
   const user = await getUserForAction("supervisor");
+  const programNames = asPrograms(formData);
   const parsed = z
     .object({
       location_name: locationSchema,
@@ -866,6 +923,10 @@ export async function updateSupervisorProfileAction(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the form." };
   }
 
+  if (programNames.length === 0) {
+    return { ok: false, message: "Choose at least one assigned program." };
+  }
+
   if (!isSupabaseConfigured()) {
     return { ok: true, message: "Demo mode: supervisor profile updated." };
   }
@@ -875,6 +936,7 @@ export async function updateSupervisorProfileAction(
     {
       user_id: user.id,
       status: "pending",
+      program_names: programNames,
       ...parsed.data
     },
     { onConflict: "user_id" }
@@ -1692,14 +1754,14 @@ export async function moderateProfileAction(
   const role = asString(formData.get("profile_role")) as AppRole;
   const profileId = asString(formData.get("profile_id"));
   const status = asString(formData.get("status")) as ProfileStatus;
-  const user = await getUserForAction("admin");
+  const user = await getUserForAction();
 
   if (!["approved", "suspended", "pending"].includes(status) || !profileId) {
     return { ok: false, message: "Choose a valid profile status." };
   }
 
-  if (user.role !== "admin") {
-    return { ok: false, message: "Only admins can moderate profiles." };
+  if (!["supervisor", "admin"].includes(user.role)) {
+    return { ok: false, message: "Only supervisors and admins can moderate profiles." };
   }
 
   if (!isSupabaseConfigured()) {
@@ -1745,9 +1807,15 @@ export async function moderateProfileAction(
       return { ok: false, message: "Only super admins can moderate supervisor profiles." };
     }
 
+    const supervisorProgramNames = asPrograms(formData);
+
+    if (status === "approved" && supervisorProgramNames.length === 0) {
+      return { ok: false, message: "Choose at least one program for this supervisor." };
+    }
+
     const { error } = await supabase
       .from("supervisor_profiles")
-      .update({ status })
+      .update({ status, program_names: supervisorProgramNames })
       .eq("id", profileId);
 
     if (error) {
@@ -1783,7 +1851,21 @@ export async function moderateProfileAction(
     return scopeError;
   }
 
-  const { error } = await supabase
+  const profileClient =
+    user.role === "supervisor"
+      ? hasSupabaseServiceRoleKey()
+        ? createSupabaseAdminClient()
+        : null
+      : supabase;
+
+  if (!profileClient) {
+    return {
+      ok: false,
+      message: "Add SUPABASE_SERVICE_ROLE_KEY in Netlify so supervisors can approve employee profiles."
+    };
+  }
+
+  const { error } = await profileClient
     .from("worker_profiles")
     .update({ status })
     .eq("id", profileId);

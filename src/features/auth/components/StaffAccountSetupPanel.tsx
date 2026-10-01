@@ -144,38 +144,40 @@ export function StaffAccountSetupPanel() {
           <input name="phone" className="field mt-1.5" placeholder="732-555-0100" />
         </label>
 
+        <fieldset>
+          <legend className="label">
+            {role === "supervisor" ? "Assigned programs" : "Programs"}
+          </legend>
+          <div className="mt-2 max-h-60 overflow-auto rounded-lg border border-harbor-ocean/10 bg-white p-2">
+            <div className="grid gap-2 sm:grid-cols-2">
+              {PROGRAMS.map((program) => (
+                <label
+                  key={program}
+                  className="flex items-start gap-2 rounded-md px-2 py-2 text-sm text-harbor-midnight/75 hover:bg-harbor-mist"
+                >
+                  <input
+                    type="checkbox"
+                    name="program_names"
+                    value={program}
+                    checked={programNames.includes(program)}
+                    onChange={(event) => {
+                      setProgramNames((current) =>
+                        event.target.checked
+                          ? [...current, program]
+                          : current.filter((item) => item !== program)
+                      );
+                    }}
+                    className="mt-0.5 h-4 w-4 rounded border-harbor-ocean/20 text-harbor-sky"
+                  />
+                  <span>{program}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </fieldset>
+
         {role === "employee" ? (
           <>
-            <fieldset>
-              <legend className="label">Programs</legend>
-              <div className="mt-2 max-h-60 overflow-auto rounded-lg border border-harbor-ocean/10 bg-white p-2">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {PROGRAMS.map((program) => (
-                    <label
-                      key={program}
-                      className="flex items-start gap-2 rounded-md px-2 py-2 text-sm text-harbor-midnight/75 hover:bg-harbor-mist"
-                    >
-                      <input
-                        type="checkbox"
-                        name="program_names"
-                        value={program}
-                        checked={programNames.includes(program)}
-                        onChange={(event) => {
-                          setProgramNames((current) =>
-                            event.target.checked
-                              ? [...current, program]
-                              : current.filter((item) => item !== program)
-                          );
-                        }}
-                        className="mt-0.5 h-4 w-4 rounded border-harbor-ocean/20 text-harbor-sky"
-                      />
-                      <span>{program}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </fieldset>
-
             <AvailabilityCheckboxGroup
               selected={availability}
               onChange={setAvailability}

@@ -133,6 +133,13 @@ where user_id = '00000000-0000-0000-0000-000000000102';
 update public.supervisor_profiles
 set
   status = 'approved',
+  program_names = array[
+    'Beacon/ Anchor',
+    'Building Empowerment to Achieve Community Housing (BEACH)',
+    'Chelsea',
+    'Front Desk',
+    'Wellness Assistance Valuing Excellence (WAVE)'
+  ]::text[],
   location_name = 'Toms River',
   front_desk_location_name = 'Toms River Staffing',
   title = 'Staffing Coordinator'
@@ -141,6 +148,7 @@ where user_id = '00000000-0000-0000-0000-000000000201';
 update public.supervisor_profiles
 set
   status = 'pending',
+  program_names = array['Code Red/Code Blue']::text[],
   location_name = 'Toms River',
   front_desk_location_name = 'Code Red/Code Blue',
   title = 'Code Red/Code Blue Supervisor'

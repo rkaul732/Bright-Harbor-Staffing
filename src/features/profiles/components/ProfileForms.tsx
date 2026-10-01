@@ -14,6 +14,7 @@ import {
 } from "@/shared/lib/constants";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
 import { AvailabilityCheckboxGroup } from "@/shared/components/AvailabilityCheckboxGroup";
+import { ProgramScopePicker } from "@/shared/components/ProgramScopePicker";
 import { SubmitButton } from "@/shared/components/SubmitButton";
 import type { DashboardData } from "@/shared/types/domain";
 
@@ -120,11 +121,20 @@ export function WorkerProfileForm({ data }: { data: DashboardData }) {
   );
 }
 
-export function SupervisorProfileForm() {
+export function SupervisorProfileForm({ data }: { data?: DashboardData }) {
   const [state, formAction] = useActionState(updateSupervisorProfileAction, initialState);
+  const profile = data?.supervisorProfiles.find(
+    (supervisorProfile) => supervisorProfile.user_id === data.currentUser.id
+  );
 
   return (
     <form action={formAction} className="space-y-4">
+      <ProgramScopePicker
+        defaultSelectedProgramNames={profile?.program_names ?? []}
+        legend="Assigned programs"
+        compact
+      />
+
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="label">Program location profile</span>

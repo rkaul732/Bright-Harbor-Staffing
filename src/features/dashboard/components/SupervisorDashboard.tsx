@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { CalendarCheck, CalendarClock, CalendarPlus, CalendarX, ClipboardList, UsersRound, X } from "lucide-react";
+import { CalendarCheck, CalendarClock, CalendarPlus, CalendarX, ClipboardList, ListFilter, UsersRound, X } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { MetricCard } from "@/shared/components/MetricCard";
 import { CalendarBoard } from "@/shared/components/CalendarBoard";
@@ -23,16 +23,85 @@ import {
 import { ProfileModerationControls } from "@/features/admin/components/ProfileModerationControls";
 import { StaffAccountInviteForm } from "@/features/admin/components/StaffAccountInviteForm";
 import { formatLongDate, sortShifts } from "@/shared/lib/dates";
+import { PROGRAMS, ROLE_LABELS } from "@/shared/lib/constants";
 import type {
   AdminProfile,
   AppRole,
   DashboardData,
+  ProgramName,
   ShiftPost,
   ShiftRequest,
   SupervisorProfile,
   TimeOffRequest,
   WorkerProfile
 } from "@/shared/types/domain";
+
+function workerProgramNames(profile: WorkerProfile) {
+  return profile.program_names?.length ? profile.program_names : [profile.program_name];
+}
+
+function programOptionsForData(data: DashboardData) {
+  const programs = new Set<ProgramName>();
+
+  data.shifts.forEach((shift) => programs.add(shift.program_name));
+  data.timeOffRequests.forEach((request) => programs.add(request.program_name));
+  data.workerProfiles.forEach((profile) => {
+    workerProgramNames(profile).forEach((programName) => programs.add(programName));
+  });
+  data.supervisorProfiles.forEach((profile) => {
+    profile.program_names.forEach((programName) => programs.add(programName));
+  });
+  data.adminProfiles.forEach((profile) => {
+    profile.program_names.forEach((programName) => programs.add(programName));
+  });
+  data.adSlots.forEach((adSlot) => {
+    if (PROGRAMS.includes(adSlot.program_name as ProgramName)) {
+      programs.add(adSlot.program_name as ProgramName);
+    }
+  });
+
+  return PROGRAMS.filter((programName) => programs.has(programName));
+}
+
+function filterDashboardDataByProgram(
+  data: DashboardData,
+  programName: ProgramName | "all"
+): DashboardData {
+  if (programName === "all") {
+    return data;
+  }
+
+  const shifts = data.shifts.filter((shift) => shift.program_name === programName);
+  const shiftIds = new Set(shifts.map((shift) => shift.id));
+  const workerProfiles = data.workerProfiles.filter((profile) =>
+    workerProgramNames(profile).includes(programName)
+  );
+  const timeOffRequests = data.timeOffRequests.filter(
+    (request) => request.program_name === programName
+  );
+  const requests = data.requests.filter((request) => shiftIds.has(request.shift_id));
+  const visibleUserIds = new Set<string>([data.currentUser.id]);
+
+  workerProfiles.forEach((profile) => visibleUserIds.add(profile.user_id));
+  timeOffRequests.forEach((request) => visibleUserIds.add(request.user_id));
+  requests.forEach((request) => visibleUserIds.add(request.requestor_id));
+  shifts.forEach((shift) => {
+    visibleUserIds.add(shift.created_by);
+    if (shift.owner_user_id) {
+      visibleUserIds.add(shift.owner_user_id);
+    }
+  });
+
+  return {
+    ...data,
+    users: data.users.filter((user) => visibleUserIds.has(user.id)),
+    shifts,
+    requests,
+    timeOffRequests,
+    workerProfiles,
+    adSlots: data.adSlots.filter((adSlot) => adSlot.program_name === programName)
+  };
+}
 
 export function SupervisorDashboard({
   data,
@@ -53,15 +122,12 @@ export function SupervisorDashboard({
     (request) => request.status === "pending_supervisor_approval"
   );
 
-  if (role === "admin") {
+  if (role === "admin" || role === "supervisor") {
     return (
       <AdminDashboardHome
         data={data}
-        allShifts={allShifts}
-        openShifts={openShifts}
-        coveredShifts={coveredShifts}
-        pendingTimeOffRequests={pendingTimeOffRequests}
-        showAdminModeration={showAdminModeration}
+        role={role}
+        showAdminModeration={showAdminModeration || role === "supervisor"}
       />
     );
   }
@@ -125,7 +191,7 @@ export function SupervisorDashboard({
               </div>
             </div>
 
-            {role === "supervisor" ? (
+            {(role as AppRole) === "supervisor" ? (
               <div className="panel p-4 sm:p-5">
                 <p className="label">Location profile</p>
                 <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
@@ -263,63 +329,92 @@ export function SupervisorDashboard({
 
 function AdminDashboardHome({
   data,
-  allShifts,
-  openShifts,
-  coveredShifts,
-  pendingTimeOffRequests,
+  role,
   showAdminModeration
 }: {
   data: DashboardData;
-  allShifts: ShiftPost[];
-  openShifts: ShiftPost[];
-  coveredShifts: ShiftPost[];
-  pendingTimeOffRequests: TimeOffRequest[];
+  role: AppRole;
   showAdminModeration: boolean;
 }) {
   const lastSignOn = data.currentUser.last_sign_in_at ?? data.currentUser.created_at;
-  const newTimeOffRequests = data.timeOffRequests.filter(
+  const programOptions = useMemo(() => programOptionsForData(data), [data]);
+  const [programFilter, setProgramFilter] = useState<ProgramName | "all">("all");
+  const [showOooForm, setShowOooForm] = useState(false);
+  const visibleData = useMemo(
+    () => filterDashboardDataByProgram(data, programFilter),
+    [data, programFilter]
+  );
+  const visibleAllShifts = sortShifts(visibleData.shifts);
+  const visibleOpenShifts = visibleAllShifts.filter((shift) => shift.status === "open");
+  const visibleCoveredShifts = visibleAllShifts.filter((shift) => shift.status === "covered");
+  const visiblePendingTimeOffRequests = visibleData.timeOffRequests.filter(
+    (request) => request.status === "pending_supervisor_approval"
+  );
+  const visibleNewTimeOffRequests = visibleData.timeOffRequests.filter(
     (request) => request.created_at > lastSignOn
   );
-  const approvedTimeOffRequests = data.timeOffRequests.filter(
+  const visibleApprovedTimeOffRequests = visibleData.timeOffRequests.filter(
     (request) => request.status === "approved"
   );
-  const deniedTimeOffRequests = data.timeOffRequests.filter(
+  const visibleDeniedTimeOffRequests = visibleData.timeOffRequests.filter(
     (request) => request.status === "declined"
   );
-  const totalAccounts = data.users.length;
-  const [showOooForm, setShowOooForm] = useState(false);
+  const visibleShiftRequests = visibleData.requests.filter(
+    (request) => request.status === "pending_supervisor_approval"
+  );
+  const totalAccounts = visibleData.users.filter((user) => user.role === "employee").length;
+  const roleLabel = ROLE_LABELS[role];
 
   return (
-    <DashboardShell role="admin" data={data}>
+    <DashboardShell role={role} data={data}>
       <section className="rounded-lg border border-harbor-ocean/10 bg-white/95 p-3 shadow-soft sm:p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="label text-harbor-sky">Admin Dashboard</p>
+            <p className="label text-harbor-sky">{roleLabel} Dashboard</p>
             <h2 className="mt-2 text-3xl font-medium leading-tight text-harbor-midnight sm:text-4xl">
               Welcome, {data.currentUser.full_name}!
             </h2>
             <p className="mt-2 text-xs font-medium uppercase tracking-[0.06em] text-harbor-ocean">
-              Admin
+              {roleLabel}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-            <Link href="/reports" className="word-button font-semibold">
+            <label className="flex items-center gap-2 rounded-full border border-harbor-ocean/10 bg-harbor-mist px-3 py-1.5 text-sm text-harbor-midnight/70">
+              <ListFilter className="h-4 w-4 text-harbor-ocean" aria-hidden="true" />
+              <select
+                value={programFilter}
+                onChange={(event) => setProgramFilter(event.target.value as ProgramName | "all")}
+                className="bg-transparent text-sm outline-none"
+              >
+                <option value="all">All programs</option>
+                {programOptions.map((programName) => (
+                  <option key={programName} value={programName}>
+                    {programName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {role === "admin" ? (
+              <Link href="/reports" className="word-button font-semibold">
               Reports
-            </Link>
+              </Link>
+            ) : null}
           </div>
         </div>
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <AdminSnapshotCard label="New since sign on" value={newTimeOffRequests.length} />
-          <AdminSnapshotCard label="Still pending" value={pendingTimeOffRequests.length} />
-          <AdminSnapshotCard label="Approved" value={approvedTimeOffRequests.length} />
-          <AdminSnapshotCard label="Denied" value={deniedTimeOffRequests.length} />
+          <AdminSnapshotCard label="New since sign on" value={visibleNewTimeOffRequests.length} />
+          <AdminSnapshotCard label="Still pending" value={visiblePendingTimeOffRequests.length} />
+          <AdminSnapshotCard label="Approved" value={visibleApprovedTimeOffRequests.length} />
+          <AdminSnapshotCard label="Denied" value={visibleDeniedTimeOffRequests.length} />
         </div>
 
         <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]">
-          <AdminHubCard title="New Requests" badge={pendingTimeOffRequests.length + " waiting"} />
-          <AdminHubCard title="Team Schedule" badge={approvedTimeOffRequests.length + " approved"} />
-          <AdminHubCard title="Reports" badge="Spreadsheet export" href="/reports" />
+          <AdminHubCard title="New Requests" badge={visiblePendingTimeOffRequests.length + " waiting"} />
+          <AdminHubCard title="Team Schedule" badge={visibleApprovedTimeOffRequests.length + " approved"} />
+          {role === "admin" ? (
+            <AdminHubCard title="Reports" badge="Spreadsheet export" href="/reports" />
+          ) : null}
           <AdminHubCard title="Account Types" badge={totalAccounts + " accounts"} />
         </div>
       </section>
@@ -327,11 +422,11 @@ function AdminDashboardHome({
       <section className="mt-4 grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
         <div className="min-w-0 space-y-4">
           <AdminOperationsGrid
-            timeOffRequests={pendingTimeOffRequests}
-            teamPostedShifts={allShifts.filter((shift) => shift.owner_user_id)}
-            shiftRequests={data.requests.filter((request) => request.status === "pending_supervisor_approval")}
-            openShifts={openShifts}
-            coveredShifts={coveredShifts}
+            timeOffRequests={visiblePendingTimeOffRequests}
+            teamPostedShifts={visibleAllShifts.filter((shift) => shift.owner_user_id)}
+            shiftRequests={visibleShiftRequests}
+            openShifts={visibleOpenShifts}
+            coveredShifts={visibleCoveredShifts}
           />
 
           <section className="panel p-3 sm:p-4">
@@ -343,13 +438,13 @@ function AdminDashboardHome({
                 </h2>
               </div>
               <p className="text-sm text-harbor-midnight/55">
-                {pendingTimeOffRequests.length} still pending
+                {visiblePendingTimeOffRequests.length} still pending
               </p>
             </div>
             <div className="mt-4 grid gap-4 xl:grid-cols-2">
-              {pendingTimeOffRequests.length > 0 ? (
-                pendingTimeOffRequests.map((request) => (
-                  <TimeOffReviewCard key={request.id} request={request} role="admin" />
+              {visiblePendingTimeOffRequests.length > 0 ? (
+                visiblePendingTimeOffRequests.map((request) => (
+                  <TimeOffReviewCard key={request.id} request={request} role={role} />
                 ))
               ) : (
                 <EmptyState
@@ -363,13 +458,13 @@ function AdminDashboardHome({
 
           <CalendarBoard
             title="Team Schedule"
-            shifts={allShifts}
-            timeOffRequests={data.timeOffRequests}
+            shifts={visibleAllShifts}
+            timeOffRequests={visibleData.timeOffRequests}
             showByNameView
             initialMode="by-name"
             emptyLabel="No staffing shifts for this date."
             compact
-            headerAction={
+            headerAction={role === "admin" ? (
               <button
                 type="button"
                 onClick={() => setShowOooForm(true)}
@@ -378,7 +473,7 @@ function AdminDashboardHome({
                 <CalendarPlus className="h-4 w-4" aria-hidden="true" />
                 Add OOO
               </button>
-            }
+            ) : null}
           />
 
           {showOooForm ? (
@@ -415,13 +510,19 @@ function AdminDashboardHome({
           <section className="panel p-4">
             <p className="label">Shift Coverage Stats</p>
             <div className="mt-4 grid gap-3">
-              <AdminMiniMetric label="Open shifts" value={openShifts.length} />
-              <AdminMiniMetric label="Covered shifts" value={coveredShifts.length} />
-              <AdminMiniMetric label="Approved workers" value={data.analytics.approvedWorkers} />
+              <AdminMiniMetric label="Open shifts" value={visibleOpenShifts.length} />
+              <AdminMiniMetric label="Covered shifts" value={visibleCoveredShifts.length} />
+              <AdminMiniMetric
+                label="Approved workers"
+                value={
+                  visibleData.workerProfiles.filter((profile) => profile.status === "approved").length
+                }
+              />
             </div>
           </section>
 
-          <section className="panel p-4">
+          {role === "admin" ? (
+            <section className="panel p-4">
             <details>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
                 <span>
@@ -436,9 +537,27 @@ function AdminDashboardHome({
                 <StaffAccountInviteForm />
               </div>
             </details>
-          </section>
+            </section>
+          ) : (
+            <section className="panel p-4">
+              <details>
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                  <span>
+                    <span className="label block">Supervisor profile</span>
+                    <span className="mt-1 block text-lg font-medium text-harbor-midnight">
+                      Assigned programs and location
+                    </span>
+                  </span>
+                  <span className="text-sm font-medium text-harbor-ocean">Open</span>
+                </summary>
+                <div className="mt-4 border-t border-harbor-ocean/10 pt-4">
+                  <SupervisorProfileForm data={data} />
+                </div>
+              </details>
+            </section>
+          )}
 
-          {showAdminModeration ? <AdminModeration data={data} /> : null}
+          {showAdminModeration ? <AdminModeration data={visibleData} /> : null}
         </aside>
       </section>
     </DashboardShell>
@@ -848,9 +967,9 @@ function AdminModeration({ data }: { data: DashboardData }) {
   );
   const canManageAdminScopes = currentAdminProfile?.is_super_admin === true;
   const pendingWorkers = data.workerProfiles.filter((profile) => profile.status === "pending");
-  const pendingSupervisors = data.supervisorProfiles.filter(
-    (profile) => profile.status === "pending"
-  );
+  const pendingSupervisors = canManageAdminScopes
+    ? data.supervisorProfiles.filter((profile) => profile.status === "pending")
+    : [];
   const adminProfilesForReview = canManageAdminScopes
     ? data.adminProfiles.filter((profile) => profile.user_id !== data.currentUser.id)
     : [];
@@ -1046,12 +1165,24 @@ function SupervisorProfileReviewCard({
         <ProfileDetail label="Phone" value={user?.phone || "Not provided"} />
         <ProfileDetail label="Title" value={profile.title || "Not provided"} />
         <ProfileDetail
+          label="Assigned programs"
+          value={
+            profile.program_names.length > 0
+              ? profile.program_names.join(", ")
+              : "No programs assigned"
+          }
+        />
+        <ProfileDetail
           label="Program location profile"
           value={profile.front_desk_location_name || "Not provided"}
         />
         <ProfileDetail label="Location" value={profile.location_name || "Not provided"} />
         <ProfileDetail label="Submitted" value={formatLongDate(profile.created_at.slice(0, 10))} />
-        <ProfileModerationControls profileId={profile.id} profileRole="supervisor" />
+        <ProfileModerationControls
+          profileId={profile.id}
+          profileRole="supervisor"
+          adminProgramNames={profile.program_names}
+        />
       </div>
     </details>
   );
