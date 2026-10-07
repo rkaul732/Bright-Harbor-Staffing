@@ -359,9 +359,6 @@ function AdminDashboardHome({
   const visibleDeniedTimeOffRequests = visibleData.timeOffRequests.filter(
     (request) => request.status === "declined"
   );
-  const visibleShiftRequests = visibleData.requests.filter(
-    (request) => request.status === "pending_supervisor_approval"
-  );
   const totalAccounts = visibleData.users.filter((user) => user.role === "employee").length;
   const roleLabel = ROLE_LABELS[role];
 
@@ -421,40 +418,7 @@ function AdminDashboardHome({
 
       <section className="mt-4 grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
         <div className="min-w-0 space-y-4">
-          <AdminOperationsGrid
-            timeOffRequests={visiblePendingTimeOffRequests}
-            teamPostedShifts={visibleAllShifts.filter((shift) => shift.owner_user_id)}
-            shiftRequests={visibleShiftRequests}
-            openShifts={visibleOpenShifts}
-            coveredShifts={visibleCoveredShifts}
-          />
-
-          <section className="panel p-3 sm:p-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="label">New Requests</p>
-                <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
-                  Time off requests
-                </h2>
-              </div>
-              <p className="text-sm text-harbor-midnight/55">
-                {visiblePendingTimeOffRequests.length} still pending
-              </p>
-            </div>
-            <div className="mt-4 grid gap-4 xl:grid-cols-2">
-              {visiblePendingTimeOffRequests.length > 0 ? (
-                visiblePendingTimeOffRequests.map((request) => (
-                  <TimeOffReviewCard key={request.id} request={request} role={role} />
-                ))
-              ) : (
-                <EmptyState
-                  icon={CalendarX}
-                  title="No pending time off"
-                  body="New employee time off requests will appear here."
-                />
-              )}
-            </div>
-          </section>
+          <AdminRequestsWorkspace data={visibleData} role={role} />
 
           <CalendarBoard
             title="Team Schedule"
@@ -564,74 +528,6 @@ function AdminDashboardHome({
   );
 }
 
-function AdminOperationsGrid({
-  timeOffRequests,
-  teamPostedShifts,
-  shiftRequests,
-  openShifts,
-  coveredShifts
-}: {
-  timeOffRequests: TimeOffRequest[];
-  teamPostedShifts: ShiftPost[];
-  shiftRequests: ShiftRequest[];
-  openShifts: ShiftPost[];
-  coveredShifts: ShiftPost[];
-}) {
-  return (
-    <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-      <AdminActionWidget
-        label="Time off"
-        title="Pending requests"
-        value={timeOffRequests.length}
-        detail="Awaiting review"
-      />
-      <AdminActionWidget
-        label="Coverage posts"
-        title="Team shifts posted"
-        value={teamPostedShifts.length}
-        detail="Put up by employees"
-      />
-      <AdminActionWidget
-        label="Pick up shifts"
-        title="Pending pickup requests"
-        value={shiftRequests.length}
-        detail="Need approval"
-      />
-      <AdminActionWidget
-        label="Shift Coverage Stats"
-        title={openShifts.length + " open"}
-        value={coveredShifts.length}
-        detail="Covered shifts"
-      />
-    </section>
-  );
-}
-
-function AdminActionWidget({
-  label,
-  title,
-  value,
-  detail
-}: {
-  label: string;
-  title: string;
-  value: number;
-  detail: string;
-}) {
-  return (
-    <article className="rounded-lg border border-harbor-ocean/10 bg-white/95 p-3 shadow-line">
-      <p className="label text-harbor-ocean">{label}</p>
-      <div className="mt-2 flex items-end justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-medium text-harbor-midnight">{title}</h3>
-          <p className="mt-1 text-xs text-harbor-midnight/55">{detail}</p>
-        </div>
-        <p className="text-2xl font-medium text-harbor-midnight">{value}</p>
-      </div>
-    </article>
-  );
-}
-
 function AdminSnapshotCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg border border-harbor-ocean/12 bg-white p-3 shadow-line">
@@ -703,8 +599,14 @@ type AdminRequestItem =
     };
 
 function AdminRequestsWorkspace({ data, role }: { data: DashboardData; role: AppRole }) {
-  const [activeTab, setActiveTab] = useState<AdminRequestTab>("new");
+  const [activeTab, setActiveTab] = useState<AdminRequestTab>("pending");
   const [completedFilter, setCompletedFilter] = useState<CompletedRequestFilter>("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const roleLabel = ROLE_LABELS[role];
+  const shiftById = useMemo(
+    () => new Map(data.shifts.map((shift) => [shift.id, shift])),
+    [data.shifts]
+  );
 
   const allRequests = useMemo<AdminRequestItem[]>(() => {
     return [
@@ -740,17 +642,64 @@ function AdminRequestsWorkspace({ data, role }: { data: DashboardData; role: App
       : activeTab === "pending"
         ? pending
         : completedVisible;
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const searchedRequests = visibleRequests.filter((item) => {
+    if (!normalizedSearch) return true;
+
+    if (item.type === "time-off") {
+      const request = item.request;
+      return [
+        request.employee_name,
+        request.program_name,
+        request.start_date,
+        request.end_date,
+        request.reason,
+        request.status
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedSearch);
+    }
+
+    const request = item.request;
+    const shift = shiftById.get(request.shift_id);
+    return [
+      request.requestor_name,
+      request.note,
+      request.status,
+      shift?.title,
+      shift?.program_name,
+      shift?.location_name,
+      shift?.shift_date
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearch);
+  });
 
   return (
-    <section className="panel p-4 sm:p-5">
+    <section className="panel p-3 sm:p-4">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <p className="label">Requests</p>
+          <p className="label">Request queue</p>
           <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
-            Admin request review
+            {roleLabel} review workspace
           </h2>
+          <p className="mt-1 text-sm leading-6 text-harbor-midnight/58">
+            Review new, pending, and completed time off and shift coverage requests in one place.
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          <label className="min-w-0 sm:w-64">
+            <span className="sr-only">Search requests</span>
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              className="field"
+              placeholder="Search requests"
+            />
+          </label>
           <RequestTabButton
             label="New"
             count={newRequests.length}
@@ -787,14 +736,14 @@ function AdminRequestsWorkspace({ data, role }: { data: DashboardData; role: App
         </div>
       ) : null}
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        {visibleRequests.length > 0 ? (
-          visibleRequests.map((item) =>
+      <div className="mt-4 grid gap-3 xl:grid-cols-2">
+        {searchedRequests.length > 0 ? (
+          searchedRequests.map((item) =>
             item.type === "shift" ? (
               <RequestReviewCard
                 key={`shift-${item.request.id}`}
                 request={item.request}
-                shift={data.shifts.find((shift) => shift.id === item.request.shift_id)}
+                shift={shiftById.get(item.request.shift_id)}
                 role={role}
               />
             ) : (

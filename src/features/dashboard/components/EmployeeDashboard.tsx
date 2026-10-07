@@ -3,7 +3,9 @@
 import { useState, type ReactNode } from "react";
 import {
   Bookmark,
+  CalendarCheck,
   CalendarClock,
+  CalendarX,
   ClipboardList,
   Send,
   X
@@ -27,7 +29,7 @@ import {
   MyCalendarBoard,
   type MyCalendarEvent
 } from "@/features/dashboard/components/MyCalendarBoard";
-import { formatLongDate, parseLocalDate, sortShifts } from "@/shared/lib/dates";
+import { formatLongDate, parseLocalDate, sortShifts, todayISO } from "@/shared/lib/dates";
 import type {
   DashboardData,
   ProgramName,
@@ -197,6 +199,12 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
         </section>
       ) : null}
 
+      <EmployeeRequestOverview
+        requests={myTimeOffRequests}
+        programLabel={programLabel}
+        onRequestTimeOff={() => setActiveModal("time-off")}
+      />
+
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)]">
         <div className="min-w-0">
           <MyCalendarBoard
@@ -221,6 +229,7 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
       <EmployeeWidgetModal
         title="Post Shift"
         eyebrow="Coverage request"
+        maxWidth="medium"
         open={activeModal === "post-shift"}
         onClose={() => setActiveModal(null)}
       >
@@ -238,6 +247,7 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
       <EmployeeWidgetModal
         title="Request Time Off"
         eyebrow="Submit for approval"
+        maxWidth="compact"
         open={activeModal === "time-off"}
         onClose={() => setActiveModal(null)}
       >
@@ -257,6 +267,122 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
         <WorkerProfileForm data={data} />
       </EmployeeWidgetModal>
     </DashboardShell>
+  );
+}
+
+function EmployeeRequestOverview({
+  requests,
+  programLabel,
+  onRequestTimeOff
+}: {
+  requests: TimeOffRequest[];
+  programLabel: string;
+  onRequestTimeOff: () => void;
+}) {
+  const pending = requests.filter(
+    (request) => request.status === "pending_supervisor_approval"
+  ).length;
+  const approved = requests.filter((request) => request.status === "approved").length;
+  const declined = requests.filter((request) => request.status === "declined").length;
+  const upcoming =
+    requests.find((request) => request.end_date >= todayISO()) ??
+    [...requests].sort((first, second) => second.created_at.localeCompare(first.created_at))[0];
+
+  return (
+    <section className="mb-4 grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)]">
+      <div className="panel p-3 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="label">Employee requests</p>
+            <h1 className="mt-1 text-2xl font-medium leading-tight text-harbor-midnight sm:text-3xl">
+              Request time off with a clear review trail.
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-harbor-midnight/62">
+              Submit dates for approval, then watch the status update here and on your
+              calendar. Your current program access is {programLabel}.
+            </p>
+          </div>
+          <button type="button" onClick={onRequestTimeOff} className="primary-button shrink-0">
+            <CalendarClock className="h-4 w-4" aria-hidden="true" />
+            Request Time Off
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <EmployeeQueueMetric
+            icon={CalendarClock}
+            label="Pending"
+            value={pending}
+            detail="Awaiting review"
+          />
+          <EmployeeQueueMetric
+            icon={CalendarCheck}
+            label="Approved"
+            value={approved}
+            detail="Confirmed time off"
+          />
+          <EmployeeQueueMetric
+            icon={CalendarX}
+            label="Declined"
+            value={declined}
+            detail="Needs follow up"
+          />
+        </div>
+      </div>
+
+      <div className="panel p-3 sm:p-4">
+        <p className="label">Current queue</p>
+        {upcoming ? (
+          <div className="mt-3 rounded-lg border border-harbor-ocean/10 bg-harbor-mist/60 p-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium text-harbor-midnight">
+                  {formatLongDate(upcoming.start_date)}
+                </p>
+                <p className="mt-1 text-xs text-harbor-midnight/55">
+                  Through {formatLongDate(upcoming.end_date)}
+                </p>
+              </div>
+              <StatusBadge value={upcoming.status} />
+            </div>
+            <p className="mt-3 line-clamp-3 text-sm leading-6 text-harbor-midnight/65">
+              {upcoming.reason}
+            </p>
+          </div>
+        ) : (
+          <EmptyState
+            icon={CalendarClock}
+            title="No time off submitted"
+            body="Use Request Time Off when you need a day reviewed."
+          />
+        )}
+      </div>
+    </section>
+  );
+}
+
+function EmployeeQueueMetric({
+  icon: Icon,
+  label,
+  value,
+  detail
+}: {
+  icon: typeof CalendarClock;
+  label: string;
+  value: number;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-lg border border-harbor-ocean/10 bg-white p-3 shadow-line">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium uppercase tracking-[0.06em] text-harbor-midnight/55">
+          {label}
+        </p>
+        <Icon className="h-4 w-4 text-harbor-ocean" aria-hidden="true" />
+      </div>
+      <p className="mt-2 text-2xl font-medium text-harbor-midnight">{value}</p>
+      <p className="mt-1 text-xs text-harbor-midnight/55">{detail}</p>
+    </div>
   );
 }
 
@@ -391,17 +517,22 @@ function EmployeeSideWidget({
 function EmployeeWidgetModal({
   title,
   eyebrow,
+  maxWidth = "wide",
   open,
   onClose,
   children
 }: {
   title: string;
   eyebrow: string;
+  maxWidth?: "compact" | "medium" | "wide";
   open: boolean;
   onClose: () => void;
   children: ReactNode;
 }) {
   if (!open) return null;
+
+  const widthClass =
+    maxWidth === "compact" ? "max-w-2xl" : maxWidth === "medium" ? "max-w-3xl" : "max-w-5xl";
 
   return (
     <div
@@ -410,7 +541,7 @@ function EmployeeWidgetModal({
       aria-modal="true"
       aria-labelledby={`employee-modal-${title}`}
     >
-      <section className="max-h-[88vh] w-full max-w-5xl overflow-auto rounded-lg border border-white/70 bg-white p-4 shadow-soft sm:p-5">
+      <section className={`max-h-[88vh] w-full ${widthClass} overflow-auto rounded-lg border border-white/70 bg-white p-4 shadow-soft sm:p-5`}>
         <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex items-start justify-between gap-4 border-b border-harbor-ocean/10 bg-white/95 px-4 py-4 backdrop-blur sm:-mx-5 sm:-mt-5 sm:px-5">
           <div>
             <p className="label">{eyebrow}</p>

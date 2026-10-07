@@ -46,8 +46,41 @@ export function AuthPanel({
   const [availability, setAvailability] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   const configured = useMemo(() => isSupabaseConfigured(), []);
+
+  async function handleForgotPassword() {
+    setMessage(null);
+
+    if (!email.includes("@")) {
+      setMessage("Enter your email first, then choose Forgot password.");
+      return;
+    }
+
+    if (!configured) {
+      setMessage("Demo mode is active. Password reset emails require Supabase Auth.");
+      return;
+    }
+
+    setIsSendingReset(true);
+
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset`
+      });
+
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+
+      setMessage("Check your email for a password reset link.");
+    } finally {
+      setIsSendingReset(false);
+    }
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -246,6 +279,16 @@ export function AuthPanel({
             autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
             required
           />
+          {mode === "sign-in" ? (
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              disabled={isSendingReset || isSubmitting}
+              className="word-button mt-2 w-fit px-0 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSendingReset ? "Sending reset link..." : "Forgot password?"}
+            </button>
+          ) : null}
         </label>
 
         {message ? (
