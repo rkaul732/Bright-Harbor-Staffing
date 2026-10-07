@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, KeyRound } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
@@ -12,7 +12,68 @@ export function ResetPasswordPanel() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [isPreparingReset, setIsPreparingReset] = useState(configured);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!configured) {
+      return;
+    }
+
+    let active = true;
+    const supabase = createSupabaseBrowserClient();
+
+    async function prepareResetSession() {
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const code = searchParams.get("code");
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        const accessToken = hashParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token");
+
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+          if (error) {
+            throw error;
+          }
+        } else if (accessToken && refreshToken) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+
+          if (error) {
+            throw error;
+          }
+        }
+
+        const { data } = await supabase.auth.getUser();
+
+        if (active && !data.user) {
+          setMessage("Open the password reset link from your email before setting a new password.");
+        }
+
+        if ((code || accessToken) && active) {
+          window.history.replaceState(null, "", "/auth/reset");
+        }
+      } catch (error) {
+        if (active) {
+          setMessage(error instanceof Error ? error.message : "Could not open the password reset link.");
+        }
+      } finally {
+        if (active) {
+          setIsPreparingReset(false);
+        }
+      }
+    }
+
+    prepareResetSession();
+
+    return () => {
+      active = false;
+    };
+  }, [configured]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -68,7 +129,9 @@ export function ResetPasswordPanel() {
           Set a new password
         </h1>
         <p className="mt-2 text-sm leading-6 text-harbor-midnight/70">
-          Enter a new password for your Bright Harbor Staffing account.
+          {isPreparingReset
+            ? "Checking your password reset link..."
+            : "Enter a new password for your Bright Harbor Staffing account."}
         </p>
       </div>
 
@@ -112,11 +175,11 @@ export function ResetPasswordPanel() {
 
         <button
           type="submit"
-          disabled={isSubmitting || success}
+          disabled={isPreparingReset || isSubmitting || success}
           className="primary-button w-full py-2"
         >
           <KeyRound className="h-4 w-4" aria-hidden="true" />
-          {isSubmitting ? "Updating..." : "Update password"}
+          {isPreparingReset ? "Checking link..." : isSubmitting ? "Updating..." : "Update password"}
         </button>
       </form>
 
