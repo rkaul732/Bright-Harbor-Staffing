@@ -5,6 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, KeyRound } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
+import {
+  getPasswordRequirementFailures,
+  getPasswordRequirementMessage
+} from "@/shared/lib/password";
 
 export function ResetPasswordPanel() {
   const configured = useMemo(() => isSupabaseConfigured(), []);
@@ -14,6 +18,7 @@ export function ResetPasswordPanel() {
   const [success, setSuccess] = useState(false);
   const [isPreparingReset, setIsPreparingReset] = useState(configured);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const passwordFailures = getPasswordRequirementFailures(password);
 
   useEffect(() => {
     if (!configured) {
@@ -79,8 +84,10 @@ export function ResetPasswordPanel() {
     event.preventDefault();
     setMessage(null);
 
-    if (password.length < 8) {
-      setMessage("Use a password with at least 8 characters.");
+    const passwordRequirementMessage = getPasswordRequirementMessage(password);
+
+    if (passwordRequirementMessage) {
+      setMessage(passwordRequirementMessage);
       return;
     }
 
@@ -148,6 +155,30 @@ export function ResetPasswordPanel() {
             required
           />
         </label>
+
+        <div className="rounded-lg border border-harbor-ocean/10 bg-harbor-mist/70 p-3 text-xs leading-5 text-harbor-midnight/68">
+          <p className="font-medium text-harbor-midnight">Password must include:</p>
+          <ul className="mt-2 grid gap-1">
+            {[
+              "at least 8 characters",
+              "one uppercase letter",
+              "one lowercase letter",
+              "one number",
+              "one symbol"
+            ].map((item) => {
+              const met = password.length > 0 && !passwordFailures.includes(item);
+
+              return (
+                <li
+                  key={item}
+                  className={met ? "text-harbor-ocean" : "text-harbor-midnight/58"}
+                >
+                  {met ? "Met:" : "Need:"} {item}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
 
         <label className="block">
           <span className="label">Confirm password</span>

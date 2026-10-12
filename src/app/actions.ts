@@ -18,6 +18,7 @@ import {
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
 import { createSupabaseAdminClient, hasSupabaseServiceRoleKey } from "@/shared/lib/supabase/admin";
+import { getPasswordRequirementMessage } from "@/shared/lib/password";
 import {
   createCodeRedShift,
   getCodeRedAvailabilityDates,
@@ -792,8 +793,10 @@ export async function completeStaffSetupAction(
     return { ok: false, message: "Add your full name." };
   }
 
-  if (password.length < 8) {
-    return { ok: false, message: "Use a password with at least 8 characters." };
+  const passwordRequirementMessage = getPasswordRequirementMessage(password);
+
+  if (passwordRequirementMessage) {
+    return { ok: false, message: passwordRequirementMessage };
   }
 
   if (password !== confirmPassword) {

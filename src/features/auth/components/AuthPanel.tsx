@@ -11,6 +11,7 @@ import {
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import { cn } from "@/shared/lib/cn";
+import { getPasswordRequirementMessage } from "@/shared/lib/password";
 import { AvailabilityCheckboxGroup } from "@/shared/components/AvailabilityCheckboxGroup";
 import type { AppRole, ProgramName } from "@/shared/types/domain";
 
@@ -86,8 +87,22 @@ export function AuthPanel({
     event.preventDefault();
     setMessage(null);
 
-    if (!email.includes("@") || password.length < 6) {
-      setMessage("Use a valid email and a password with at least 6 characters.");
+    if (!email.includes("@")) {
+      setMessage("Use a valid email address.");
+      return;
+    }
+
+    if (mode === "sign-up") {
+      const passwordRequirementMessage = getPasswordRequirementMessage(password);
+
+      if (passwordRequirementMessage) {
+        setMessage(passwordRequirementMessage);
+        return;
+      }
+    }
+
+    if (mode === "sign-in" && password.length < 1) {
+      setMessage("Enter your password.");
       return;
     }
 
