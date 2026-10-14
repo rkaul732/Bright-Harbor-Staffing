@@ -56,7 +56,7 @@ const tokenNames = [
   "review_comment",
   "reviewer_name"
 ];
-const fontOptions = ["Inter", "Arial", "Georgia", "Times New Roman", "Verdana"];
+const fontOptions = ["DM Sans", "Inter", "Arial", "Georgia", "Times New Roman", "Verdana"];
 
 function eventLabel(eventType: AutomatedMessageEvent) {
   return eventType === "time_off_approved" ? "Time off approved" : "Time off declined";

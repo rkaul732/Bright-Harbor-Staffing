@@ -306,7 +306,7 @@ export function AdminReportsDashboard({ data }: { data: DashboardData }) {
   const previewRows = selectedRows.slice(0, 12);
 
   return (
-    <DashboardShell role="admin" data={data}>
+    <DashboardShell role={data.currentUser.role === "supervisor" ? "supervisor" : "admin"} data={data}>
       <section className="panel p-4 sm:p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>

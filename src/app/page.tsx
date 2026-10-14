@@ -2,12 +2,6 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { APP_NAME } from "@/shared/lib/constants";
 
-const roleLinks = [
-  { label: "Employee Login", href: "/auth?role=employee" },
-  { label: "Supervisor Login", href: "/auth?role=supervisor" },
-  { label: "Admin Login", href: "/auth?role=admin" }
-];
-
 export default function LandingPage() {
   return (
     <main className="mx-auto flex min-h-[calc(100vh-65px)] max-w-5xl flex-col items-center justify-center px-4 py-10 text-center sm:px-6 lg:px-8">
@@ -23,13 +17,11 @@ export default function LandingPage() {
             Bright Harbor programs.
           </p>
 
-          <div className="mt-9 grid gap-3 sm:max-w-2xl sm:grid-cols-3">
-            {roleLinks.map((link) => (
-              <Link key={link.href} href={link.href} className="word-button justify-start py-2 text-sm">
-                {link.label}
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Link>
-            ))}
+          <div className="mt-9">
+            <Link href="/auth" className="word-button justify-start py-2 text-sm">
+              Login
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
           </div>
         </div>
       </section>

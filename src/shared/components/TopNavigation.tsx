@@ -23,8 +23,8 @@ async function canShowViewSwitcher() {
       .eq("id", user.id)
       .maybeSingle();
 
-    if (appUser?.role === "admin") {
-      return true;
+    if (appUser?.role !== "admin") {
+      return false;
     }
 
     const { data: adminProfile } = await supabase

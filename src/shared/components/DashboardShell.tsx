@@ -14,6 +14,8 @@ export function DashboardShell({
   children: React.ReactNode;
   onProfileClick?: () => void;
 }) {
+  const canAccessReviewTools = hasAdminAccess(data) || hasSupervisorAccess(data);
+  const canManageAccountTypes = hasSuperAdminAccess(data);
   const roleNotifications = data.notifications.filter(
     (notification) =>
       notification.role === role ||
@@ -27,9 +29,10 @@ export function DashboardShell({
         <ProfileMenu
           fullName={data.currentUser.full_name}
           email={data.currentUser.email}
-          canAccessAdmin={hasAdminAccess(data)}
-          canAccessEmployees={hasAdminAccess(data) || hasSupervisorAccess(data)}
-          canAccessAutomatedMessages={hasSuperAdminAccess(data)}
+          canAccessAdmin={canAccessReviewTools}
+          canAccessEmployees={canAccessReviewTools}
+          canAccessAutomatedMessages={canManageAccountTypes}
+          canManageAccountTypes={canManageAccountTypes}
           canEditProfile={role === "employee" && Boolean(onProfileClick)}
           onProfileClick={onProfileClick}
         />

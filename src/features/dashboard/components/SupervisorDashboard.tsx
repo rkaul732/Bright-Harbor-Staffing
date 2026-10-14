@@ -24,6 +24,7 @@ import { ProfileModerationControls } from "@/features/admin/components/ProfileMo
 import { StaffAccountInviteForm } from "@/features/admin/components/StaffAccountInviteForm";
 import { formatLongDate, sortShifts } from "@/shared/lib/dates";
 import { PROGRAMS, ROLE_LABELS } from "@/shared/lib/constants";
+import { hasSuperAdminAccess } from "@/shared/lib/access";
 import type {
   AdminProfile,
   AppRole,
@@ -360,6 +361,7 @@ function AdminDashboardHome({
     (request) => request.status === "declined"
   );
   const totalAccounts = visibleData.users.filter((user) => user.role === "employee").length;
+  const canManageAccountTypes = hasSuperAdminAccess(data);
   const roleLabel = ROLE_LABELS[role];
 
   return (
@@ -391,11 +393,9 @@ function AdminDashboardHome({
                 ))}
               </select>
             </label>
-            {role === "admin" ? (
-              <Link href="/reports" className="word-button font-semibold">
+            <Link href="/reports" className="word-button font-semibold">
               Reports
-              </Link>
-            ) : null}
+            </Link>
           </div>
         </div>
 
@@ -409,10 +409,14 @@ function AdminDashboardHome({
         <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]">
           <AdminHubCard title="New Requests" badge={visiblePendingTimeOffRequests.length + " waiting"} />
           <AdminHubCard title="Team Schedule" badge={visibleApprovedTimeOffRequests.length + " approved"} />
-          {role === "admin" ? (
-            <AdminHubCard title="Reports" badge="Spreadsheet export" href="/reports" />
+          <AdminHubCard title="Reports" badge="Spreadsheet export" href="/reports" />
+          {canManageAccountTypes ? (
+            <AdminHubCard
+              title="Account Types"
+              badge={totalAccounts + " accounts"}
+              href="/employees/account-types"
+            />
           ) : null}
-          <AdminHubCard title="Account Types" badge={totalAccounts + " accounts"} />
         </div>
       </section>
 

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { AdminReportsDashboard } from "@/features/reports/components/AdminReportsDashboard";
-import { hasAdminAccess } from "@/shared/lib/access";
+import { hasAdminAccess, hasSupervisorAccess } from "@/shared/lib/access";
 import { getDashboardData } from "@/shared/lib/dashboard-data";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function ReportsPage() {
   const data = await getDashboardData("admin");
 
-  if (!hasAdminAccess(data)) {
+  if (!hasAdminAccess(data) && !hasSupervisorAccess(data)) {
     redirect("/employee");
   }
 

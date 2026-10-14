@@ -26,7 +26,8 @@ body {
   background: linear-gradient(180deg, var(--mist) 0%, rgba(238, 245, 251, 0.45) 46%, #ffffff 100%);
   color: var(--midnight);
   font-family:
-    Inter,
+    var(--font-dm-sans),
+    "DM Sans",
     Aptos,
     "SF Pro Display",
     "SF Pro Text",

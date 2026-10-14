@@ -33,6 +33,7 @@ export function ProfileMenu({
   canAccessAdmin,
   canAccessEmployees = false,
   canAccessAutomatedMessages = false,
+  canManageAccountTypes = false,
   canEditProfile = false,
   onProfileClick
 }: {
@@ -41,15 +42,18 @@ export function ProfileMenu({
   canAccessAdmin: boolean;
   canAccessEmployees?: boolean;
   canAccessAutomatedMessages?: boolean;
+  canManageAccountTypes?: boolean;
   canEditProfile?: boolean;
   onProfileClick?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [employeesOpen, setEmployeesOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement | null>(null);
   const initials = getInitials(fullName);
+  const showEmployeesLinks = employeesOpen || pathname.startsWith("/employees");
 
   async function handleSignOut() {
     setIsSigningOut(true);
@@ -61,6 +65,7 @@ export function ProfileMenu({
       }
 
       setOpen(false);
+      setEmployeesOpen(false);
       router.push("/");
       router.refresh();
     } finally {
@@ -122,13 +127,46 @@ export function ProfileMenu({
               </button>
             ) : null}
             {canAccessEmployees ? (
-              <Link
-                href="/employees"
-                className={menuItemClass(pathname.startsWith("/employees"))}
-                onClick={() => setOpen(false)}
-              >
-                Employees
-              </Link>
+              <div>
+                <button
+                  type="button"
+                  className={cn(
+                    menuItemClass(pathname.startsWith("/employees")),
+                    "flex items-center justify-between"
+                  )}
+                  onClick={() => setEmployeesOpen((current) => !current)}
+                  aria-expanded={showEmployeesLinks}
+                >
+                  <span>Employees</span>
+                  <ChevronDown
+                    className={cn(
+                      "h-3.5 w-3.5 transition",
+                      showEmployeesLinks && "rotate-180"
+                    )}
+                    aria-hidden="true"
+                  />
+                </button>
+                {showEmployeesLinks ? (
+                  <div className="mt-1 space-y-1 border-l border-harbor-ocean/10 pl-3">
+                    <Link
+                      href="/employees"
+                      className={menuItemClass(pathname === "/employees")}
+                      onClick={() => setOpen(false)}
+                    >
+                      Employee Info
+                    </Link>
+                    {canManageAccountTypes ? (
+                      <Link
+                        href="/employees/account-types"
+                        className={menuItemClass(pathname.startsWith("/employees/account-types"))}
+                        onClick={() => setOpen(false)}
+                      >
+                        Account Types
+                      </Link>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             ) : null}
             {canAccessAdmin ? (
               <>

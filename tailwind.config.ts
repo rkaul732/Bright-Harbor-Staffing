@@ -22,7 +22,8 @@ const config: Config = {
       },
       fontFamily: {
         sans: [
-          "Inter",
+          "var(--font-dm-sans)",
+          "DM Sans",
           "Aptos",
           "SF Pro Display",
           "SF Pro Text",

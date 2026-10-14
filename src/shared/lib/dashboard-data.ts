@@ -170,7 +170,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect(`/auth?role=${role}`);
+    redirect("/auth");
   }
 
   const [

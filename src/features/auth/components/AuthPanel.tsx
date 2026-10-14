@@ -5,19 +5,15 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, LogIn, UserPlus } from "lucide-react";
 import {
   PROGRAMS,
-  ROLE_DASHBOARD_PATHS,
-  ROLE_LABELS
+  ROLE_DASHBOARD_PATHS
 } from "@/shared/lib/constants";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
-import { cn } from "@/shared/lib/cn";
 import { getPasswordRequirementMessage } from "@/shared/lib/password";
 import { AvailabilityCheckboxGroup } from "@/shared/components/AvailabilityCheckboxGroup";
-import type { AppRole, ProgramName } from "@/shared/types/domain";
+import type { ProgramName } from "@/shared/types/domain";
 
 type AuthMode = "sign-in" | "sign-up";
-
-const roles: AppRole[] = ["employee", "supervisor", "admin"];
 
 async function recordLastLogin(supabase: ReturnType<typeof createSupabaseBrowserClient>) {
   try {
@@ -29,15 +25,34 @@ async function recordLastLogin(supabase: ReturnType<typeof createSupabaseBrowser
   }
 }
 
+async function dashboardPathForSignedInUser(
+  supabase: ReturnType<typeof createSupabaseBrowserClient>,
+  userId?: string
+) {
+  if (!userId) {
+    return ROLE_DASHBOARD_PATHS.employee;
+  }
+
+  const { data } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  const role = data?.role;
+
+  if (role === "admin" || role === "supervisor" || role === "employee") {
+    return ROLE_DASHBOARD_PATHS[role];
+  }
+
+  return ROLE_DASHBOARD_PATHS.employee;
+}
+
 export function AuthPanel({
-  initialRole = "employee",
   nextPath
 }: {
-  initialRole?: AppRole;
   nextPath?: string;
 }) {
   const router = useRouter();
-  const [role, setRole] = useState<AppRole>(initialRole);
   const [mode, setMode] = useState<AuthMode>("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -111,12 +126,7 @@ export function AuthPanel({
       return;
     }
 
-    if (mode === "sign-up" && role !== "employee") {
-      setMessage("Supervisor and admin accounts are created by invitation. Use your setup email or sign in.");
-      return;
-    }
-
-    if (mode === "sign-up" && role === "employee" && programNames.length === 0) {
+    if (mode === "sign-up" && programNames.length === 0) {
       setMessage("Choose at least one program.");
       return;
     }
@@ -125,7 +135,7 @@ export function AuthPanel({
 
     try {
       if (!configured) {
-        router.push(nextPath || ROLE_DASHBOARD_PATHS[role]);
+        router.push(nextPath || ROLE_DASHBOARD_PATHS.employee);
         return;
       }
 
@@ -139,15 +149,15 @@ export function AuthPanel({
               password,
               options: {
                 data: {
-                  role,
+                  role: "employee",
                   full_name: fullName || email.split("@")[0],
                   first_name: firstName.trim() || undefined,
                   last_name: lastName.trim() || undefined,
-                  program_name: role === "employee" ? programNames[0] : undefined,
-                  program_names: role === "employee" ? programNames : undefined,
-                  availability: role === "employee" ? availability : undefined
+                  program_name: programNames[0],
+                  program_names: programNames,
+                  availability
                 },
-                emailRedirectTo: `${window.location.origin}${ROLE_DASHBOARD_PATHS[role]}`
+                emailRedirectTo: `${window.location.origin}${ROLE_DASHBOARD_PATHS.employee}`
               }
             });
 
@@ -165,7 +175,11 @@ export function AuthPanel({
         await recordLastLogin(supabase);
       }
 
-      router.push(nextPath || ROLE_DASHBOARD_PATHS[role]);
+      const dashboardPath = await dashboardPathForSignedInUser(
+        supabase,
+        result.data.user?.id
+      );
+      router.push(nextPath || dashboardPath);
       router.refresh();
     } finally {
       setIsSubmitting(false);
@@ -181,27 +195,9 @@ export function AuthPanel({
         </h1>
         <p className="mt-2 text-sm leading-6 text-harbor-midnight/70">
           {configured
-            ? "Sign in with Supabase Auth to reach your protected dashboard."
+            ? "Log in with your Bright Harbor account to reach the right dashboard for your role."
             : "Demo mode is active because Supabase keys are not configured yet."}
         </p>
-      </div>
-
-      <div className="mt-5 grid grid-cols-3 rounded-lg bg-harbor-mist p-1">
-        {roles.map((item) => (
-          <button
-            key={item}
-            type="button"
-            onClick={() => setRole(item)}
-            className={cn(
-              "focus-ring rounded-md px-2 py-2 text-sm font-medium transition",
-              role === item
-                ? "bg-white text-harbor-midnight shadow-line"
-                : "text-harbor-ocean hover:bg-white/60"
-            )}
-          >
-            {ROLE_LABELS[item]}
-          </button>
-        ))}
       </div>
 
       <form onSubmit={handleSubmit} className="mt-5 space-y-4">
@@ -231,42 +227,38 @@ export function AuthPanel({
                 />
               </label>
             </div>
-            {role === "employee" ? (
-              <fieldset>
-                <legend className="label">Programs</legend>
-                <div className="mt-2 max-h-56 overflow-auto rounded-lg border border-harbor-ocean/10 bg-white p-2">
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {PROGRAMS.map((program) => (
-                      <label
-                        key={program}
-                        className="flex items-start gap-2 rounded-md px-2 py-2 text-sm text-harbor-midnight/75 hover:bg-harbor-mist"
-                      >
-                        <input
-                          type="checkbox"
-                          value={program}
-                          checked={programNames.includes(program)}
-                          onChange={(event) => {
-                            setProgramNames((current) =>
-                              event.target.checked
-                                ? [...current, program]
-                                : current.filter((item) => item !== program)
-                            );
-                          }}
-                          className="mt-0.5 h-4 w-4 rounded border-harbor-ocean/20 text-harbor-sky"
-                        />
-                        <span>{program}</span>
-                      </label>
-                    ))}
-                  </div>
+            <fieldset>
+              <legend className="label">Programs</legend>
+              <div className="mt-2 max-h-56 overflow-auto rounded-lg border border-harbor-ocean/10 bg-white p-2">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {PROGRAMS.map((program) => (
+                    <label
+                      key={program}
+                      className="flex items-start gap-2 rounded-md px-2 py-2 text-sm text-harbor-midnight/75 hover:bg-harbor-mist"
+                    >
+                      <input
+                        type="checkbox"
+                        value={program}
+                        checked={programNames.includes(program)}
+                        onChange={(event) => {
+                          setProgramNames((current) =>
+                            event.target.checked
+                              ? [...current, program]
+                              : current.filter((item) => item !== program)
+                          );
+                        }}
+                        className="mt-0.5 h-4 w-4 rounded border-harbor-ocean/20 text-harbor-sky"
+                      />
+                      <span>{program}</span>
+                    </label>
+                  ))}
                 </div>
-              </fieldset>
-            ) : null}
-            {role === "employee" ? (
-              <AvailabilityCheckboxGroup
-                selected={availability}
-                onChange={setAvailability}
-              />
-            ) : null}
+              </div>
+            </fieldset>
+            <AvailabilityCheckboxGroup
+              selected={availability}
+              onChange={setAvailability}
+            />
           </div>
         ) : null}
 
@@ -289,7 +281,7 @@ export function AuthPanel({
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             className="field mt-1.5"
-            placeholder="At least 6 characters"
+            placeholder="At least 8 characters"
             type="password"
             autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
             required
@@ -322,8 +314,8 @@ export function AuthPanel({
           {isSubmitting
             ? "Working..."
             : mode === "sign-in"
-              ? `Sign in as ${ROLE_LABELS[role]}`
-              : `Create ${ROLE_LABELS[role]} account`}
+              ? "Login"
+              : "Create employee account"}
         </button>
       </form>
 

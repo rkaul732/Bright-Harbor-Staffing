@@ -98,6 +98,10 @@ function asPrograms(formData: FormData) {
     .filter((value): value is ProgramName => programSchema.safeParse(value).success);
 }
 
+function ensureProgramNames(programNames: ProgramName[]) {
+  return programNames.length > 0 ? programNames : (["Front Desk"] satisfies ProgramName[]);
+}
+
 function asAvailability(formData: FormData) {
   const selected = formData
     .getAll("availability")
@@ -478,6 +482,8 @@ function revalidateDashboards() {
   revalidatePath("/employee");
   revalidatePath("/supervisor");
   revalidatePath("/admin");
+  revalidatePath("/employees");
+  revalidatePath("/employees/account-types");
   revalidatePath("/monthly-winners");
   revalidatePath("/reports");
   revalidatePath("/automated-messages");
@@ -776,6 +782,133 @@ export async function createStaffAccountAction(
 
   revalidateDashboards();
   return { ok: true, message: "Setup email sent to " + parsed.data.email + "." };
+}
+
+export async function updateAccountTypeAction(
+  _previousState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const currentUser = await getUserForAction("admin");
+  const parsed = z
+    .object({
+      user_id: z.string().min(1, "Choose a valid staff account."),
+      account_type: z.enum(["employee", "supervisor", "admin"])
+    })
+    .safeParse({
+      user_id: asString(formData.get("user_id")),
+      account_type: asString(formData.get("account_type"))
+    });
+  const programNames = ensureProgramNames(asPrograms(formData));
+  const primaryProgram = programNames[0] ?? "Front Desk";
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Choose a valid account type."
+    };
+  }
+
+  if (!isSupabaseConfigured()) {
+    return { ok: true, message: "Demo mode: account type would be updated." };
+  }
+
+  if (!(await isSuperAdminForAction(currentUser))) {
+    return { ok: false, message: "Only super admins can update account types." };
+  }
+
+  if (!hasSupabaseServiceRoleKey()) {
+    return {
+      ok: false,
+      message: "Add SUPABASE_SERVICE_ROLE_KEY in Netlify to update account types."
+    };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const { data: existingAdminProfile } = await adminClient
+    .from("admin_profiles")
+    .select("is_super_admin")
+    .eq("user_id", parsed.data.user_id)
+    .maybeSingle();
+
+  if (existingAdminProfile?.is_super_admin) {
+    return {
+      ok: false,
+      message: "Super admin account types cannot be changed from this page."
+    };
+  }
+
+  const { error: userError } = await adminClient
+    .from("users")
+    .update({ role: parsed.data.account_type })
+    .eq("id", parsed.data.user_id);
+
+  if (userError) {
+    return { ok: false, message: userError.message };
+  }
+
+  if (parsed.data.account_type === "employee") {
+    const { error } = await adminClient.from("worker_profiles").upsert(
+      {
+        user_id: parsed.data.user_id,
+        status: "approved",
+        program_name: primaryProgram,
+        program_names: programNames
+      },
+      { onConflict: "user_id" }
+    );
+
+    if (error) {
+      return { ok: false, message: error.message };
+    }
+
+    await adminClient
+      .from("supervisor_profiles")
+      .update({ status: "suspended" })
+      .eq("user_id", parsed.data.user_id);
+    await adminClient
+      .from("admin_profiles")
+      .update({ status: "suspended", is_super_admin: false })
+      .eq("user_id", parsed.data.user_id);
+  }
+
+  if (parsed.data.account_type === "supervisor") {
+    const { error } = await adminClient.from("supervisor_profiles").upsert(
+      {
+        user_id: parsed.data.user_id,
+        status: "approved",
+        program_names: programNames
+      },
+      { onConflict: "user_id" }
+    );
+
+    if (error) {
+      return { ok: false, message: error.message };
+    }
+
+    await adminClient
+      .from("admin_profiles")
+      .update({ status: "suspended", is_super_admin: false })
+      .eq("user_id", parsed.data.user_id);
+  }
+
+  if (parsed.data.account_type === "admin") {
+    const { error } = await adminClient.from("admin_profiles").upsert(
+      {
+        user_id: parsed.data.user_id,
+        status: "approved",
+        program_names: programNames,
+        is_super_admin: false
+      },
+      { onConflict: "user_id" }
+    );
+
+    if (error) {
+      return { ok: false, message: error.message };
+    }
+  }
+
+  revalidateDashboards();
+  return { ok: true, message: "Account type updated." };
 }
 
 export async function completeStaffSetupAction(
