@@ -7,7 +7,8 @@ import { formatShortDate } from "@/shared/lib/dates";
 import { hasSuperAdminAccess } from "@/shared/lib/access";
 import { EmployeeAccountInviteForm } from "@/features/employees/components/EmployeeAccountInviteForm";
 import { EmployeeProfileApprovalControls } from "@/features/employees/components/EmployeeProfileApprovalControls";
-import type { AppUser, DashboardData, WorkerProfile } from "@/shared/types/domain";
+import { ProgramAssignmentControls } from "@/features/employees/components/ProgramAssignmentControls";
+import type { AppUser, DashboardData, ProgramName, WorkerProfile } from "@/shared/types/domain";
 
 type EmployeeRecord = {
   user: AppUser;
@@ -59,6 +60,7 @@ export function AdminEmployeesDashboard({ data }: { data: DashboardData }) {
   const inviteProgramNames = hasSuperAdminAccess(data)
     ? PROGRAMS
     : (currentAdminProfile?.program_names ?? currentSupervisorProfile?.program_names ?? []);
+  const canEditPrograms = !isSupervisorView;
   const approvedProfiles = employees.filter((employee) => employee.profile?.status === "approved");
   const pendingProfiles = employees.filter((employee) => employee.profile?.status === "pending");
   const missingProfiles = employees.filter((employee) => !employee.profile);
@@ -126,7 +128,11 @@ export function AdminEmployeesDashboard({ data }: { data: DashboardData }) {
 
         <div className="mt-4">
           {employees.length > 0 ? (
-            <EmployeeTable employees={employees} />
+            <EmployeeTable
+              employees={employees}
+              canEditPrograms={canEditPrograms}
+              allowedProgramNames={canEditPrograms ? inviteProgramNames : []}
+            />
           ) : (
             <EmptyState
               icon={UsersRound}
@@ -151,7 +157,15 @@ function EmployeeMetric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function EmployeeTable({ employees }: { employees: EmployeeRecord[] }) {
+function EmployeeTable({
+  employees,
+  canEditPrograms,
+  allowedProgramNames
+}: {
+  employees: EmployeeRecord[];
+  canEditPrograms: boolean;
+  allowedProgramNames: ProgramName[];
+}) {
   return (
     <div className="overflow-x-auto rounded-lg border border-harbor-ocean/10 bg-white shadow-line">
       <table className="w-full min-w-[1320px] border-separate border-spacing-0 text-left text-sm">
@@ -171,7 +185,12 @@ function EmployeeTable({ employees }: { employees: EmployeeRecord[] }) {
         </thead>
         <tbody>
           {employees.map((employee) => (
-            <EmployeeRow key={employee.user.id} employee={employee} />
+            <EmployeeRow
+              key={employee.user.id}
+              employee={employee}
+              canEditPrograms={canEditPrograms}
+              allowedProgramNames={allowedProgramNames}
+            />
           ))}
         </tbody>
       </table>
@@ -179,7 +198,15 @@ function EmployeeTable({ employees }: { employees: EmployeeRecord[] }) {
   );
 }
 
-function EmployeeRow({ employee }: { employee: EmployeeRecord }) {
+function EmployeeRow({
+  employee,
+  canEditPrograms,
+  allowedProgramNames
+}: {
+  employee: EmployeeRecord;
+  canEditPrograms: boolean;
+  allowedProgramNames: ProgramName[];
+}) {
   const { user, profile } = employee;
 
   return (
@@ -193,7 +220,16 @@ function EmployeeRow({ employee }: { employee: EmployeeRecord }) {
       <td className="border-b border-harbor-ocean/10 px-3 py-2.5 text-harbor-midnight/70">
         {user.phone || "Not provided"}
       </td>
-      <EmployeeCell value={programText(profile)} />
+      <td className="max-w-[26rem] border-b border-harbor-ocean/10 px-3 py-2.5 text-xs leading-5 text-harbor-midnight/70">
+        {programText(profile)}
+        {canEditPrograms ? (
+          <ProgramAssignmentControls
+            userId={user.id}
+            programNames={getProfileProgramNames(profile)}
+            allowedProgramNames={allowedProgramNames}
+          />
+        ) : null}
+      </td>
       <EmployeeCell value={listText(profile?.availability)} />
       <EmployeeCell value={listText(profile?.skills)} />
       <td className="border-b border-harbor-ocean/10 px-3 py-2.5 text-harbor-midnight/70">

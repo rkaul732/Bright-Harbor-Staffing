@@ -66,13 +66,16 @@ SHIFT_APPROVAL_SUPERVISOR_EMAIL=bpataky@brightharbor.org
 3. Apply the SQL files in `supabase/migrations` in numeric order.
 4. Load optional demo records from `supabase/seed.sql`.
 5. Confirm the `profile-photos` storage bucket exists. The migration creates it and adds policies.
+6. Enable email confirmation in Supabase Auth and allow the `/auth/callback` redirect URL for employee registration.
+
+Employees can create an account from the landing page using a `@brightharbor.org` address and a password they choose. The registration migration checks the domain in the database, keeps self-service signups in the employee role, and limits employee time off visibility to their own requests.
 
 Demo login accounts from the seed:
 
 ```text
-employee@example.com / password123
-morgan@example.com / password123
-admin@example.com / password123
+employee@brightharbor.org / password123
+morgan@brightharbor.org / password123
+admin@brightharbor.org / password123
 ```
 
 ## Staff Account Invitations
@@ -83,11 +86,11 @@ Admins can create staff accounts from Admin View. This uses Supabase Auth invite
 https://brightharborstaffing.netlify.app/auth/callback
 ```
 
-Invited staff members are routed through `/auth/callback` and then create their password at `/auth/setup`, verify profile settings, and submit the profile for admin review. The app also creates an admin notification when setup is completed.
+Invited staff members are routed through `/auth/callback` and then create their password at `/auth/setup`, verify profile settings, and submit the profile for admin review. The app also creates an admin notification when setup is completed. Only super admins can invite new admins. Invited admins choose whole divisions or individual programs during setup; their access remains pending until a super admin approves the expanded program scope. Apply migration `009_employee_registration_privacy.sql` before enabling public registration and admin invitations so only trusted invitations can create admin roles.
 
 ## Admin Visibility
 
-Regular admins see requests, calendars, reports, and profile reviews for the programs assigned to their admin profile. Super admins see every program. The migration marks `rkaul@brightharbor.org` as a super admin when that user exists.
+Regular admins see requests, calendars, reports, and profile reviews for the programs assigned to their admin profile. Their dashboard filter lists every assigned program under its division, including programs without current activity. Super admins see every program. The migration marks `rkaul@brightharbor.org` as a super admin when that user exists.
 
 ## Automated Messages
 

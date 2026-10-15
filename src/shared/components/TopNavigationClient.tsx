@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { APP_NAME } from "@/shared/lib/constants";
 import { cn } from "@/shared/lib/cn";
@@ -28,16 +29,27 @@ export function TopNavigationClient({
   const activeView = activeViewForPath(pathname);
 
   return (
-    <header className="sticky top-0 z-[90] border-b border-harbor-ocean/10 bg-harbor-mist/85 backdrop-blur-xl">
-      <nav className="mx-auto flex w-full max-w-[96rem] items-center justify-between gap-2 px-3 py-2 pr-28 sm:px-4 sm:pr-32 lg:px-5 lg:pr-36">
+    <header className="sticky top-0 z-[90] border-b border-harbor-ocean/10 bg-white/95 shadow-line backdrop-blur-xl">
+      <nav className="mx-auto flex w-full max-w-[96rem] flex-col items-start justify-center gap-1 px-4 py-2 pr-20 sm:min-h-[84px] sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 sm:pr-28 lg:px-8 lg:pr-32">
         <Link
           href="/"
-          className="focus-ring min-w-0 rounded-md text-sm font-medium text-harbor-midnight sm:text-base"
+          className="focus-ring flex min-w-0 items-center gap-3 rounded-lg"
+          aria-label={APP_NAME + " home"}
         >
-          {APP_NAME}
+          <Image
+            src="/brand/bhh-logo.png"
+            alt="Bright Harbor Healthcare"
+            width={1000}
+            height={428}
+            priority
+            className="h-[52px] w-auto shrink-0 sm:h-[66px]"
+          />
+          <span className="hidden border-l border-harbor-ocean/20 pl-3 text-[10px] font-bold uppercase leading-[1.4] tracking-[0.16em] text-harbor-ocean lg:block">
+            Staffing<br />Portal
+          </span>
         </Link>
         {showViewSwitcher ? (
-          <div className="grid w-[15rem] shrink-0 grid-cols-2 rounded-full border border-harbor-ocean/10 bg-white/75 p-0.5 shadow-line">
+          <div className="grid w-full max-w-[17rem] shrink-0 grid-cols-2 rounded-xl border border-harbor-ocean/10 bg-harbor-mist p-1 shadow-line sm:w-[17rem]">
             {viewLinks.map((link) => {
               const active = activeView === link.key;
 
@@ -47,8 +59,8 @@ export function TopNavigationClient({
                   href={link.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "focus-ring flex items-center justify-center rounded-full px-2 py-1 text-[12px] font-normal text-harbor-ocean/70 transition hover:text-harbor-midnight",
-                    active && "bg-harbor-midnight font-semibold text-white shadow-line hover:text-white"
+                    "focus-ring flex min-h-9 items-center justify-center rounded-lg px-3 py-1.5 text-xs font-semibold text-harbor-ocean transition hover:text-harbor-midnight",
+                    active && "bg-harbor-midnight text-white shadow-line hover:text-white"
                   )}
                 >
                   {link.label}

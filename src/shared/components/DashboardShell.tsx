@@ -24,8 +24,8 @@ export function DashboardShell({
   );
 
   return (
-    <main className="mx-auto w-full max-w-[96rem] px-2.5 py-3 sm:px-4 lg:px-5">
-      <div className="fixed right-4 top-2.5 z-[110] sm:right-6 lg:right-8">
+    <main className="mx-auto w-full max-w-[96rem] px-3 py-5 sm:px-6 sm:py-7 lg:px-8">
+      <div className="fixed right-4 top-3 z-[110] sm:right-6 sm:top-5 lg:right-8">
         <ProfileMenu
           fullName={data.currentUser.full_name}
           email={data.currentUser.email}
@@ -39,7 +39,7 @@ export function DashboardShell({
       </div>
 
       {roleNotifications.length > 0 ? (
-        <div className="mb-4 flex gap-2 rounded-lg border border-harbor-sky/20 bg-white/90 px-3 py-2 text-sm text-harbor-midnight/70 shadow-line">
+        <div className="mb-5 flex gap-3 rounded-xl border border-harbor-sky/20 bg-white px-4 py-3 text-sm text-harbor-midnight/75 shadow-line">
           <Bell className="mt-0.5 h-4 w-4 shrink-0 text-harbor-ocean" aria-hidden="true" />
           <p>{roleNotifications[0].title}: {roleNotifications[0].body}</p>
         </div>

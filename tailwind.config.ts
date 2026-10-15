@@ -17,8 +17,9 @@ const config: Config = {
         }
       },
       boxShadow: {
-        soft: "0 18px 60px rgba(28, 47, 67, 0.10)",
-        line: "0 1px 0 rgba(28, 47, 67, 0.08)"
+        soft: "0 22px 60px -32px rgba(28, 47, 67, 0.35), 0 6px 18px -12px rgba(28, 47, 67, 0.14)",
+        line: "0 1px 2px rgba(28, 47, 67, 0.05), 0 10px 28px -24px rgba(28, 47, 67, 0.28)",
+        lift: "0 28px 72px -36px rgba(28, 47, 67, 0.42)"
       },
       fontFamily: {
         sans: [

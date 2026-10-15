@@ -42,6 +42,29 @@ export function WorkerProfileForm({ data }: { data: DashboardData }) {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
+          <span className="label">Pronouns</span>
+          <input
+            name="pronouns"
+            defaultValue={profile?.account_information?.pronouns ?? ""}
+            className="field mt-1.5"
+            placeholder="e.g. she/her"
+            maxLength={80}
+          />
+        </label>
+        <label className="block">
+          <span className="label">Manager</span>
+          <input
+            name="manager"
+            defaultValue={profile?.account_information?.manager ?? ""}
+            className="field mt-1.5"
+            placeholder="Manager's name"
+            maxLength={160}
+          />
+        </label>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block">
           <span className="label">Phone</span>
           <input
             name="phone"

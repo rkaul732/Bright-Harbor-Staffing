@@ -14,6 +14,7 @@ insert into auth.users (
   email,
   encrypted_password,
   email_confirmed_at,
+  invited_at,
   raw_user_meta_data,
   created_at,
   updated_at
@@ -24,9 +25,10 @@ values
     '00000000-0000-0000-0000-000000000000',
     'authenticated',
     'authenticated',
-    'employee@example.com',
+    'employee@brightharbor.org',
     crypt('password123', gen_salt('bf')),
     now(),
+    null,
     '{"role":"employee","full_name":"Jamie Rivera"}',
     now(),
     now()
@@ -36,9 +38,10 @@ values
     '00000000-0000-0000-0000-000000000000',
     'authenticated',
     'authenticated',
-    'morgan@example.com',
+    'morgan@brightharbor.org',
     crypt('password123', gen_salt('bf')),
     now(),
+    null,
     '{"role":"employee","full_name":"Morgan Lane"}',
     now(),
     now()
@@ -50,6 +53,7 @@ values
     'authenticated',
     'bpataky@brightharbor.org',
     crypt('password123', gen_salt('bf')),
+    now(),
     now(),
     '{"role":"supervisor","full_name":"B. Pataky"}',
     now(),
@@ -63,6 +67,7 @@ values
     'spetrasek@brightharbor.org',
     crypt('Bright123!', gen_salt('bf')),
     now(),
+    now(),
     '{"role":"supervisor","full_name":"Sarah Petrasek","setup_required":true,"program_name":"Code Red/Code Blue","program_names":["Code Red/Code Blue"]}',
     now(),
     now()
@@ -72,8 +77,9 @@ values
     '00000000-0000-0000-0000-000000000000',
     'authenticated',
     'authenticated',
-    'admin@example.com',
+    'admin@brightharbor.org',
     crypt('password123', gen_salt('bf')),
+    now(),
     now(),
     '{"role":"admin","full_name":"Alex Morgan"}',
     now(),
@@ -102,11 +108,11 @@ select
   now()
 from auth.users
 where email in (
-  'employee@example.com',
-  'morgan@example.com',
+  'employee@brightharbor.org',
+  'morgan@brightharbor.org',
   'bpataky@brightharbor.org',
   'spetrasek@brightharbor.org',
-  'admin@example.com'
+  'admin@brightharbor.org'
 )
 on conflict (provider, provider_id) do nothing;
 

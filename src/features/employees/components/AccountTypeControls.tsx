@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
+import { useFormStatus } from "react-dom";
 import { updateAccountTypeAction } from "@/app/actions";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
-import { SubmitButton } from "@/shared/components/SubmitButton";
 import type { AppRole, ProgramName } from "@/shared/types/domain";
 
 const initialState = { ok: false, message: "" };
@@ -20,32 +20,48 @@ export function AccountTypeControls({
   disabled?: boolean;
 }) {
   const [state, formAction] = useActionState(updateAccountTypeAction, initialState);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (state.message && !state.ok) {
+      formRef.current?.reset();
+    }
+  }, [state]);
 
   return (
-    <form action={formAction} className="min-w-[15rem] space-y-2">
+    <form ref={formRef} action={formAction} className="min-w-[10rem] space-y-2">
       <input type="hidden" name="user_id" value={userId} />
       {programNames.map((programName) => (
         <input key={programName} type="hidden" name="program_names" value={programName} />
       ))}
-      <div className="flex items-center gap-2">
-        <select
-          name="account_type"
-          defaultValue={currentRole}
-          disabled={disabled}
-          className="field h-9 min-w-0 py-1.5 text-xs"
-        >
-          <option value="employee">Employee</option>
-          <option value="supervisor">Supervisor</option>
-          <option value="admin">Admin</option>
-        </select>
-        <SubmitButton
-          className="min-h-0 shrink-0 px-2.5 py-1.5 text-xs"
-          disabled={disabled}
-        >
-          Update
-        </SubmitButton>
-      </div>
+      <AccountTypeSelect key={currentRole} currentRole={currentRole} disabled={disabled} />
       <ActionFeedback state={state} />
     </form>
+  );
+}
+
+function AccountTypeSelect({
+  currentRole,
+  disabled
+}: {
+  currentRole: AppRole;
+  disabled: boolean;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <select
+      name="account_type"
+      aria-label="Account type"
+      defaultValue={currentRole}
+      disabled={disabled || pending}
+      onChange={(event) => event.currentTarget.form?.requestSubmit()}
+      className="field h-9 min-w-0 py-1.5 text-xs"
+    >
+      <option value="super_admin">Super Admin</option>
+      <option value="admin">Admin</option>
+      <option value="supervisor">Supervisor</option>
+      <option value="employee">Employee</option>
+    </select>
   );
 }

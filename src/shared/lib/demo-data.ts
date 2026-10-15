@@ -36,7 +36,7 @@ function dateFromToday(days: number) {
 const users: AppUser[] = [
   {
     id: "user-employee-1",
-    email: "employee@example.com",
+    email: "employee@brightharbor.org",
     full_name: "Jamie Rivera",
     role: "employee",
     avatar_url: null,
@@ -46,7 +46,7 @@ const users: AppUser[] = [
   },
   {
     id: "user-employee-2",
-    email: "morgan@example.com",
+    email: "morgan@brightharbor.org",
     full_name: "Morgan Lane",
     role: "employee",
     avatar_url: null,
@@ -76,7 +76,7 @@ const users: AppUser[] = [
   },
   {
     id: "user-admin-1",
-    email: "admin@example.com",
+    email: "admin@brightharbor.org",
     full_name: "Alex Morgan",
     role: "admin",
     avatar_url: null,
@@ -548,7 +548,9 @@ export function getDemoDashboardData(role: AppRole): DashboardData {
     adminProfiles,
     shifts: withGeneratedCodeRedShifts(shifts),
     requests,
-    timeOffRequests,
+    timeOffRequests: role === "employee"
+      ? timeOffRequests.filter((request) => request.user_id === currentUser.id)
+      : timeOffRequests,
     messages,
     savedShifts,
     notifications,

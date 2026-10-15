@@ -11,9 +11,9 @@ import type { AppRole } from "@/shared/types/domain";
 
 const initialState = { ok: false, message: "" };
 
-export function StaffAccountInviteForm() {
+export function StaffAccountInviteForm({ canInviteAdmin = false }: { canInviteAdmin?: boolean }) {
   const [state, formAction] = useActionState(createStaffAccountAction, initialState);
-  const [role, setRole] = useState<Extract<AppRole, "employee" | "supervisor">>("employee");
+  const [role, setRole] = useState<AppRole>("employee");
 
   return (
     <form action={formAction} className="space-y-4">
@@ -49,17 +49,22 @@ export function StaffAccountInviteForm() {
         >
           <option value="employee">Employee</option>
           <option value="supervisor">Supervisor</option>
+          {canInviteAdmin ? <option value="admin">Admin</option> : null}
         </select>
       </label>
 
-      {role === "employee" || role === "supervisor" ? (
+      {role === "admin" ? (
+        <p className="rounded-lg border border-harbor-sky/20 bg-harbor-mist px-3 py-2 text-sm leading-6 text-harbor-midnight/70">
+          The invited admin will choose their divisions during account setup. A super admin must approve their program access.
+        </p>
+      ) : (
         <ProgramScopePicker
           allowedProgramNames={PROGRAMS}
           defaultSelectedProgramNames={PROGRAMS.slice(0, 1)}
           legend={role === "supervisor" ? "Supervisor assigned programs" : "Starting programs"}
           compact
         />
-      ) : null}
+      )}
 
       <SubmitButton className="w-full">
         <MailPlus className="h-4 w-4" aria-hidden="true" />

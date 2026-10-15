@@ -48,12 +48,14 @@ async function dashboardPathForSignedInUser(
 }
 
 export function AuthPanel({
-  nextPath
+  nextPath,
+  initialMode = "sign-in"
 }: {
   nextPath?: string;
+  initialMode?: AuthMode;
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<AuthMode>("sign-in");
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -101,13 +103,21 @@ export function AuthPanel({
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
+    const normalizedEmail = email.trim().toLowerCase();
 
-    if (!email.includes("@")) {
+    if (!normalizedEmail.includes("@")) {
       setMessage("Use a valid email address.");
       return;
     }
 
     if (mode === "sign-up") {
+      if (!/^[^@\s]+@brightharbor\.org$/i.test(normalizedEmail)) {
+        const errorMessage = "You must use your Bright Harbor Email.";
+        setMessage(errorMessage);
+        window.alert(errorMessage);
+        return;
+      }
+
       const passwordRequirementMessage = getPasswordRequirementMessage(password);
 
       if (passwordRequirementMessage) {
@@ -143,21 +153,21 @@ export function AuthPanel({
       const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
       const result =
         mode === "sign-in"
-          ? await supabase.auth.signInWithPassword({ email, password })
+          ? await supabase.auth.signInWithPassword({ email: normalizedEmail, password })
           : await supabase.auth.signUp({
-              email,
+              email: normalizedEmail,
               password,
               options: {
                 data: {
                   role: "employee",
-                  full_name: fullName || email.split("@")[0],
+                  full_name: fullName || normalizedEmail.split("@")[0],
                   first_name: firstName.trim() || undefined,
                   last_name: lastName.trim() || undefined,
                   program_name: programNames[0],
                   program_names: programNames,
                   availability
                 },
-                emailRedirectTo: `${window.location.origin}${ROLE_DASHBOARD_PATHS.employee}`
+                emailRedirectTo: `${window.location.origin}/auth/callback?next=${ROLE_DASHBOARD_PATHS.employee}`
               }
             });
 
@@ -187,20 +197,22 @@ export function AuthPanel({
   }
 
   return (
-    <div className="panel mx-auto w-full max-w-md p-5 sm:p-6">
+    <div className="panel mx-auto w-full max-w-xl p-6 shadow-soft sm:p-9">
       <div>
         <p className="label">Account access</p>
-        <h1 className="mt-2 text-3xl font-medium text-harbor-midnight">
+        <h1 className="mt-3 text-3xl font-semibold text-harbor-midnight sm:text-4xl">
           {mode === "sign-in" ? "Welcome back" : "Create your profile"}
         </h1>
         <p className="mt-2 text-sm leading-6 text-harbor-midnight/70">
           {configured
-            ? "Log in with your Bright Harbor account to reach the right dashboard for your role."
+            ? mode === "sign-in"
+              ? "Log in with your Bright Harbor account to reach the right dashboard for your role."
+              : "Register with your Bright Harbor email to access your personal staffing workspace."
             : "Demo mode is active because Supabase keys are not configured yet."}
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+      <form onSubmit={handleSubmit} className="mt-7 space-y-5">
         {mode === "sign-up" ? (
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -255,10 +267,6 @@ export function AuthPanel({
                 </div>
               </div>
             </fieldset>
-            <AvailabilityCheckboxGroup
-              selected={availability}
-              onChange={setAvailability}
-            />
           </div>
         ) : null}
 
@@ -273,6 +281,11 @@ export function AuthPanel({
             autoComplete="email"
             required
           />
+          {mode === "sign-up" ? (
+            <span className="mt-1 block text-xs text-harbor-midnight/60">
+              Use your @brightharbor.org email address.
+            </span>
+          ) : null}
         </label>
 
         <label className="block">
@@ -297,6 +310,13 @@ export function AuthPanel({
             </button>
           ) : null}
         </label>
+
+        {mode === "sign-up" ? (
+          <details className="rounded-xl border border-harbor-ocean/10 bg-harbor-mist/45 px-4 py-3">
+            <summary className="cursor-pointer text-sm font-semibold text-harbor-ocean">Add general availability <span className="font-normal text-harbor-midnight/55">(optional)</span></summary>
+            <div className="mt-4"><AvailabilityCheckboxGroup selected={availability} onChange={setAvailability} /></div>
+          </details>
+        ) : null}
 
         {message ? (
           <div className="flex gap-2 rounded-lg border border-harbor-sky/20 bg-harbor-mist px-3 py-2 text-sm text-harbor-midnight/70">

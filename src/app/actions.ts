@@ -236,6 +236,7 @@ async function getWorkerProgramsForAction(userId: string) {
 type ActionUser = Awaited<ReturnType<typeof getUserForAction>>;
 
 type AdminScope = {
+  isApproved: boolean;
   isSuperAdmin: boolean;
   programNames: ProgramName[];
 };
@@ -255,7 +256,7 @@ function normalizeProgramNames(value: unknown) {
 
 async function getAdminScopeForAction(userId: string): Promise<AdminScope> {
   if (!isSupabaseConfigured()) {
-    return { isSuperAdmin: true, programNames: PROGRAMS };
+    return { isApproved: true, isSuperAdmin: true, programNames: PROGRAMS };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -265,10 +266,11 @@ async function getAdminScopeForAction(userId: string): Promise<AdminScope> {
     .eq("user_id", userId)
     .maybeSingle();
   const profile = data as
-    | { is_super_admin?: unknown; program_names?: unknown }
+    | { status?: unknown; is_super_admin?: unknown; program_names?: unknown }
     | null;
 
   return {
+    isApproved: profile?.status === "approved",
     isSuperAdmin: profile?.is_super_admin === true,
     programNames: normalizeProgramNames(profile?.program_names)
   };
@@ -304,7 +306,7 @@ async function isSuperAdminForAction(user: ActionUser) {
   }
 
   const scope = await getAdminScopeForAction(user.id);
-  return scope.isSuperAdmin;
+  return scope.isApproved && scope.isSuperAdmin;
 }
 
 async function scopedProgramAccessError(
@@ -576,6 +578,8 @@ export async function updateWorkerProfileAction(
   const phone = asString(formData.get("phone"));
   const fullName = asString(formData.get("full_name")) || user.full_name;
   const preferredContact = asString(formData.get("preferred_contact"));
+  const pronouns = asString(formData.get("pronouns")).slice(0, 80);
+  const manager = asString(formData.get("manager")).slice(0, 160);
   const photo = formData.get("photo");
 
   if (programNames.length === 0) {
@@ -587,6 +591,21 @@ export async function updateWorkerProfileAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  const { data: existingProfile, error: existingProfileError } = await supabase
+    .from("worker_profiles")
+    .select("account_information")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (existingProfileError) {
+    return { ok: false, message: existingProfileError.message };
+  }
+
+  const storedInformation = existingProfile?.account_information;
+  const accountInformation =
+    storedInformation && typeof storedInformation === "object" && !Array.isArray(storedInformation)
+      ? storedInformation
+      : {};
   let photoUrl: string | null = null;
 
   if (isUploadedFile(photo)) {
@@ -634,7 +653,7 @@ export async function updateWorkerProfileAction(
       program_names: programNames,
       availability,
       skills,
-      account_information: { preferredContact },
+      account_information: { ...accountInformation, preferredContact, pronouns, manager },
       ...(photoUrl ? { photo_url: photoUrl } : {})
     },
     { onConflict: "user_id" }
@@ -664,7 +683,7 @@ export async function createStaffAccountAction(
     .object({
       full_name: z.string().min(2, "Add the staff member's name."),
       email: z.string().email("Use a valid email address."),
-      role: z.enum(["employee", "supervisor"])
+      role: z.enum(["employee", "supervisor", "admin"])
     })
     .safeParse({
       full_name: asString(formData.get("full_name")),
@@ -675,6 +694,10 @@ export async function createStaffAccountAction(
 
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the staff account form." };
+  }
+
+  if ((parsed.data.role === "employee" || parsed.data.role === "admin") && !/^[^@\s]+@brightharbor\.org$/.test(parsed.data.email)) {
+    return { ok: false, message: "You must use your Bright Harbor Email." };
   }
 
   if ((parsed.data.role === "employee" || parsed.data.role === "supervisor") && programNames.length === 0) {
@@ -693,12 +716,12 @@ export async function createStaffAccountAction(
     .eq("status", "approved")
     .maybeSingle();
 
-  if (currentUser.role !== "admin" && !approvedAdminProfile) {
+  if (currentUser.role !== "admin" || !approvedAdminProfile) {
     return { ok: false, message: "Only admins can create staff accounts." };
   }
 
-  if (parsed.data.role === "supervisor" && !(await isSuperAdminForAction(currentUser))) {
-    return { ok: false, message: "Only super admins can create supervisor accounts." };
+  if ((parsed.data.role === "supervisor" || parsed.data.role === "admin") && !(await isSuperAdminForAction(currentUser))) {
+    return { ok: false, message: "Only super admins can create supervisor or admin accounts." };
   }
 
   if (parsed.data.role === "employee") {
@@ -768,7 +791,7 @@ export async function createStaffAccountAction(
         },
         { onConflict: "user_id" }
       );
-    } else {
+    } else if (parsed.data.role === "supervisor") {
       await adminClient.from("supervisor_profiles").upsert(
         {
           user_id: invitedUser.id,
@@ -777,6 +800,20 @@ export async function createStaffAccountAction(
         },
         { onConflict: "user_id" }
       );
+    } else {
+      const { error: adminProfileError } = await adminClient.from("admin_profiles").upsert(
+        {
+          user_id: invitedUser.id,
+          status: "pending",
+          program_names: [],
+          is_super_admin: false
+        },
+        { onConflict: "user_id" }
+      );
+
+      if (adminProfileError) {
+        return { ok: false, message: adminProfileError.message };
+      }
     }
   }
 
@@ -792,7 +829,7 @@ export async function updateAccountTypeAction(
   const parsed = z
     .object({
       user_id: z.string().min(1, "Choose a valid staff account."),
-      account_type: z.enum(["employee", "supervisor", "admin"])
+      account_type: z.enum(["employee", "supervisor", "admin", "super_admin"])
     })
     .safeParse({
       user_id: asString(formData.get("user_id")),
@@ -824,6 +861,16 @@ export async function updateAccountTypeAction(
   }
 
   const adminClient = createSupabaseAdminClient();
+  const { data: targetUser, error: targetUserError } = await adminClient
+    .from("users")
+    .select("role,account_type_changed_at")
+    .eq("id", parsed.data.user_id)
+    .single();
+
+  if (targetUserError || !targetUser) {
+    return { ok: false, message: targetUserError?.message ?? "Staff account not found." };
+  }
+
   const { data: existingAdminProfile } = await adminClient
     .from("admin_profiles")
     .select("is_super_admin")
@@ -837,13 +884,8 @@ export async function updateAccountTypeAction(
     };
   }
 
-  const { error: userError } = await adminClient
-    .from("users")
-    .update({ role: parsed.data.account_type })
-    .eq("id", parsed.data.user_id);
-
-  if (userError) {
-    return { ok: false, message: userError.message };
+  if (targetUser.role === parsed.data.account_type) {
+    return { ok: true, message: "Account type is already up to date." };
   }
 
   if (parsed.data.account_type === "employee") {
@@ -891,13 +933,13 @@ export async function updateAccountTypeAction(
       .eq("user_id", parsed.data.user_id);
   }
 
-  if (parsed.data.account_type === "admin") {
+  if (parsed.data.account_type === "admin" || parsed.data.account_type === "super_admin") {
     const { error } = await adminClient.from("admin_profiles").upsert(
       {
         user_id: parsed.data.user_id,
         status: "approved",
         program_names: programNames,
-        is_super_admin: false
+        is_super_admin: parsed.data.account_type === "super_admin"
       },
       { onConflict: "user_id" }
     );
@@ -907,8 +949,146 @@ export async function updateAccountTypeAction(
     }
   }
 
+  const { error: userError } = await adminClient
+    .from("users")
+    .update({
+      role: parsed.data.account_type === "super_admin" ? "admin" : parsed.data.account_type,
+      account_type_changed_at: new Date().toISOString()
+    })
+    .eq("id", parsed.data.user_id);
+
+  if (userError) {
+    return { ok: false, message: userError.message };
+  }
+
   revalidateDashboards();
   return { ok: true, message: "Account type updated." };
+}
+
+export async function updateStaffProgramsAction(
+  _previousState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const currentUser = await getUserForAction("admin");
+  const parsed = z
+    .object({
+      user_id: z.string().min(1, "Choose a valid staff account.")
+    })
+    .safeParse({
+      user_id: asString(formData.get("user_id"))
+    });
+  const programNames = [...new Set(asPrograms(formData))];
+  const primaryProgram = programNames[0] ?? "Front Desk";
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Choose a valid staff account."
+    };
+  }
+
+  if (programNames.length === 0) {
+    return { ok: false, message: "Choose at least one program." };
+  }
+
+  if (!isSupabaseConfigured()) {
+    return { ok: true, message: "Demo mode: programs would be updated." };
+  }
+
+  if (currentUser.role !== "admin") {
+    return { ok: false, message: "Only admins can update staff programs." };
+  }
+
+  const adminScope = await getAdminScopeForAction(currentUser.id);
+  if (!adminScope.isApproved) {
+    return { ok: false, message: "An approved admin account is required to update programs." };
+  }
+  const allowedPrograms = new Set(adminScope.programNames);
+
+  if (
+    !adminScope.isSuperAdmin &&
+    !programNames.every((programName) => allowedPrograms.has(programName))
+  ) {
+    return {
+      ok: false,
+      message: "You can only assign programs in your admin scope."
+    };
+  }
+
+  if (!hasSupabaseServiceRoleKey()) {
+    return {
+      ok: false,
+      message: "Add SUPABASE_SERVICE_ROLE_KEY in Netlify to update staff programs."
+    };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const { data: targetUser, error: targetUserError } = await adminClient
+    .from("users")
+    .select("id,role")
+    .eq("id", parsed.data.user_id)
+    .single();
+
+  if (targetUserError || !targetUser) {
+    return { ok: false, message: targetUserError?.message ?? "Staff account not found." };
+  }
+
+  const targetRole = targetUser.role as AppRole;
+  if (targetRole !== "employee") {
+    return { ok: false, message: "Only employee programs can be updated here." };
+  }
+  const { data: existingAdminProfile } = await adminClient
+    .from("admin_profiles")
+    .select("is_super_admin")
+    .eq("user_id", parsed.data.user_id)
+    .maybeSingle();
+
+  if (existingAdminProfile?.is_super_admin) {
+    return { ok: false, message: "Super admin program access is protected." };
+  }
+
+  let updatedProgramNames = programNames;
+
+  if (!adminScope.isSuperAdmin) {
+    const { data: workerProfile } = await adminClient
+      .from("worker_profiles")
+      .select("program_name,program_names")
+      .eq("user_id", parsed.data.user_id)
+      .maybeSingle();
+    const existingProgramNames = normalizeProgramNames(workerProfile?.program_names).length
+      ? normalizeProgramNames(workerProfile?.program_names)
+      : workerProfile?.program_name
+        ? [workerProfile.program_name as ProgramName]
+        : [];
+
+    if (!existingProgramNames.some((programName) => allowedPrograms.has(programName))) {
+      return {
+        ok: false,
+        message: "You can only update employees currently in your admin scope."
+      };
+    }
+
+    updatedProgramNames = [
+      ...programNames,
+      ...existingProgramNames.filter((programName) => !allowedPrograms.has(programName))
+    ];
+  }
+
+  const { error } = await adminClient.from("worker_profiles").upsert(
+    {
+      user_id: parsed.data.user_id,
+      program_name: primaryProgram,
+      program_names: updatedProgramNames
+    },
+    { onConflict: "user_id" }
+  );
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+
+  revalidateDashboards();
+  return { ok: true, message: "Programs updated." };
 }
 
 export async function completeStaffSetupAction(
@@ -920,7 +1100,8 @@ export async function completeStaffSetupAction(
   const confirmPassword = asString(formData.get("confirm_password"));
   const fullName = asString(formData.get("full_name"));
   const phone = asString(formData.get("phone"));
-  const role = user.role === "supervisor" ? "supervisor" : "employee";
+  const role = user.role;
+  const programNames = asPrograms(formData);
 
   if (fullName.length < 2) {
     return { ok: false, message: "Add your full name." };
@@ -936,12 +1117,44 @@ export async function completeStaffSetupAction(
     return { ok: false, message: "Passwords do not match." };
   }
 
+  if (programNames.length === 0) {
+    return { ok: false, message: role === "admin" ? "Choose at least one division or program." : "Choose at least one program." };
+  }
+
+  if (role === "admin" && !hasSupabaseServiceRoleKey() && isSupabaseConfigured()) {
+    return { ok: false, message: "Admin account setup is unavailable until the service role key is configured." };
+  }
+
   if (!isSupabaseConfigured()) {
     return {
       ok: true,
       message: "Demo mode: account setup completed.",
       redirectTo: ROLE_DASHBOARD_PATHS[role]
     };
+  }
+
+  if (role === "admin") {
+    const adminClient = createSupabaseAdminClient();
+    const { data: pendingProfile, error: pendingProfileError } = await adminClient
+      .from("admin_profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("status", "pending")
+      .maybeSingle();
+
+    if (pendingProfileError || !pendingProfile) {
+      return { ok: false, message: "Your admin invitation is not awaiting setup." };
+    }
+
+    const { error } = await adminClient
+      .from("admin_profiles")
+      .update({ program_names: programNames, is_super_admin: false })
+      .eq("id", pendingProfile.id)
+      .eq("status", "pending");
+
+    if (error) {
+      return { ok: false, message: error.message };
+    }
   }
 
   const supabase = await createSupabaseServerClient();
@@ -961,8 +1174,7 @@ export async function completeStaffSetupAction(
     .from("users")
     .update({
       full_name: fullName,
-      phone: phone || null,
-      role
+      phone: phone || null
     })
     .eq("id", user.id);
 
@@ -971,14 +1183,9 @@ export async function completeStaffSetupAction(
   }
 
   if (role === "employee") {
-    const programNames = asPrograms(formData);
     const skills = asSkills(formData);
     const availability = asAvailability(formData);
     const preferredContact = asString(formData.get("preferred_contact"));
-
-    if (programNames.length === 0) {
-      return { ok: false, message: "Choose at least one program." };
-    }
 
     const { error } = await supabase.from("worker_profiles").upsert(
       {
@@ -999,13 +1206,7 @@ export async function completeStaffSetupAction(
     if (error) {
       return { ok: false, message: error.message };
     }
-  } else {
-    const programNames = asPrograms(formData);
-
-    if (programNames.length === 0) {
-      return { ok: false, message: "Choose at least one assigned program." };
-    }
-
+  } else if (role === "supervisor") {
     const { error } = await supabase.from("supervisor_profiles").upsert(
       {
         user_id: user.id,
@@ -1033,7 +1234,7 @@ export async function completeStaffSetupAction(
   revalidateDashboards();
   return {
     ok: true,
-    message: "Account setup complete. Administrators have been notified.",
+    message: role === "admin" ? "Account setup complete. A super admin will review your access." : "Account setup complete. Administrators have been notified.",
     redirectTo: ROLE_DASHBOARD_PATHS[role]
   };
 }

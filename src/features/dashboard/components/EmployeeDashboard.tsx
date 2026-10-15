@@ -2,17 +2,14 @@
 
 import { useState, type ReactNode } from "react";
 import {
-  Bookmark,
   CalendarCheck,
   CalendarClock,
   CalendarX,
   ClipboardList,
-  Send,
   X
 } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { ShiftCard } from "@/shared/components/ShiftCard";
-import { EmptyState } from "@/shared/components/EmptyState";
 import { AdSlots } from "@/shared/components/AdSlots";
 import { StatusBadge } from "@/shared/components/StatusBadge";
 import {
@@ -188,6 +185,13 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
       return shift ? [shift] : [];
     })
     .slice(0, 3);
+  const hasSidebarContent =
+    (canExchangeShifts &&
+      (priorityAvailableShifts.length > 0 ||
+        recentCoveragePosts.length > 0 ||
+        recentSavedShifts.length > 0)) ||
+    recentTimeOffRequests.length > 0 ||
+    visibleAdSlots.length > 0;
 
   return (
     <DashboardShell role="employee" data={data} onProfileClick={() => setActiveModal("profile")}>
@@ -205,7 +209,9 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
         onRequestTimeOff={() => setActiveModal("time-off")}
       />
 
-      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)]">
+      <div
+        className={`grid min-w-0 gap-4 ${hasSidebarContent ? "xl:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)]" : ""}`}
+      >
         <div className="min-w-0">
           <MyCalendarBoard
             events={myCalendarEvents}
@@ -216,14 +222,16 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
             onPostShift={() => setActiveModal("post-shift")}
           />
         </div>
-        <EmployeeRightMenu
-          priorityShifts={priorityAvailableShifts}
-          timeOffRequests={recentTimeOffRequests}
-          postedShifts={recentCoveragePosts}
-          savedShifts={recentSavedShifts}
-          ads={visibleAdSlots}
-          showShiftWidgets={canExchangeShifts}
-        />
+        {hasSidebarContent ? (
+          <EmployeeRightMenu
+            priorityShifts={priorityAvailableShifts}
+            timeOffRequests={recentTimeOffRequests}
+            postedShifts={recentCoveragePosts}
+            savedShifts={recentSavedShifts}
+            ads={visibleAdSlots}
+            showShiftWidgets={canExchangeShifts}
+          />
+        ) : null}
       </div>
 
       <EmployeeWidgetModal
@@ -289,13 +297,16 @@ function EmployeeRequestOverview({
     [...requests].sort((first, second) => second.created_at.localeCompare(first.created_at))[0];
 
   return (
-    <section className="mb-4 grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)]">
-      <div className="panel p-3 sm:p-4">
+    <section
+      className={`mb-4 grid min-w-0 gap-3 ${upcoming ? "lg:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)]" : ""}`}
+    >
+      <div className="panel relative overflow-hidden p-5 shadow-soft sm:p-7">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-harbor-sky via-harbor-ocean to-harbor-lemon" />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className="label">Employee requests</p>
-            <h1 className="mt-1 text-2xl font-medium leading-tight text-harbor-midnight sm:text-3xl">
-              Request time off with a clear review trail.
+            <h1 className="mt-3 text-2xl font-semibold leading-tight text-harbor-midnight sm:text-3xl">
+              Your time off and schedule, in one place.
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-harbor-midnight/62">
               Submit dates for approval, then watch the status update here and on your
@@ -308,7 +319,7 @@ function EmployeeRequestOverview({
           </button>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <EmployeeQueueMetric
             icon={CalendarClock}
             label="Pending"
@@ -330,9 +341,9 @@ function EmployeeRequestOverview({
         </div>
       </div>
 
-      <div className="panel p-3 sm:p-4">
-        <p className="label">Current queue</p>
-        {upcoming ? (
+      {upcoming ? (
+        <div className="panel p-3 sm:p-4">
+          <p className="label">Current queue</p>
           <div className="mt-3 rounded-lg border border-harbor-ocean/10 bg-harbor-mist/60 p-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
@@ -349,14 +360,8 @@ function EmployeeRequestOverview({
               {upcoming.reason}
             </p>
           </div>
-        ) : (
-          <EmptyState
-            icon={CalendarClock}
-            title="No time off submitted"
-            body="Use Request Time Off when you need a day reviewed."
-          />
-        )}
-      </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -373,14 +378,14 @@ function EmployeeQueueMetric({
   detail: string;
 }) {
   return (
-    <div className="rounded-lg border border-harbor-ocean/10 bg-white p-3 shadow-line">
+    <div className="rounded-xl border border-harbor-ocean/10 bg-harbor-mist/45 p-4">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-medium uppercase tracking-[0.06em] text-harbor-midnight/55">
           {label}
         </p>
         <Icon className="h-4 w-4 text-harbor-ocean" aria-hidden="true" />
       </div>
-      <p className="mt-2 text-2xl font-medium text-harbor-midnight">{value}</p>
+      <p className="mt-2 text-3xl font-semibold text-harbor-midnight">{value}</p>
       <p className="mt-1 text-xs text-harbor-midnight/55">{detail}</p>
     </div>
   );
@@ -403,74 +408,60 @@ function EmployeeRightMenu({
 }) {
   return (
     <aside className="min-w-0 space-y-3">
-      {showShiftWidgets ? (
+      {showShiftWidgets && priorityShifts.length > 0 ? (
         <EmployeeSideWidget
           title="Priority open shifts"
           subtitle="Weekends and nearest openings"
           count={priorityShifts.length}
         >
-          <WidgetList
-            emptyIcon={Send}
-            emptyTitle="No priority openings"
-            emptyBody="Open Friday, Saturday, Sunday, and nearest shifts will appear here."
-          >
+          <div className="grid gap-3">
             {priorityShifts.map((shift) => (
               <ShiftCard key={shift.id} shift={shift} compact>
                 <RequestShiftForm shift={shift} />
               </ShiftCard>
             ))}
-          </WidgetList>
+          </div>
         </EmployeeSideWidget>
       ) : null}
-      <EmployeeSideWidget
-        title="Time off requests"
-        subtitle="Most recent requests"
-        count={timeOffRequests.length}
-      >
-        <WidgetList
-          emptyIcon={CalendarClock}
-          emptyTitle="No time off requests"
-          emptyBody="Submitted requests will appear here."
+      {timeOffRequests.length > 0 ? (
+        <EmployeeSideWidget
+          title="Time off requests"
+          subtitle="Most recent requests"
+          count={timeOffRequests.length}
         >
-          {timeOffRequests.map((request) => (
-            <TimeOffCard key={request.id} request={request} />
-          ))}
-        </WidgetList>
-      </EmployeeSideWidget>
+          <div className="grid gap-3">
+            {timeOffRequests.map((request) => (
+              <TimeOffCard key={request.id} request={request} />
+            ))}
+          </div>
+        </EmployeeSideWidget>
+      ) : null}
 
-      {showShiftWidgets ? (
+      {showShiftWidgets && postedShifts.length > 0 ? (
         <EmployeeSideWidget
           title="Posted shifts"
           subtitle="Most recent coverage posts"
           count={postedShifts.length}
         >
-          <WidgetList
-            emptyIcon={ClipboardList}
-            emptyTitle="No posted shifts"
-            emptyBody="Your coverage posts will appear here."
-          >
+          <div className="grid gap-3">
             {postedShifts.map((shift) => (
               <ShiftCard key={shift.id} shift={shift} compact />
             ))}
-          </WidgetList>
+          </div>
         </EmployeeSideWidget>
       ) : null}
 
-      {showShiftWidgets ? (
+      {showShiftWidgets && savedShifts.length > 0 ? (
         <EmployeeSideWidget
           title="Saved shifts"
           subtitle="Most recent saved openings"
           count={savedShifts.length}
         >
-          <WidgetList
-            emptyIcon={Bookmark}
-            emptyTitle="No saved shifts"
-            emptyBody="Saved openings will appear here."
-          >
+          <div className="grid gap-3">
             {savedShifts.map((shift) => (
               <ShiftCard key={shift.id} shift={shift} compact />
             ))}
-          </WidgetList>
+          </div>
         </EmployeeSideWidget>
       ) : null}
 
@@ -499,7 +490,7 @@ function EmployeeSideWidget({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-harbor-ocean/10 bg-white/95 p-3 shadow-line">
+    <section className="panel p-4">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <p className="label">{subtitle}</p>
@@ -558,30 +549,6 @@ function EmployeeWidgetModal({
         </div>
         {children}
       </section>
-    </div>
-  );
-}
-
-function WidgetList({
-  emptyIcon,
-  emptyTitle,
-  emptyBody,
-  children
-}: {
-  emptyIcon: typeof CalendarClock;
-  emptyTitle: string;
-  emptyBody: string;
-  children: ReactNode[];
-}) {
-  const items = children.filter(Boolean);
-
-  return (
-    <div className="grid gap-3">
-      {items.length > 0 ? (
-        items
-      ) : (
-        <EmptyState icon={emptyIcon} title={emptyTitle} body={emptyBody} />
-      )}
     </div>
   );
 }

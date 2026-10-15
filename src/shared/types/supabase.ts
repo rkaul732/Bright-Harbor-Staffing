@@ -81,6 +81,7 @@ type UserRow = {
   phone: string | null;
   created_at: string;
   last_sign_in_at: string | null;
+  account_type_changed_at: string | null;
 };
 
 type WorkerProfileRow = {

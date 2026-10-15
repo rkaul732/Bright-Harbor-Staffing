@@ -23,7 +23,7 @@ import {
 import { ProfileModerationControls } from "@/features/admin/components/ProfileModerationControls";
 import { StaffAccountInviteForm } from "@/features/admin/components/StaffAccountInviteForm";
 import { formatLongDate, sortShifts } from "@/shared/lib/dates";
-import { PROGRAMS, ROLE_LABELS } from "@/shared/lib/constants";
+import { PROGRAMS, PROGRAM_DIVISIONS, ROLE_LABELS } from "@/shared/lib/constants";
 import { hasSuperAdminAccess } from "@/shared/lib/access";
 import type {
   AdminProfile,
@@ -42,6 +42,22 @@ function workerProgramNames(profile: WorkerProfile) {
 }
 
 function programOptionsForData(data: DashboardData) {
+  const currentAdminProfile = data.adminProfiles.find(
+    (profile) => profile.user_id === data.currentUser.id
+  );
+  if (data.currentUser.role === "admin" && currentAdminProfile) {
+    return currentAdminProfile.is_super_admin
+      ? PROGRAMS
+      : PROGRAMS.filter((programName) => currentAdminProfile.program_names.includes(programName));
+  }
+
+  const currentSupervisorProfile = data.supervisorProfiles.find(
+    (profile) => profile.user_id === data.currentUser.id
+  );
+  if (data.currentUser.role === "supervisor" && currentSupervisorProfile) {
+    return PROGRAMS.filter((programName) => currentSupervisorProfile.program_names.includes(programName));
+  }
+
   const programs = new Set<ProgramName>();
 
   data.shifts.forEach((shift) => programs.add(shift.program_name));
@@ -62,6 +78,20 @@ function programOptionsForData(data: DashboardData) {
   });
 
   return PROGRAMS.filter((programName) => programs.has(programName));
+}
+
+function programDivisionOptions(programNames: ProgramName[]) {
+  const allowed = new Set(programNames);
+  const groups = PROGRAM_DIVISIONS.map((division) => ({
+    name: division.name,
+    programNames: division.programNames.filter((programName) => allowed.has(programName))
+  })).filter((division) => division.programNames.length > 0);
+  const groupedPrograms = new Set(groups.flatMap((division) => division.programNames));
+
+  return {
+    groups,
+    ungrouped: programNames.filter((programName) => !groupedPrograms.has(programName))
+  };
 }
 
 function filterDashboardDataByProgram(
@@ -339,6 +369,7 @@ function AdminDashboardHome({
 }) {
   const lastSignOn = data.currentUser.last_sign_in_at ?? data.currentUser.created_at;
   const programOptions = useMemo(() => programOptionsForData(data), [data]);
+  const divisionOptions = useMemo(() => programDivisionOptions(programOptions), [programOptions]);
   const [programFilter, setProgramFilter] = useState<ProgramName | "all">("all");
   const [showOooForm, setShowOooForm] = useState(false);
   const visibleData = useMemo(
@@ -348,79 +379,66 @@ function AdminDashboardHome({
   const visibleAllShifts = sortShifts(visibleData.shifts);
   const visibleOpenShifts = visibleAllShifts.filter((shift) => shift.status === "open");
   const visibleCoveredShifts = visibleAllShifts.filter((shift) => shift.status === "covered");
-  const visiblePendingTimeOffRequests = visibleData.timeOffRequests.filter(
-    (request) => request.status === "pending_supervisor_approval"
-  );
-  const visibleNewTimeOffRequests = visibleData.timeOffRequests.filter(
-    (request) => request.created_at > lastSignOn
-  );
-  const visibleApprovedTimeOffRequests = visibleData.timeOffRequests.filter(
-    (request) => request.status === "approved"
-  );
-  const visibleDeniedTimeOffRequests = visibleData.timeOffRequests.filter(
-    (request) => request.status === "declined"
-  );
-  const totalAccounts = visibleData.users.filter((user) => user.role === "employee").length;
+  const requestItems = [...visibleData.requests, ...visibleData.timeOffRequests];
+  const newRequestCount = requestItems.filter((request) => request.created_at > lastSignOn).length;
+  const pendingRequestCount = requestItems.filter((request) => request.status === "pending_supervisor_approval").length;
+  const approvedRequestCount = requestItems.filter((request) => request.status === "approved").length;
+  const deniedRequestCount = requestItems.filter((request) => request.status === "declined").length;
   const canManageAccountTypes = hasSuperAdminAccess(data);
   const roleLabel = ROLE_LABELS[role];
 
   return (
     <DashboardShell role={role} data={data}>
-      <section className="rounded-lg border border-harbor-ocean/10 bg-white/95 p-3 shadow-soft sm:p-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+      <section className="relative overflow-hidden rounded-2xl border border-harbor-ocean/10 bg-white p-5 shadow-soft sm:p-7">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-harbor-sky via-harbor-ocean to-harbor-lemon" />
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="label text-harbor-sky">{roleLabel} Dashboard</p>
-            <h2 className="mt-2 text-3xl font-medium leading-tight text-harbor-midnight sm:text-4xl">
+            <h2 className="mt-3 text-3xl font-semibold leading-tight text-harbor-midnight sm:text-4xl">
               Welcome, {data.currentUser.full_name}!
             </h2>
-            <p className="mt-2 text-xs font-medium uppercase tracking-[0.06em] text-harbor-ocean">
-              {roleLabel}
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-            <label className="flex items-center gap-2 rounded-full border border-harbor-ocean/10 bg-harbor-mist px-3 py-1.5 text-sm text-harbor-midnight/70">
+            <label className="flex min-h-10 items-center gap-2 rounded-lg border border-harbor-ocean/15 bg-harbor-mist px-3 py-1.5 text-sm text-harbor-midnight/70">
               <ListFilter className="h-4 w-4 text-harbor-ocean" aria-hidden="true" />
               <select
                 value={programFilter}
                 onChange={(event) => setProgramFilter(event.target.value as ProgramName | "all")}
                 className="bg-transparent text-sm outline-none"
               >
-                <option value="all">All programs</option>
-                {programOptions.map((programName) => (
-                  <option key={programName} value={programName}>
-                    {programName}
-                  </option>
+                <option value="all">All assigned programs</option>
+                {divisionOptions.groups.map((division) => (
+                  <optgroup key={division.name} label={division.name}>
+                    {division.programNames.map((programName) => (
+                      <option key={programName} value={programName}>{programName}</option>
+                    ))}
+                  </optgroup>
+                ))}
+                {divisionOptions.ungrouped.map((programName) => (
+                  <option key={programName} value={programName}>{programName}</option>
                 ))}
               </select>
             </label>
             <Link href="/reports" className="word-button font-semibold">
               Reports
             </Link>
+            {canManageAccountTypes ? (
+              <Link href="/employees/account-types" className="word-button font-semibold">
+                Account Types
+              </Link>
+            ) : null}
           </div>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <AdminSnapshotCard label="New since sign on" value={visibleNewTimeOffRequests.length} />
-          <AdminSnapshotCard label="Still pending" value={visiblePendingTimeOffRequests.length} />
-          <AdminSnapshotCard label="Approved" value={visibleApprovedTimeOffRequests.length} />
-          <AdminSnapshotCard label="Denied" value={visibleDeniedTimeOffRequests.length} />
-        </div>
-
-        <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))]">
-          <AdminHubCard title="New Requests" badge={visiblePendingTimeOffRequests.length + " waiting"} />
-          <AdminHubCard title="Team Schedule" badge={visibleApprovedTimeOffRequests.length + " approved"} />
-          <AdminHubCard title="Reports" badge="Spreadsheet export" href="/reports" />
-          {canManageAccountTypes ? (
-            <AdminHubCard
-              title="Account Types"
-              badge={totalAccounts + " accounts"}
-              href="/employees/account-types"
-            />
-          ) : null}
+        <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <AdminSnapshotCard label="New since sign on" value={newRequestCount} />
+          <AdminSnapshotCard label="Still pending" value={pendingRequestCount} />
+          <AdminSnapshotCard label="Approved" value={approvedRequestCount} />
+          <AdminSnapshotCard label="Denied" value={deniedRequestCount} />
         </div>
       </section>
 
-      <section className="mt-4 grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
+      <section className="mt-5 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
         <div className="min-w-0 space-y-4">
           <AdminRequestsWorkspace data={visibleData} role={role} />
 
@@ -502,7 +520,7 @@ function AdminDashboardHome({
                 <span className="text-sm font-medium text-harbor-ocean">Open</span>
               </summary>
               <div className="mt-4 border-t border-harbor-ocean/10 pt-4">
-                <StaffAccountInviteForm />
+                <StaffAccountInviteForm canInviteAdmin={canManageAccountTypes} />
               </div>
             </details>
             </section>
@@ -534,47 +552,11 @@ function AdminDashboardHome({
 
 function AdminSnapshotCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-harbor-ocean/12 bg-white p-3 shadow-line">
-      <p className="text-2xl font-medium text-harbor-midnight">{value}</p>
-      <p className="mt-1 text-xs font-medium uppercase tracking-[0.06em] text-harbor-midnight/58">
+    <div className="rounded-xl border border-harbor-ocean/10 bg-harbor-mist/45 p-4">
+      <p className="text-3xl font-semibold text-harbor-midnight">{value}</p>
+      <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.11em] text-harbor-ocean">
         {label}
       </p>
-    </div>
-  );
-}
-
-function AdminHubCard({
-  title,
-  badge,
-  href
-}: {
-  title: string;
-  badge: string;
-  href?: string;
-}) {
-  const content = (
-    <>
-      <h3 className="text-xl font-medium text-harbor-midnight">{title}</h3>
-      <span className="mt-6 inline-flex w-fit rounded-full border border-harbor-sky/20 bg-harbor-mist px-2.5 py-1 text-xs font-medium text-harbor-ocean">
-        {badge}
-      </span>
-    </>
-  );
-
-  if (href) {
-    return (
-      <Link
-        href={href}
-        className="min-w-0 rounded-lg border border-harbor-ocean/12 bg-white p-3 shadow-line transition hover:border-harbor-sky/35 hover:shadow-soft"
-      >
-        {content}
-      </Link>
-    );
-  }
-
-  return (
-    <div className="min-w-0 rounded-lg border border-harbor-ocean/12 bg-white p-3 shadow-line">
-      {content}
     </div>
   );
 }
@@ -689,9 +671,6 @@ function AdminRequestsWorkspace({ data, role }: { data: DashboardData; role: App
           <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
             {roleLabel} review workspace
           </h2>
-          <p className="mt-1 text-sm leading-6 text-harbor-midnight/58">
-            Review new, pending, and completed time off and shift coverage requests in one place.
-          </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
           <label className="min-w-0 sm:w-64">
@@ -740,9 +719,9 @@ function AdminRequestsWorkspace({ data, role }: { data: DashboardData; role: App
         </div>
       ) : null}
 
-      <div className="mt-4 grid gap-3 xl:grid-cols-2">
-        {searchedRequests.length > 0 ? (
-          searchedRequests.map((item) =>
+      {searchedRequests.length > 0 ? (
+        <div className="mt-4 grid gap-3 xl:grid-cols-2">
+          {searchedRequests.map((item) =>
             item.type === "shift" ? (
               <RequestReviewCard
                 key={`shift-${item.request.id}`}
@@ -757,15 +736,13 @@ function AdminRequestsWorkspace({ data, role }: { data: DashboardData; role: App
                 role={role}
               />
             )
-          )
-        ) : (
-          <EmptyState
-            icon={UsersRound}
-            title="No requests in this view"
-            body="Use the request filters above to switch between new, pending, and completed requests."
-          />
-        )}
-      </div>
+          )}
+        </div>
+      ) : normalizedSearch ? (
+        <p className="mt-4 text-sm text-harbor-midnight/60" role="status">
+          No requests match your search.
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -924,7 +901,11 @@ function AdminModeration({ data }: { data: DashboardData }) {
     ? data.supervisorProfiles.filter((profile) => profile.status === "pending")
     : [];
   const adminProfilesForReview = canManageAdminScopes
-    ? data.adminProfiles.filter((profile) => profile.user_id !== data.currentUser.id)
+    ? data.adminProfiles.filter(
+        (profile) =>
+          profile.user_id !== data.currentUser.id &&
+          (profile.status !== "pending" || profile.program_names.length > 0)
+      )
     : [];
   const pendingProfiles: ProfileModerationItem[] = [
     ...pendingWorkers.map((profile) => ({ role: "employee" as const, profile })),
@@ -932,13 +913,15 @@ function AdminModeration({ data }: { data: DashboardData }) {
     ...adminProfilesForReview.map((profile) => ({ role: "admin" as const, profile }))
   ];
 
+  if (pendingProfiles.length === 0) return null;
+
   return (
     <section className="panel p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="label">Profile moderation</p>
           <h2 className="mt-1 text-lg font-medium text-harbor-midnight">
-            Pending profile reviews
+            Profile reviews and access
           </h2>
         </div>
         <span className="rounded-full bg-harbor-mist px-2.5 py-1 text-xs font-medium text-harbor-ocean">
@@ -946,45 +929,37 @@ function AdminModeration({ data }: { data: DashboardData }) {
         </span>
       </div>
       <div className="mt-3 space-y-3">
-        {pendingProfiles.length > 0 ? (
-          pendingProfiles.map((item) => {
-            const user = data.users.find((profileUser) => profileUser.id === item.profile.user_id);
+        {pendingProfiles.map((item) => {
+          const user = data.users.find((profileUser) => profileUser.id === item.profile.user_id);
 
-            if (item.role === "employee") {
-              return (
-                <WorkerProfileReviewCard
-                  key={item.profile.id}
-                  profile={item.profile}
-                  user={user}
-                />
-              );
-            }
-
-            if (item.role === "supervisor") {
-              return (
-                <SupervisorProfileReviewCard
-                  key={item.profile.id}
-                  profile={item.profile}
-                  user={user}
-                />
-              );
-            }
-
+          if (item.role === "employee") {
             return (
-              <AdminProfileReviewCard
+              <WorkerProfileReviewCard
                 key={item.profile.id}
                 profile={item.profile}
                 user={user}
               />
             );
-          })
-        ) : (
-          <EmptyState
-            icon={UsersRound}
-            title="No pending profiles"
-            body="Employee, supervisor, and admin reviews are clear."
-          />
-        )}
+          }
+
+          if (item.role === "supervisor") {
+            return (
+              <SupervisorProfileReviewCard
+                key={item.profile.id}
+                profile={item.profile}
+                user={user}
+              />
+            );
+          }
+
+          return (
+            <AdminProfileReviewCard
+              key={item.profile.id}
+              profile={item.profile}
+              user={user}
+            />
+          );
+        })}
       </div>
     </section>
   );

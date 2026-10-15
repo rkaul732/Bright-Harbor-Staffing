@@ -122,6 +122,15 @@ function filterCollectionsByProgram(
 function scopeDashboardDataForCurrentUser(
   data: DashboardCollections
 ): DashboardCollections {
+  if (data.currentUser.role === "employee") {
+    return {
+      ...data,
+      timeOffRequests: data.timeOffRequests.filter(
+        (request) => request.user_id === data.currentUser.id
+      )
+    };
+  }
+
   if (data.currentUser.role === "supervisor") {
     const currentSupervisorProfile = data.supervisorProfiles.find(
       (profile) => profile.user_id === data.currentUser.id

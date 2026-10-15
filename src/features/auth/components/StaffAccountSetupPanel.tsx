@@ -9,6 +9,7 @@ import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
 import { AvailabilityCheckboxGroup } from "@/shared/components/AvailabilityCheckboxGroup";
+import { ProgramScopePicker } from "@/shared/components/ProgramScopePicker";
 import { SubmitButton } from "@/shared/components/SubmitButton";
 import type { AppRole, ProgramName } from "@/shared/types/domain";
 
@@ -33,15 +34,18 @@ export function StaffAccountSetupPanel() {
 
     const supabase = createSupabaseBrowserClient();
 
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data }) => {
       const user = data.user;
       const metadata = user?.user_metadata ?? {};
+      const { data: appUser } = user
+        ? await supabase.from("users").select("role").eq("id", user.id).maybeSingle()
+        : { data: null };
       const metadataPrograms = Array.isArray(metadata.program_names)
         ? metadata.program_names.filter((program): program is ProgramName => PROGRAMS.includes(program))
         : [];
 
       setSessionReady(Boolean(user));
-      setRole(metadata.role === "supervisor" ? "supervisor" : "employee");
+      setRole(appUser?.role === "admin" ? "admin" : appUser?.role === "supervisor" ? "supervisor" : "employee");
       setFullName(
         typeof metadata.full_name === "string"
           ? metadata.full_name
@@ -92,7 +96,9 @@ export function StaffAccountSetupPanel() {
           Create your password and verify your profile
         </h1>
         <p className="mt-2 text-sm leading-6 text-harbor-midnight/70">
-          Confirm your account information below. After you submit, administrators will be notified for profile review.
+          {role === "admin"
+            ? "Choose the divisions you oversee. A super admin will review your access after setup."
+            : "Confirm your account information below. After you submit, administrators will be notified for profile review."}
         </p>
       </div>
 
@@ -144,37 +150,50 @@ export function StaffAccountSetupPanel() {
           <input name="phone" className="field mt-1.5" placeholder="732-555-0100" />
         </label>
 
-        <fieldset>
-          <legend className="label">
-            {role === "supervisor" ? "Assigned programs" : "Programs"}
-          </legend>
-          <div className="mt-2 max-h-60 overflow-auto rounded-lg border border-harbor-ocean/10 bg-white p-2">
-            <div className="grid gap-2 sm:grid-cols-2">
-              {PROGRAMS.map((program) => (
-                <label
-                  key={program}
-                  className="flex items-start gap-2 rounded-md px-2 py-2 text-sm text-harbor-midnight/75 hover:bg-harbor-mist"
-                >
-                  <input
-                    type="checkbox"
-                    name="program_names"
-                    value={program}
-                    checked={programNames.includes(program)}
-                    onChange={(event) => {
-                      setProgramNames((current) =>
-                        event.target.checked
-                          ? [...current, program]
-                          : current.filter((item) => item !== program)
-                      );
-                    }}
-                    className="mt-0.5 h-4 w-4 rounded border-harbor-ocean/20 text-harbor-sky"
-                  />
-                  <span>{program}</span>
-                </label>
-              ))}
-            </div>
+        {role === "admin" ? (
+          <div>
+            <ProgramScopePicker
+              defaultSelectedProgramNames={[]}
+              legend="Divisions and programs to oversee"
+              compact
+            />
+            <p className="mt-2 text-xs leading-5 text-harbor-midnight/60">
+              Select a division to include every program in it. A super admin will review this access before it becomes active.
+            </p>
           </div>
-        </fieldset>
+        ) : (
+          <fieldset>
+            <legend className="label">
+              {role === "supervisor" ? "Assigned programs" : "Programs"}
+            </legend>
+            <div className="mt-2 max-h-60 overflow-auto rounded-lg border border-harbor-ocean/10 bg-white p-2">
+              <div className="grid gap-2 sm:grid-cols-2">
+                {PROGRAMS.map((program) => (
+                  <label
+                    key={program}
+                    className="flex items-start gap-2 rounded-md px-2 py-2 text-sm text-harbor-midnight/75 hover:bg-harbor-mist"
+                  >
+                    <input
+                      type="checkbox"
+                      name="program_names"
+                      value={program}
+                      checked={programNames.includes(program)}
+                      onChange={(event) => {
+                        setProgramNames((current) =>
+                          event.target.checked
+                            ? [...current, program]
+                            : current.filter((item) => item !== program)
+                        );
+                      }}
+                      className="mt-0.5 h-4 w-4 rounded border-harbor-ocean/20 text-harbor-sky"
+                    />
+                    <span>{program}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </fieldset>
+        )}
 
         {role === "employee" ? (
           <>
@@ -212,7 +231,7 @@ export function StaffAccountSetupPanel() {
               </div>
             </fieldset>
           </>
-        ) : (
+        ) : role === "supervisor" ? (
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="label">Title</span>
@@ -235,7 +254,7 @@ export function StaffAccountSetupPanel() {
               />
             </label>
           </div>
-        )}
+        ) : null}
 
         <SubmitButton className="w-full py-2">
           <KeyRound className="h-4 w-4" aria-hidden="true" />

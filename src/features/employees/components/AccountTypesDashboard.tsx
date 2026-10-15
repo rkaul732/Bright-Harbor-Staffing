@@ -1,9 +1,9 @@
 import { ShieldCheck } from "lucide-react";
 import { AccountTypeControls } from "@/features/employees/components/AccountTypeControls";
+import { ProgramAssignmentControls } from "@/features/employees/components/ProgramAssignmentControls";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { EmptyState } from "@/shared/components/EmptyState";
-import { ROLE_LABELS, getProfileProgramNames } from "@/shared/lib/constants";
-import { formatShortDate } from "@/shared/lib/dates";
+import { PROGRAMS, getProfileProgramNames } from "@/shared/lib/constants";
 import type {
   AdminProfile,
   AppUser,
@@ -63,17 +63,18 @@ function programText(programNames: ProgramName[], isSuperAdmin: boolean) {
   return programNames.length ? programNames.join(", ") : "No programs assigned";
 }
 
-function formatLastLogin(value?: string | null) {
+function formatAccountChange(value?: string | null) {
   const date = value ? new Date(value) : null;
 
   if (!date || Number.isNaN(date.getTime())) {
-    return "Never";
+    return "—";
   }
 
   return new Intl.DateTimeFormat("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "2-digit"
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "America/New_York"
   }).format(date);
 }
 
@@ -92,8 +93,7 @@ export function AccountTypesDashboard({ data }: { data: DashboardData }) {
               Account Types
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-harbor-midnight/62">
-              Set each staff member as an employee, supervisor, or admin. Their account
-              type controls which dashboard layout and permissions they receive after login.
+              Select a staff member’s account type to update their access.
             </p>
           </div>
           <span className="pill w-fit">{users.length} accounts</span>
@@ -103,14 +103,12 @@ export function AccountTypesDashboard({ data }: { data: DashboardData }) {
       <section className="panel mt-4 p-3 sm:p-4">
         {users.length > 0 ? (
           <div className="overflow-x-auto rounded-lg border border-harbor-ocean/10 bg-white shadow-line">
-            <table className="w-full min-w-[1040px] border-separate border-spacing-0 text-left text-sm">
+            <table className="w-full min-w-[680px] border-separate border-spacing-0 text-left text-sm">
               <thead className="bg-harbor-mist text-[11px] font-medium uppercase tracking-[0.06em] text-harbor-ocean">
                 <tr>
                   <th className="border-b border-harbor-ocean/10 px-3 py-2">Employee name</th>
-                  <th className="border-b border-harbor-ocean/10 px-3 py-2">Email</th>
                   <th className="border-b border-harbor-ocean/10 px-3 py-2">Programs</th>
-                  <th className="border-b border-harbor-ocean/10 px-3 py-2">Current type</th>
-                  <th className="border-b border-harbor-ocean/10 px-3 py-2">Last login</th>
+                  <th className="border-b border-harbor-ocean/10 px-3 py-2">Last account change</th>
                   <th className="border-b border-harbor-ocean/10 px-3 py-2">Account type</th>
                 </tr>
               </thead>
@@ -125,23 +123,24 @@ export function AccountTypesDashboard({ data }: { data: DashboardData }) {
                       <td className="border-b border-harbor-ocean/10 px-3 py-2.5 font-medium text-harbor-midnight">
                         {user.full_name}
                       </td>
-                      <td className="border-b border-harbor-ocean/10 px-3 py-2.5 text-harbor-midnight/70">
-                        {user.email}
-                      </td>
                       <td className="max-w-[26rem] border-b border-harbor-ocean/10 px-3 py-2.5 text-xs leading-5 text-harbor-midnight/70">
                         {programText(programNames, isSuperAdmin)}
+                        {user.role === "employee" && !isSuperAdmin ? (
+                          <ProgramAssignmentControls
+                            userId={user.id}
+                            programNames={programNames}
+                            allowedProgramNames={PROGRAMS}
+                          />
+                        ) : null}
                       </td>
                       <td className="border-b border-harbor-ocean/10 px-3 py-2.5 text-harbor-midnight/70">
-                        {isSuperAdmin ? "Super Admin" : ROLE_LABELS[user.role]}
-                      </td>
-                      <td className="border-b border-harbor-ocean/10 px-3 py-2.5 text-harbor-midnight/70">
-                        {formatLastLogin(user.last_sign_in_at)}
+                        {formatAccountChange(user.account_type_changed_at)}
                       </td>
                       <td className="border-b border-harbor-ocean/10 px-3 py-2.5">
                         {isSuperAdmin ? (
                           <span className="inline-flex items-center gap-1 rounded-full border border-harbor-sky/20 bg-harbor-mist px-2.5 py-1 text-xs font-medium text-harbor-ocean">
                             <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                            Protected
+                            Super Admin
                           </span>
                         ) : (
                           <AccountTypeControls
