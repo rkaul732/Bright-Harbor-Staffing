@@ -9,7 +9,14 @@ export type Json =
 type AppRole = "employee" | "supervisor" | "admin";
 type ProfileStatus = "pending" | "approved" | "suspended";
 type ProgramName =
-  "Community Resources for Emergency Support and Treatment (CREST)"
+  "Accounting"
+  | "Billing"
+  | "Facilities"
+  | "HR"
+  | "IT"
+  | "Payroll"
+  | "QADC"
+  | "Community Resources for Emergency Support and Treatment (CREST)"
   | "Crisis Diversion"
   | "Involuntary Outpatient Commitment"
   | "PACT I"

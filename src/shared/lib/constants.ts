@@ -22,8 +22,10 @@ export const LOCATIONS: LocationName[] = [
 
 export const PROGRAMS: ProgramName[] = [
   "Access",
+  "Accounting",
   "Bayside",
   "Beacon/ Anchor",
+  "Billing",
   "Building Empowerment to Achieve Community Housing (BEACH)",
   "Chelsea",
   "Children & Families Outpatient Services",
@@ -33,14 +35,17 @@ export const PROGRAMS: ProgramName[] = [
   "Directions",
   "Empowering Mind, Body and Recovery after Challenging Experiences (EMBRACE)",
   "Family Crisis Intervention Unit (FCIU)",
+  "Facilities",
   "Front Desk",
   "Healing through Outpatient Perinatal Education & Support (HOPES)",
   "Housing Supports Program (HSP)",
+  "HR",
   "Integrated System of Care (ISC)",
   "Intensive Family Support Services",
   "Intensive In Community Services (IIC)",
   "Intensive Outpatient",
   "Involuntary Outpatient Commitment",
+  "IT",
   "Keeping Families Together - MONMOUTH",
   "Keeping Families Together - OCEAN",
   "LEAP (Arrive Together, On POINT, Barricaded Subjects)",
@@ -51,7 +56,9 @@ export const PROGRAMS: ProgramName[] = [
   "Outpatient Services",
   "PACT I",
   "PACT II",
+  "Payroll",
   "Progressive Assistance to Transition from Homelessness (PATH)",
+  "QADC",
   "REAL Team",
   "Shore Haven",
   "SOLAS",
@@ -139,6 +146,26 @@ export const PROGRAM_DIVISIONS: { name: string; programNames: ProgramName[] }[] 
       "Youth Electronic Monitoring",
       "Youth Recovery Services (YRS)"
     ]
+  },
+  {
+    name: "HR",
+    programNames: ["HR"]
+  },
+  {
+    name: "IT",
+    programNames: ["IT"]
+  },
+  {
+    name: "Finance",
+    programNames: ["Billing", "Accounting", "Payroll"]
+  },
+  {
+    name: "QADC",
+    programNames: ["QADC"]
+  },
+  {
+    name: "Facilities",
+    programNames: ["Facilities"]
   }
 ];
 

@@ -1,7 +1,14 @@
 export type AppRole = "employee" | "supervisor" | "admin";
 
 export type ProgramName =
-  "Community Resources for Emergency Support and Treatment (CREST)"
+  "Accounting"
+  | "Billing"
+  | "Facilities"
+  | "HR"
+  | "IT"
+  | "Payroll"
+  | "QADC"
+  | "Community Resources for Emergency Support and Treatment (CREST)"
   | "Crisis Diversion"
   | "Involuntary Outpatient Commitment"
   | "PACT I"
