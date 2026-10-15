@@ -61,7 +61,7 @@ const divisionChoices: { name: string; choices: ProgramChoice[] }[] = [
       },
       { label: "Nursing Case Management", programNames: ["Nursing Case Management"] },
       { label: "Oasis", programNames: ["Oasis"] },
-      { label: "Outpatient", programNames: ["Outpatient Services"] },
+      { label: "Outpatient (Adult)", programNames: ["Outpatient Services"] },
       { label: "Primary Care", programNames: ["Primary Care"] },
       { label: "Recovery Services", programNames: ["Recovery Services"] },
       { label: "Shore Haven", programNames: ["Shore Haven"] }
@@ -86,7 +86,7 @@ const divisionChoices: { name: string; choices: ProgramChoice[] }[] = [
       { label: "IIC", programNames: ["Intensive In Community Services (IIC)"] },
       { label: "KFT Monmouth", programNames: ["Keeping Families Together - MONMOUTH"] },
       { label: "KFT Ocean", programNames: ["Keeping Families Together - OCEAN"] },
-      { label: "Outpatient", programNames: ["Children & Families Outpatient Services"] },
+      { label: "Outpatient (Children's)", programNames: ["Children & Families Outpatient Services"] },
       { label: "Supervised Visits", programNames: ["Supervised Visits"] }
     ]
   },
