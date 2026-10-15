@@ -13,7 +13,8 @@ import {
   Underline
 } from "lucide-react";
 import { saveAutomatedMessageTemplateAction } from "@/app/actions";
-import { PROGRAMS } from "@/shared/lib/constants";
+import { PROGRAMS, getProgramLabel } from "@/shared/lib/constants";
+import { ProgramScopePicker } from "@/shared/components/ProgramScopePicker";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { SubmitButton } from "@/shared/components/SubmitButton";
@@ -171,14 +172,6 @@ export function AutomatedMessagesDashboard({
 
   function insertToken(token: string) {
     applyCommand("insertText", "{{" + token + "}}");
-  }
-
-  function toggleProgram(program: ProgramName, checked: boolean) {
-    updateDraft({
-      program_names: checked
-        ? [...draft.program_names, program]
-        : draft.program_names.filter((item) => item !== program)
-    });
   }
 
   return (
@@ -354,26 +347,11 @@ export function AutomatedMessagesDashboard({
                 All programs
               </label>
               {!allPrograms ? (
-                <div className="mt-2 max-h-56 overflow-auto rounded-lg border border-harbor-ocean/10 bg-white p-2">
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {PROGRAMS.map((program) => (
-                      <label
-                        key={program}
-                        className="flex items-start gap-2 rounded-md px-2 py-2 text-sm text-harbor-midnight/75 hover:bg-harbor-mist"
-                      >
-                        <input
-                          type="checkbox"
-                          name="program_names"
-                          value={program}
-                          checked={draft.program_names.includes(program)}
-                          onChange={(event) => toggleProgram(program, event.target.checked)}
-                          className="mt-0.5 h-4 w-4 rounded border-harbor-ocean/20 text-harbor-sky"
-                        />
-                        <span>{program}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
+                <ProgramScopePicker
+                  compact
+                  selectedProgramNames={draft.program_names}
+                  onChange={(programNames) => updateDraft({ program_names: programNames })}
+                />
               ) : null}
             </fieldset>
 
@@ -475,7 +453,7 @@ export function AutomatedMessagesDashboard({
                   </span>
                 </div>
                 <p className="mt-3 text-xs text-harbor-midnight/55">
-                  {eventLabel(delivery.event_type)} • {delivery.program_name} • {formatShortDate(delivery.created_at.slice(0, 10))}
+                  {eventLabel(delivery.event_type)} • {getProgramLabel(delivery.program_name)} • {formatShortDate(delivery.created_at.slice(0, 10))}
                 </p>
               </article>
             ))

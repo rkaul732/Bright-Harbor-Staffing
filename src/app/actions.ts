@@ -9,6 +9,7 @@ import {
   FIXED_EMERGENCY_PAY_RATE,
   FIXED_STANDARD_PAY_RATE,
   PROGRAMS,
+  KNOWN_PROGRAMS,
   LOCATIONS,
   SKILLS,
   ROLE_DASHBOARD_PATHS,
@@ -48,7 +49,7 @@ type ActionState = {
 };
 
 const locationSchema = z.enum(LOCATIONS as [LocationName, ...LocationName[]]);
-const programSchema = z.enum(PROGRAMS as [ProgramName, ...ProgramName[]]);
+const programSchema = z.enum(KNOWN_PROGRAMS as [ProgramName, ...ProgramName[]]);
 const skillSchema = z.enum(SKILLS as [SkillName, ...SkillName[]]);
 
 const timeSchema = z
@@ -99,7 +100,7 @@ function asPrograms(formData: FormData) {
 }
 
 function ensureProgramNames(programNames: ProgramName[]) {
-  return programNames.length > 0 ? programNames : (["Front Desk"] satisfies ProgramName[]);
+  return programNames.length > 0 ? programNames : [PROGRAMS[0]];
 }
 
 function asAvailability(formData: FormData) {

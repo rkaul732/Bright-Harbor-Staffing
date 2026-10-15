@@ -11,6 +11,7 @@ import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import { getPasswordRequirementMessage } from "@/shared/lib/password";
 import { AvailabilityCheckboxGroup } from "@/shared/components/AvailabilityCheckboxGroup";
+import { ProgramScopePicker } from "@/shared/components/ProgramScopePicker";
 import type { ProgramName } from "@/shared/types/domain";
 
 type AuthMode = "sign-in" | "sign-up";
@@ -239,34 +240,12 @@ export function AuthPanel({
                 />
               </label>
             </div>
-            <fieldset>
-              <legend className="label">Programs</legend>
-              <div className="mt-2 max-h-56 overflow-auto rounded-lg border border-harbor-ocean/10 bg-white p-2">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {PROGRAMS.map((program) => (
-                    <label
-                      key={program}
-                      className="flex items-start gap-2 rounded-md px-2 py-2 text-sm text-harbor-midnight/75 hover:bg-harbor-mist"
-                    >
-                      <input
-                        type="checkbox"
-                        value={program}
-                        checked={programNames.includes(program)}
-                        onChange={(event) => {
-                          setProgramNames((current) =>
-                            event.target.checked
-                              ? [...current, program]
-                              : current.filter((item) => item !== program)
-                          );
-                        }}
-                        className="mt-0.5 h-4 w-4 rounded border-harbor-ocean/20 text-harbor-sky"
-                      />
-                      <span>{program}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </fieldset>
+            <ProgramScopePicker
+              legend="Programs"
+              compact
+              selectedProgramNames={programNames}
+              onChange={setProgramNames}
+            />
           </div>
         ) : null}
 

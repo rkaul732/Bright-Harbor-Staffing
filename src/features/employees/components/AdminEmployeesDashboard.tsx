@@ -2,7 +2,7 @@ import { MailPlus, UsersRound } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { StatusBadge } from "@/shared/components/StatusBadge";
-import { PROGRAMS, getProfileProgramNames } from "@/shared/lib/constants";
+import { PROGRAMS, getProfileProgramNames, getProgramLabel } from "@/shared/lib/constants";
 import { formatShortDate } from "@/shared/lib/dates";
 import { hasSuperAdminAccess } from "@/shared/lib/access";
 import { EmployeeAccountInviteForm } from "@/features/employees/components/EmployeeAccountInviteForm";
@@ -27,7 +27,9 @@ function employeeRecords(data: DashboardData): EmployeeRecord[] {
 
 function programText(profile?: WorkerProfile) {
   const programNames = getProfileProgramNames(profile);
-  return programNames.length ? programNames.join(", ") : "No programs selected";
+  return programNames.length
+    ? [...new Set(programNames.map(getProgramLabel))].join(", ")
+    : "No programs selected";
 }
 
 function listText(items?: string[]) {

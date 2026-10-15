@@ -10,9 +10,9 @@ import {
   FIXED_EMERGENCY_PAY_RATE,
   FIXED_STANDARD_PAY_RATE,
   LOCATIONS,
-  PROGRAMS,
   SHIFT_EXCHANGE_PROGRAMS
 } from "@/shared/lib/constants";
+import { ProgramSelectOptions } from "@/shared/components/ProgramSelectOptions";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
 import { SubmitButton } from "@/shared/components/SubmitButton";
 import type { AppRole, ProgramName } from "@/shared/types/domain";
@@ -62,11 +62,7 @@ export function EmployeeCoveragePostForm({
         <label className="block">
           <span className="label">Program</span>
           <select name="program_name" className="field mt-1.5" required>
-            {eligibleProgramNames.map((program) => (
-              <option key={program} value={program}>
-                {program}
-              </option>
-            ))}
+            <ProgramSelectOptions allowedProgramNames={eligibleProgramNames} />
           </select>
         </label>
         <label className="block">
@@ -153,11 +149,7 @@ export function SupervisorShiftPostForm({ role = "supervisor" }: { role?: AppRol
         <label className="block">
           <span className="label">Program</span>
           <select name="program_name" className="field mt-1.5" required>
-            {PROGRAMS.map((program) => (
-              <option key={program} value={program}>
-                {program}
-              </option>
-            ))}
+            <ProgramSelectOptions />
           </select>
         </label>
       </div>

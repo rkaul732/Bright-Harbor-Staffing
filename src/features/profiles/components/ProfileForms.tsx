@@ -8,7 +8,6 @@ import {
 } from "@/app/actions";
 import {
   LOCATIONS,
-  PROGRAMS,
   SKILLS,
   getProfileProgramNames
 } from "@/shared/lib/constants";
@@ -83,26 +82,7 @@ export function WorkerProfileForm({ data }: { data: DashboardData }) {
         </label>
       </div>
 
-      <fieldset>
-        <legend className="label">Programs</legend>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          {PROGRAMS.map((program) => (
-            <label
-              key={program}
-              className="flex items-center gap-2 rounded-lg border border-harbor-ocean/10 bg-white px-3 py-2 text-sm text-harbor-midnight/75"
-            >
-              <input
-                name="program_names"
-                type="checkbox"
-                value={program}
-                defaultChecked={selectedPrograms.includes(program)}
-                className="h-4 w-4 rounded border-harbor-ocean/20 text-harbor-sky"
-              />
-              {program}
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <ProgramScopePicker defaultSelectedProgramNames={selectedPrograms} legend="Programs" compact />
 
       <AvailabilityCheckboxGroup defaultSelected={profile?.availability ?? []} />
 

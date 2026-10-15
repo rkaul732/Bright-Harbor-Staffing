@@ -1,4 +1,5 @@
 import { Megaphone } from "lucide-react";
+import { getProgramLabel } from "@/shared/lib/constants";
 import type { AdSlot } from "@/shared/types/domain";
 
 export function AdSlots({ ads }: { ads: AdSlot[] }) {
@@ -18,7 +19,7 @@ export function AdSlots({ ads }: { ads: AdSlot[] }) {
         >
           <div className="flex items-center gap-2 text-sm text-harbor-ocean">
             <Megaphone className="h-4 w-4" aria-hidden="true" />
-            {ad.program_name}
+            {getProgramLabel(ad.program_name)}
           </div>
           <h3 className="mt-2 text-base font-medium text-harbor-midnight">{ad.title}</h3>
           <p className="mt-1 text-sm leading-6 text-harbor-midnight/60">{ad.body}</p>

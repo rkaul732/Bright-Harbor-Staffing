@@ -20,56 +20,154 @@ export const LOCATIONS: LocationName[] = [
   "Toms River"
 ];
 
-export const PROGRAMS: ProgramName[] = [
-  "Access",
-  "Accounting",
+export type ProgramChoice = {
+  label: string;
+  programNames: ProgramName[];
+  children?: ProgramChoice[];
+};
+
+export type ProgramDivision = {
+  name: string;
+  choices: ProgramChoice[];
+  programNames: ProgramName[];
+};
+
+const divisionChoices: { name: string; choices: ProgramChoice[] }[] = [
+  {
+    name: "Acute Care Services (Crisis)",
+    choices: [
+      { label: "CREST", programNames: ["Community Resources for Emergency Support and Treatment (CREST)"] },
+      { label: "Crisis Diversion", programNames: ["Crisis Diversion"] },
+      { label: "Crisis Stabilization", programNames: ["Crisis Stabilization"] },
+      { label: "IOC", programNames: ["Involuntary Outpatient Commitment"] },
+      { label: "PACT I", programNames: ["PACT I"] },
+      { label: "PACT II", programNames: ["PACT II"] }
+    ]
+  },
+  {
+    name: "Adult Clinical Services",
+    choices: [
+      { label: "Access", programNames: ["Access"] },
+      { label: "IFSS", programNames: ["Intensive Family Support Services"] },
+      { label: "ISC", programNames: ["Integrated System of Care (ISC)"] },
+      {
+        label: "Law Enforcement Assisted Programs (LEAP)",
+        programNames: ["LEAP (Arrive Together, On POINT, Barricaded Subjects)", "Arrive Together", "Barricaded Subjects", "On POINT"],
+        children: [
+          { label: "Arrive Together", programNames: ["Arrive Together"] },
+          { label: "Barricaded Subjects", programNames: ["Barricaded Subjects"] },
+          { label: "On POINT", programNames: ["On POINT"] }
+        ]
+      },
+      { label: "Nursing Case Management", programNames: ["Nursing Case Management"] },
+      { label: "Oasis", programNames: ["Oasis"] },
+      { label: "Outpatient", programNames: ["Outpatient Services"] },
+      { label: "Primary Care", programNames: ["Primary Care"] },
+      { label: "Recovery Services", programNames: ["Recovery Services"] },
+      { label: "Shore Haven", programNames: ["Shore Haven"] }
+    ]
+  },
+  {
+    name: "Adult Residential Services",
+    choices: [
+      { label: "Anchor/Beacon", programNames: ["Beacon/ Anchor"] },
+      { label: "Beach/Chelsea", programNames: ["Building Empowerment to Achieve Community Housing (BEACH)", "Chelsea"] },
+      { label: "HSP", programNames: ["Housing Supports Program (HSP)"] },
+      { label: "PATH", programNames: ["Progressive Assistance to Transition from Homelessness (PATH)"] },
+      { label: "SHARE", programNames: ["Supportive Housing Assistance to Reach Excellence (SHARE)"] },
+      { label: "Wave", programNames: ["Wellness Assistance Valuing Excellence (WAVE)"] }
+    ]
+  },
+  {
+    name: "Children's Services",
+    choices: [
+      { label: "EMBRACE", programNames: ["Empowering Mind, Body and Recovery after Challenging Experiences (EMBRACE)"] },
+      { label: "HOPES", programNames: ["Healing through Outpatient Perinatal Education & Support (HOPES)"] },
+      { label: "IIC", programNames: ["Intensive In Community Services (IIC)"] },
+      { label: "KFT Monmouth", programNames: ["Keeping Families Together - MONMOUTH"] },
+      { label: "KFT Ocean", programNames: ["Keeping Families Together - OCEAN"] },
+      { label: "Outpatient", programNames: ["Children & Families Outpatient Services"] },
+      { label: "Supervised Visits", programNames: ["Supervised Visits"] }
+    ]
+  },
+  {
+    name: "Development",
+    choices: [
+      { label: "Marketing/Development", programNames: ["Marketing/Development"] },
+      { label: "REAL", programNames: ["REAL Team"] },
+      { label: "Salt Bridge Farms", programNames: ["Salt Bridge Farms"] }
+    ]
+  },
+  { name: "Facilities", choices: [{ label: "Facilities", programNames: ["Facilities"] }] },
+  {
+    name: "Finance",
+    choices: [
+      { label: "Accounting", programNames: ["Accounting"] },
+      { label: "Billing", programNames: ["Billing"] },
+      { label: "Payroll", programNames: ["Payroll"] }
+    ]
+  },
+  { name: "HR", choices: [{ label: "HR", programNames: ["HR"] }] },
+  { name: "IT", choices: [{ label: "IT", programNames: ["IT"] }] },
+  { name: "Ocean Academy", choices: [{ label: "Ocean Academy", programNames: ["Ocean Academy"] }] },
+  { name: "QADC", choices: [{ label: "QADC", programNames: ["QADC"] }] },
+  { name: "SOLAS", choices: [{ label: "SOLAS", programNames: ["SOLAS"] }] },
+  {
+    name: "Youth & Young Adult Services",
+    choices: [
+      { label: "Directions", programNames: ["Directions"] },
+      { label: "FCIU", programNames: ["Family Crisis Intervention Unit (FCIU)"] },
+      { label: "The NOOK", programNames: ["The NOOK"] },
+      { label: "YEM", programNames: ["Youth Electronic Monitoring"] },
+      { label: "YRS", programNames: ["Youth Recovery Services (YRS)"] }
+    ]
+  }
+];
+
+export const PROGRAM_DIVISIONS: ProgramDivision[] = divisionChoices.map((division) => ({
+  ...division,
+  programNames: [...new Set(division.choices.flatMap((choice) => choice.programNames))]
+}));
+
+export const PROGRAMS: ProgramName[] = [...new Set(PROGRAM_DIVISIONS.flatMap((division) => division.programNames))];
+
+// Keep former identifiers readable so existing accounts and requests retain their scope.
+export const LEGACY_PROGRAMS: ProgramName[] = [
   "Bayside",
-  "Beacon/ Anchor",
-  "Billing",
-  "Building Empowerment to Achieve Community Housing (BEACH)",
-  "Chelsea",
-  "Children & Families Outpatient Services",
   "Code Red/Code Blue",
-  "Community Resources for Emergency Support and Treatment (CREST)",
-  "Crisis Diversion",
-  "Directions",
-  "Empowering Mind, Body and Recovery after Challenging Experiences (EMBRACE)",
-  "Family Crisis Intervention Unit (FCIU)",
-  "Facilities",
   "Front Desk",
-  "Healing through Outpatient Perinatal Education & Support (HOPES)",
-  "Housing Supports Program (HSP)",
-  "HR",
-  "Integrated System of Care (ISC)",
-  "Intensive Family Support Services",
-  "Intensive In Community Services (IIC)",
   "Intensive Outpatient",
-  "Involuntary Outpatient Commitment",
-  "IT",
-  "Keeping Families Together - MONMOUTH",
-  "Keeping Families Together - OCEAN",
-  "LEAP (Arrive Together, On POINT, Barricaded Subjects)",
   "Level I Outpatient",
   "Medication Assisted Treatment (MAT)",
-  "Oasis",
-  "Ocean Academy",
-  "Outpatient Services",
-  "PACT I",
-  "PACT II",
-  "Payroll",
-  "Progressive Assistance to Transition from Homelessness (PATH)",
-  "QADC",
-  "REAL Team",
-  "Shore Haven",
-  "SOLAS",
-  "Supervised Visits",
-  "Supportive Housing Assistance to Reach Excellence (SHARE)",
-  "The NOOK",
-  "TIDES",
-  "Wellness Assistance Valuing Excellence (WAVE)",
-  "Youth Electronic Monitoring",
-  "Youth Recovery Services (YRS)"
+  "TIDES"
 ];
+
+export const KNOWN_PROGRAMS: ProgramName[] = [...PROGRAMS, ...LEGACY_PROGRAMS];
+
+export const PROGRAM_SELECT_OPTIONS = PROGRAM_DIVISIONS.flatMap((division) =>
+  division.choices.flatMap((choice) => [choice, ...(choice.children ?? [])].map((item) => ({
+    value: item.programNames[0],
+    label: item.label,
+    division: division.name,
+    programNames: item.programNames
+  })))
+).sort((a, b) => a.label.localeCompare(b.label) || a.division.localeCompare(b.division));
+
+export function getProgramLabel(programName: string) {
+  return (
+    PROGRAM_SELECT_OPTIONS.find((option) => option.value === programName)?.label ??
+    PROGRAM_SELECT_OPTIONS.find((option) => option.programNames.includes(programName as ProgramName))?.label ??
+    programName
+  );
+}
+
+export function getRelatedProgramNames(programName: ProgramName) {
+  return (
+    PROGRAM_SELECT_OPTIONS.find((option) => option.value === programName)?.programNames ??
+    PROGRAM_SELECT_OPTIONS.find((option) => option.programNames.includes(programName))?.programNames ??
+    [programName]
+  );
+}
 
 export const SHIFT_EXCHANGE_PROGRAMS: ProgramName[] = [
   "Beacon/ Anchor",
@@ -78,95 +176,6 @@ export const SHIFT_EXCHANGE_PROGRAMS: ProgramName[] = [
   "Code Red/Code Blue",
   "Front Desk",
   "Wellness Assistance Valuing Excellence (WAVE)"
-];
-
-export const PROGRAM_DIVISIONS: { name: string; programNames: ProgramName[] }[] = [
-  {
-    name: "Children and Family Services",
-    programNames: [
-      "Children & Families Outpatient Services",
-      "Healing through Outpatient Perinatal Education & Support (HOPES)",
-      "Integrated System of Care (ISC)",
-      "Intensive Family Support Services",
-      "Intensive In Community Services (IIC)",
-      "Keeping Families Together - MONMOUTH",
-      "Keeping Families Together - OCEAN",
-      "Supervised Visits"
-    ]
-  },
-  {
-    name: "Crisis and Outreach",
-    programNames: [
-      "Access",
-      "Community Resources for Emergency Support and Treatment (CREST)",
-      "Crisis Diversion",
-      "Involuntary Outpatient Commitment",
-      "LEAP (Arrive Together, On POINT, Barricaded Subjects)",
-      "PACT I",
-      "PACT II"
-    ]
-  },
-  {
-    name: "Housing and Residential Supports",
-    programNames: [
-      "Bayside",
-      "Beacon/ Anchor",
-      "Building Empowerment to Achieve Community Housing (BEACH)",
-      "Chelsea",
-      "Front Desk",
-      "Housing Supports Program (HSP)",
-      "Progressive Assistance to Transition from Homelessness (PATH)",
-      "Shore Haven",
-      "Supportive Housing Assistance to Reach Excellence (SHARE)",
-      "TIDES",
-      "Wellness Assistance Valuing Excellence (WAVE)"
-    ]
-  },
-  {
-    name: "Outpatient and Recovery",
-    programNames: [
-      "Empowering Mind, Body and Recovery after Challenging Experiences (EMBRACE)",
-      "Intensive Outpatient",
-      "Level I Outpatient",
-      "Medication Assisted Treatment (MAT)",
-      "Oasis",
-      "Outpatient Services"
-    ]
-  },
-  {
-    name: "Youth & Young Adult Services",
-    programNames: [
-      "Code Red/Code Blue",
-      "Directions",
-      "Family Crisis Intervention Unit (FCIU)",
-      "Ocean Academy",
-      "REAL Team",
-      "SOLAS",
-      "The NOOK",
-      "Youth Electronic Monitoring",
-      "Youth Recovery Services (YRS)"
-    ]
-  },
-  {
-    name: "HR",
-    programNames: ["HR"]
-  },
-  {
-    name: "IT",
-    programNames: ["IT"]
-  },
-  {
-    name: "Finance",
-    programNames: ["Billing", "Accounting", "Payroll"]
-  },
-  {
-    name: "QADC",
-    programNames: ["QADC"]
-  },
-  {
-    name: "Facilities",
-    programNames: ["Facilities"]
-  }
 ];
 
 export function getProgramsForDivisions(divisionNames: string[]) {
@@ -245,7 +254,7 @@ export function getProfileProgramNames(profile?: {
       : [];
 
   return names.filter((programName): programName is ProgramName =>
-    PROGRAMS.includes(programName as ProgramName)
+    KNOWN_PROGRAMS.includes(programName as ProgramName)
   );
 }
 

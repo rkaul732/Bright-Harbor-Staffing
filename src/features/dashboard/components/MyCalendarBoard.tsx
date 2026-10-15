@@ -9,7 +9,8 @@ import {
   ListFilter,
   Send
 } from "lucide-react";
-import { PROGRAMS } from "@/shared/lib/constants";
+import { PROGRAMS, getProgramLabel, getRelatedProgramNames } from "@/shared/lib/constants";
+import { ProgramSelectOptions } from "@/shared/components/ProgramSelectOptions";
 import {
   addMonths,
   formatLongDate,
@@ -96,11 +97,13 @@ export function MyCalendarBoard({
 
   const visibleProgramNames = programNames.length ? programNames : PROGRAMS;
   const filteredEvents = useMemo(() => {
-    return events.filter((event) => program === "all" || event.program_name === program);
+    return events.filter((event) =>
+      program === "all" || getRelatedProgramNames(program).includes(event.program_name)
+    );
   }, [events, program]);
   const filteredOpenShifts = useMemo(() => {
     return availableShifts.filter(
-      (shift) => program === "all" || shift.program_name === program
+      (shift) => program === "all" || getRelatedProgramNames(program).includes(shift.program_name)
     );
   }, [availableShifts, program]);
   const calendarEvents = showOpenShifts ? [] : filteredEvents;
@@ -199,11 +202,7 @@ export function MyCalendarBoard({
             className="w-full bg-transparent text-sm text-harbor-midnight outline-none"
           >
             <option value="all">All my programs</option>
-            {visibleProgramNames.map((programName) => (
-              <option key={programName} value={programName}>
-                {programName}
-              </option>
-            ))}
+            <ProgramSelectOptions allowedProgramNames={visibleProgramNames} />
           </select>
         </label>
       </div>
@@ -254,7 +253,7 @@ export function MyCalendarBoard({
                                 : "bg-harbor-mist"
                         )}
                       >
-                        {event.program_name}: {getKindLabel(event.kind)}
+                        {getProgramLabel(event.program_name)}: {getKindLabel(event.kind)}
                       </span>
                     ))}
                     {showOpenShifts && dateOpenShifts.length > 0 ? (
@@ -305,7 +304,7 @@ export function MyCalendarBoard({
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="label">{event.program_name}</p>
+                      <p className="label">{getProgramLabel(event.program_name)}</p>
                       <h3 className="mt-1 text-base font-medium text-harbor-midnight">
                         {event.title}
                       </h3>

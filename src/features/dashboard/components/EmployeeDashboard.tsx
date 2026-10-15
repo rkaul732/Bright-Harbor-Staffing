@@ -16,6 +16,7 @@ import {
   FIXED_EMERGENCY_PAY_RATE,
   FIXED_STANDARD_PAY_RATE,
   canUseShiftExchange,
+  getProgramLabel,
   getProfileProgramNames
 } from "@/shared/lib/constants";
 import { EmployeeCoveragePostForm } from "@/features/shifts/components/ShiftPostForms";
@@ -571,7 +572,7 @@ function TimeOffCard({ request }: { request: TimeOffRequest }) {
         {request.reason}
       </p>
       <p className="mt-2 text-xs text-harbor-midnight/50">
-        {request.program_name}
+        {getProgramLabel(request.program_name)}
       </p>
       {request.review_comment ? (
         <p className="mt-3 rounded-lg bg-harbor-mist p-3 text-sm leading-6 text-harbor-midnight/70">

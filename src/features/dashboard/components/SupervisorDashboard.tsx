@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CalendarCheck, CalendarClock, CalendarPlus, CalendarX, ClipboardList, ListFilter, UsersRound, X } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
+import { ProgramSelectOptions } from "@/shared/components/ProgramSelectOptions";
 import { MetricCard } from "@/shared/components/MetricCard";
 import { CalendarBoard } from "@/shared/components/CalendarBoard";
 import { ShiftCard } from "@/shared/components/ShiftCard";
@@ -23,7 +24,7 @@ import {
 import { ProfileModerationControls } from "@/features/admin/components/ProfileModerationControls";
 import { StaffAccountInviteForm } from "@/features/admin/components/StaffAccountInviteForm";
 import { formatLongDate, sortShifts } from "@/shared/lib/dates";
-import { PROGRAMS, PROGRAM_DIVISIONS, ROLE_LABELS } from "@/shared/lib/constants";
+import { PROGRAMS, ROLE_LABELS, getProgramLabel, getRelatedProgramNames } from "@/shared/lib/constants";
 import { hasSuperAdminAccess } from "@/shared/lib/access";
 import type {
   AdminProfile,
@@ -80,20 +81,6 @@ function programOptionsForData(data: DashboardData) {
   return PROGRAMS.filter((programName) => programs.has(programName));
 }
 
-function programDivisionOptions(programNames: ProgramName[]) {
-  const allowed = new Set(programNames);
-  const groups = PROGRAM_DIVISIONS.map((division) => ({
-    name: division.name,
-    programNames: division.programNames.filter((programName) => allowed.has(programName))
-  })).filter((division) => division.programNames.length > 0);
-  const groupedPrograms = new Set(groups.flatMap((division) => division.programNames));
-
-  return {
-    groups,
-    ungrouped: programNames.filter((programName) => !groupedPrograms.has(programName))
-  };
-}
-
 function filterDashboardDataByProgram(
   data: DashboardData,
   programName: ProgramName | "all"
@@ -102,13 +89,14 @@ function filterDashboardDataByProgram(
     return data;
   }
 
-  const shifts = data.shifts.filter((shift) => shift.program_name === programName);
+  const relatedPrograms = new Set(getRelatedProgramNames(programName));
+  const shifts = data.shifts.filter((shift) => relatedPrograms.has(shift.program_name));
   const shiftIds = new Set(shifts.map((shift) => shift.id));
   const workerProfiles = data.workerProfiles.filter((profile) =>
-    workerProgramNames(profile).includes(programName)
+    workerProgramNames(profile).some((name) => relatedPrograms.has(name))
   );
   const timeOffRequests = data.timeOffRequests.filter(
-    (request) => request.program_name === programName
+    (request) => relatedPrograms.has(request.program_name)
   );
   const requests = data.requests.filter((request) => shiftIds.has(request.shift_id));
   const visibleUserIds = new Set<string>([data.currentUser.id]);
@@ -130,7 +118,7 @@ function filterDashboardDataByProgram(
     requests,
     timeOffRequests,
     workerProfiles,
-    adSlots: data.adSlots.filter((adSlot) => adSlot.program_name === programName)
+    adSlots: data.adSlots.filter((adSlot) => relatedPrograms.has(adSlot.program_name as ProgramName))
   };
 }
 
@@ -369,7 +357,6 @@ function AdminDashboardHome({
 }) {
   const lastSignOn = data.currentUser.last_sign_in_at ?? data.currentUser.created_at;
   const programOptions = useMemo(() => programOptionsForData(data), [data]);
-  const divisionOptions = useMemo(() => programDivisionOptions(programOptions), [programOptions]);
   const [programFilter, setProgramFilter] = useState<ProgramName | "all">("all");
   const [showOooForm, setShowOooForm] = useState(false);
   const visibleData = useMemo(
@@ -407,16 +394,7 @@ function AdminDashboardHome({
                 className="bg-transparent text-sm outline-none"
               >
                 <option value="all">All assigned programs</option>
-                {divisionOptions.groups.map((division) => (
-                  <optgroup key={division.name} label={division.name}>
-                    {division.programNames.map((programName) => (
-                      <option key={programName} value={programName}>{programName}</option>
-                    ))}
-                  </optgroup>
-                ))}
-                {divisionOptions.ungrouped.map((programName) => (
-                  <option key={programName} value={programName}>{programName}</option>
-                ))}
+                <ProgramSelectOptions allowedProgramNames={programOptions} />
               </select>
             </label>
             <Link href="/reports" className="word-button font-semibold">
@@ -832,7 +810,7 @@ function TimeOffReviewCard({
             {request.employee_name}
           </h3>
           <p className="mt-1 text-sm text-harbor-midnight/60">
-            {request.program_name} - {formatLongDate(request.start_date)} through{" "}
+            {getProgramLabel(request.program_name)} - {formatLongDate(request.start_date)} through{" "}
             {formatLongDate(request.end_date)}
           </p>
         </div>
@@ -975,7 +953,7 @@ function AdminProfileReviewCard({
   const scopeLabel = profile.is_super_admin
     ? "Super admin"
     : profile.program_names.length > 0
-      ? profile.program_names.join(", ")
+      ? [...new Set(profile.program_names.map(getProgramLabel))].join(", ")
       : "No programs assigned";
 
   return (
@@ -1096,7 +1074,7 @@ function SupervisorProfileReviewCard({
           label="Assigned programs"
           value={
             profile.program_names.length > 0
-              ? profile.program_names.join(", ")
+              ? [...new Set(profile.program_names.map(getProgramLabel))].join(", ")
               : "No programs assigned"
           }
         />

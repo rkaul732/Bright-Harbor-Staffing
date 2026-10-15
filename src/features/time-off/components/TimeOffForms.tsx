@@ -7,7 +7,8 @@ import {
   submitTimeOffRequestAction,
   updateTimeOffRequestStatusAction
 } from "@/app/actions";
-import { PROGRAMS } from "@/shared/lib/constants";
+import { getProgramLabel } from "@/shared/lib/constants";
+import { ProgramSelectOptions } from "@/shared/components/ProgramSelectOptions";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
 import { SubmitButton } from "@/shared/components/SubmitButton";
 import type { AppRole, ProgramName, TimeOffRequest } from "@/shared/types/domain";
@@ -28,7 +29,7 @@ export function TimeOffRequestForm({
         <select name="program_name" className="field mt-1.5" required>
           {programNames.map((program) => (
             <option key={program} value={program}>
-              {program}
+              {getProgramLabel(program)}
             </option>
           ))}
         </select>
@@ -69,11 +70,7 @@ export function AdminOutOfOfficeForm() {
       <label className="block">
         <span className="label">Program</span>
         <select name="program_name" className="field mt-1.5" required>
-          {PROGRAMS.map((program) => (
-            <option key={program} value={program}>
-              {program}
-            </option>
-          ))}
+          <ProgramSelectOptions />
         </select>
       </label>
       <div className="grid gap-3 sm:grid-cols-2">

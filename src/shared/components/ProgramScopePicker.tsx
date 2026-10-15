@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { PROGRAMS, PROGRAM_DIVISIONS } from "@/shared/lib/constants";
+import { LEGACY_PROGRAMS, PROGRAMS, PROGRAM_DIVISIONS } from "@/shared/lib/constants";
 import { cn } from "@/shared/lib/cn";
 import type { ProgramName } from "@/shared/types/domain";
 
@@ -11,10 +11,12 @@ type ProgramScopePickerProps = {
   legend?: string;
   name?: string;
   compact?: boolean;
+  selectedProgramNames?: ProgramName[];
+  onChange?: (programNames: ProgramName[]) => void;
 };
 
 function uniquePrograms(programNames: ProgramName[]) {
-  return PROGRAMS.filter((programName) => programNames.includes(programName));
+  return [...PROGRAMS, ...LEGACY_PROGRAMS].filter((programName) => programNames.includes(programName));
 }
 
 export function ProgramScopePicker({
@@ -22,36 +24,52 @@ export function ProgramScopePicker({
   defaultSelectedProgramNames = [],
   legend = "Program access",
   name = "program_names",
-  compact = false
+  compact = false,
+  selectedProgramNames,
+  onChange
 }: ProgramScopePickerProps) {
   const allowedSet = useMemo(() => new Set(allowedProgramNames), [allowedProgramNames]);
   const divisions = useMemo(
     () =>
       PROGRAM_DIVISIONS.map((division) => ({
         ...division,
-        programNames: division.programNames.filter((programName) => allowedSet.has(programName))
+        programNames: division.programNames.filter((programName) => allowedSet.has(programName)),
+        choices: division.choices
+          .map((choice) => ({
+            ...choice,
+            programNames: choice.programNames.filter((programName) => allowedSet.has(programName)),
+            children: choice.children?.map((child) => ({
+              ...child,
+              programNames: child.programNames.filter((programName) => allowedSet.has(programName))
+            })).filter((child) => child.programNames.length > 0)
+          }))
+          .filter((choice) => choice.programNames.length > 0)
       })).filter((division) => division.programNames.length > 0),
     [allowedSet]
   );
   const initialSelected = useMemo(
-    () => uniquePrograms(defaultSelectedProgramNames.filter((programName) => allowedSet.has(programName))),
+    () => uniquePrograms(defaultSelectedProgramNames.filter((programName) =>
+      allowedSet.has(programName) || LEGACY_PROGRAMS.includes(programName)
+    )),
     [allowedSet, defaultSelectedProgramNames]
   );
   const [selectedPrograms, setSelectedPrograms] = useState<ProgramName[]>(initialSelected);
+  const selection = selectedProgramNames ?? selectedPrograms;
 
-  function isDivisionSelected(programNames: ProgramName[]) {
-    return programNames.every((programName) => selectedPrograms.includes(programName));
+  function updateSelection(updater: (current: ProgramName[]) => ProgramName[]) {
+    if (selectedProgramNames) {
+      onChange?.(updater(selectedProgramNames));
+    } else {
+      setSelectedPrograms(updater);
+    }
   }
 
-  function toggleProgram(programName: ProgramName, checked: boolean) {
-    setSelectedPrograms((current) => {
-      if (checked) return uniquePrograms([...current, programName]);
-      return current.filter((item) => item !== programName);
-    });
+  function isDivisionSelected(programNames: ProgramName[]) {
+    return programNames.every((programName) => selection.includes(programName));
   }
 
   function toggleDivision(programNames: ProgramName[], checked: boolean) {
-    setSelectedPrograms((current) => {
+    updateSelection((current) => {
       if (checked) return uniquePrograms([...current, ...programNames]);
       return current.filter((programName) => !programNames.includes(programName));
     });
@@ -60,7 +78,7 @@ export function ProgramScopePicker({
   return (
     <fieldset>
       <legend className="label">{legend}</legend>
-      {selectedPrograms.map((programName) => (
+      {selection.map((programName) => (
         <input key={programName} type="hidden" name={name} value={programName} />
       ))}
 
@@ -83,7 +101,9 @@ export function ProgramScopePicker({
                 />
                 <span>
                   <span className="block font-medium text-harbor-midnight">{division.name}</span>
-                  <span className="text-harbor-midnight/48">{division.programNames.length} programs</span>
+                  <span className="text-harbor-midnight/48">
+                    {division.choices.length} program{division.choices.length === 1 ? "" : "s"}
+                  </span>
                 </span>
               </label>
             ))}
@@ -101,19 +121,29 @@ export function ProgramScopePicker({
                   {division.name}
                 </summary>
                 <div className="grid gap-1 border-t border-harbor-ocean/10 bg-white p-1.5 sm:grid-cols-2">
-                  {division.programNames.map((programName) => (
-                    <label
-                      key={programName}
-                      className="flex items-start gap-2 rounded-md px-2 py-1.5 text-xs text-harbor-midnight/75 hover:bg-harbor-mist"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedPrograms.includes(programName)}
-                        onChange={(event) => toggleProgram(programName, event.target.checked)}
-                        className="mt-0.5 h-3.5 w-3.5 rounded border-harbor-ocean/20 text-harbor-sky"
-                      />
-                      <span>{programName}</span>
-                    </label>
+                  {division.choices.map((choice) => (
+                    <div key={choice.label}>
+                      <label className="flex items-start gap-2 rounded-md px-2 py-1.5 text-xs text-harbor-midnight/75 hover:bg-harbor-mist">
+                        <input
+                          type="checkbox"
+                          checked={isDivisionSelected(choice.programNames)}
+                          onChange={(event) => toggleDivision(choice.programNames, event.target.checked)}
+                          className="mt-0.5 h-3.5 w-3.5 rounded border-harbor-ocean/20 text-harbor-sky"
+                        />
+                        <span>{choice.label}</span>
+                      </label>
+                      {choice.children?.map((child) => (
+                        <label key={child.label} className="ml-5 flex items-start gap-2 rounded-md px-2 py-1.5 text-xs text-harbor-midnight/70 hover:bg-harbor-mist">
+                          <input
+                            type="checkbox"
+                            checked={isDivisionSelected(child.programNames)}
+                            onChange={(event) => toggleDivision(child.programNames, event.target.checked)}
+                            className="mt-0.5 h-3.5 w-3.5 rounded border-harbor-ocean/20 text-harbor-sky"
+                          />
+                          <span>{child.label}</span>
+                        </label>
+                      ))}
+                    </div>
                   ))}
                 </div>
               </details>

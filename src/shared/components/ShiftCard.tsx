@@ -1,5 +1,5 @@
 import { ChevronDown, Clock, MapPin, Users } from "lucide-react";
-import { FIXED_STANDARD_PAY_RATE } from "@/shared/lib/constants";
+import { FIXED_STANDARD_PAY_RATE, getProgramLabel } from "@/shared/lib/constants";
 import { formatLongDate, formatTimeRange } from "@/shared/lib/dates";
 import { StatusBadge } from "@/shared/components/StatusBadge";
 import type { ShiftPost } from "@/shared/types/domain";
@@ -62,7 +62,7 @@ export function ShiftCard({
           Program
           <ChevronDown className="h-4 w-4" aria-hidden="true" />
         </summary>
-        <p className="mt-2 text-sm text-harbor-midnight/70">{shift.program_name}</p>
+        <p className="mt-2 text-sm text-harbor-midnight/70">{getProgramLabel(shift.program_name)}</p>
       </details>
       {children ? <div className="mt-3 border-t border-harbor-ocean/10 pt-3">{children}</div> : null}
     </article>

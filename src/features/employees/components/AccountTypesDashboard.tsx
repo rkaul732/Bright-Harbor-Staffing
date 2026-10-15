@@ -3,7 +3,7 @@ import { AccountTypeControls } from "@/features/employees/components/AccountType
 import { ProgramAssignmentControls } from "@/features/employees/components/ProgramAssignmentControls";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { EmptyState } from "@/shared/components/EmptyState";
-import { PROGRAMS, getProfileProgramNames } from "@/shared/lib/constants";
+import { PROGRAMS, getProfileProgramNames, getProgramLabel } from "@/shared/lib/constants";
 import type {
   AdminProfile,
   AppUser,
@@ -60,7 +60,9 @@ function programText(programNames: ProgramName[], isSuperAdmin: boolean) {
     return "All programs";
   }
 
-  return programNames.length ? programNames.join(", ") : "No programs assigned";
+  return programNames.length
+    ? [...new Set(programNames.map(getProgramLabel))].join(", ")
+    : "No programs assigned";
 }
 
 function formatAccountChange(value?: string | null) {
