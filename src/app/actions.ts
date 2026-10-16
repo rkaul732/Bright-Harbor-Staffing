@@ -700,7 +700,7 @@ export async function createStaffAccountAction(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the staff account form." };
   }
 
-  if ((parsed.data.role === "employee" || parsed.data.role === "admin") && !/^[^@\s]+@brightharbor\.org$/.test(parsed.data.email)) {
+  if (!/^[^@\s]+@brightharbor\.org$/.test(parsed.data.email)) {
     return { ok: false, message: "You must use your Bright Harbor Email." };
   }
 
@@ -773,51 +773,65 @@ export async function createStaffAccountAction(
   }
 
   const invitedUser = invite.data.user;
-  if (invitedUser) {
-    await adminClient.from("users").upsert({
-      id: invitedUser.id,
-      email: parsed.data.email,
-      full_name: parsed.data.full_name,
-      role: parsed.data.role
-    });
+  if (!invitedUser) {
+    return { ok: false, message: "The invitation did not return a staff account. Please try again." };
+  }
 
-    if (parsed.data.role === "employee") {
-      await adminClient.from("worker_profiles").upsert(
-        {
-          user_id: invitedUser.id,
-          status: "pending",
-          program_name: programNames[0],
-          program_names: programNames,
-          account_information: {
-            invitedBy: currentUser.id,
-            setupRequired: "true"
-          }
-        },
-        { onConflict: "user_id" }
-      );
-    } else if (parsed.data.role === "supervisor") {
-      await adminClient.from("supervisor_profiles").upsert(
-        {
-          user_id: invitedUser.id,
-          status: "pending",
-          program_names: programNames
-        },
-        { onConflict: "user_id" }
-      );
-    } else {
-      const { error: adminProfileError } = await adminClient.from("admin_profiles").upsert(
-        {
-          user_id: invitedUser.id,
-          status: "pending",
-          program_names: [],
-          is_super_admin: false
-        },
-        { onConflict: "user_id" }
-      );
+  const { error: userRecordError } = await adminClient.from("users").upsert({
+    id: invitedUser.id,
+    email: parsed.data.email,
+    full_name: parsed.data.full_name,
+    role: parsed.data.role
+  });
 
-      if (adminProfileError) {
-        return { ok: false, message: adminProfileError.message };
-      }
+  if (userRecordError) {
+    return { ok: false, message: "Setup email sent, but the account record could not be saved: " + userRecordError.message };
+  }
+
+  if (parsed.data.role === "employee") {
+    const { error: workerProfileError } = await adminClient.from("worker_profiles").upsert(
+      {
+        user_id: invitedUser.id,
+        status: "pending",
+        program_name: programNames[0],
+        program_names: programNames,
+        account_information: {
+          invitedBy: currentUser.id,
+          setupRequired: "true"
+        }
+      },
+      { onConflict: "user_id" }
+    );
+
+    if (workerProfileError) {
+      return { ok: false, message: "Setup email sent, but the employee profile could not be saved: " + workerProfileError.message };
+    }
+  } else if (parsed.data.role === "supervisor") {
+    const { error: supervisorProfileError } = await adminClient.from("supervisor_profiles").upsert(
+      {
+        user_id: invitedUser.id,
+        status: "pending",
+        program_names: programNames
+      },
+      { onConflict: "user_id" }
+    );
+
+    if (supervisorProfileError) {
+      return { ok: false, message: "Setup email sent, but the supervisor profile could not be saved: " + supervisorProfileError.message };
+    }
+  } else {
+    const { error: adminProfileError } = await adminClient.from("admin_profiles").upsert(
+      {
+        user_id: invitedUser.id,
+        status: "pending",
+        program_names: [],
+        is_super_admin: false
+      },
+      { onConflict: "user_id" }
+    );
+
+    if (adminProfileError) {
+      return { ok: false, message: adminProfileError.message };
     }
   }
 

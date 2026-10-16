@@ -1,5 +1,6 @@
-import { ShieldCheck } from "lucide-react";
+import { MailPlus, ShieldCheck } from "lucide-react";
 import { AccountTypeControls } from "@/features/employees/components/AccountTypeControls";
+import { StaffAccountInviteForm } from "@/features/admin/components/StaffAccountInviteForm";
 import { ProgramAssignmentControls } from "@/features/employees/components/ProgramAssignmentControls";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { EmptyState } from "@/shared/components/EmptyState";
@@ -100,6 +101,27 @@ export function AccountTypesDashboard({ data }: { data: DashboardData }) {
           </div>
           <span className="pill w-fit">{users.length} accounts</span>
         </div>
+      </section>
+
+      <section className="panel mt-4 p-3 sm:p-4">
+        <details>
+          <summary className="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              <span className="label block">Staff accounts</span>
+              <span className="mt-1 block text-xl font-medium text-harbor-midnight">Create an account for someone</span>
+              <span className="mt-1 block text-sm leading-6 text-harbor-midnight/65">
+                Enter their Bright Harbor email, account type, and programs. They’ll receive a secure link to set their own password.
+              </span>
+            </span>
+            <span className="word-button w-fit shrink-0 font-semibold">
+              <MailPlus className="h-4 w-4" aria-hidden="true" />
+              Create account
+            </span>
+          </summary>
+          <div className="mt-4 max-w-2xl border-t border-harbor-ocean/10 pt-4">
+            <StaffAccountInviteForm canInviteAdmin />
+          </div>
+        </details>
       </section>
 
       <section className="panel mt-4 p-3 sm:p-4">

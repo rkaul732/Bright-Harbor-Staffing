@@ -28,7 +28,7 @@ export function StaffAccountInviteForm({ canInviteAdmin = false }: { canInviteAd
           />
         </label>
         <label className="block">
-          <span className="label">Email</span>
+          <span className="label">Bright Harbor email</span>
           <input
             name="email"
             type="email"
@@ -68,7 +68,7 @@ export function StaffAccountInviteForm({ canInviteAdmin = false }: { canInviteAd
 
       <SubmitButton className="w-full">
         <MailPlus className="h-4 w-4" aria-hidden="true" />
-        Send setup email
+        Create account and send setup email
       </SubmitButton>
       <ActionFeedback state={state} />
     </form>
