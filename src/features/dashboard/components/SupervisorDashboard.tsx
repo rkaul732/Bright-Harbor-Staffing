@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { CalendarCheck, CalendarClock, CalendarPlus, CalendarX, ClipboardList, ListFilter, UsersRound, X } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { ProgramSelectOptions } from "@/shared/components/ProgramSelectOptions";
@@ -15,18 +15,21 @@ import { StatusBadge } from "@/shared/components/StatusBadge";
 import { SupervisorProfileForm } from "@/features/profiles/components/ProfileForms";
 import { SupervisorShiftPostForm } from "@/features/shifts/components/ShiftPostForms";
 import { CodeRedShiftCreationForm } from "@/features/shifts/components/CodeRedShiftCreationForm";
-import { AdminOutOfOfficeForm, TimeOffApprovalControls } from "@/features/time-off/components/TimeOffForms";
+import { AdminOutOfOfficeForm } from "@/features/time-off/components/TimeOffForms";
 import {
-  ApprovalControls,
   CancelShiftForm,
-  MessageForm,
   RescheduleShiftForm
 } from "@/features/shifts/components/ShiftActionForms";
+import { updateRequestStatusAction, updateTimeOffRequestStatusAction } from "@/app/actions";
+import { ActionFeedback } from "@/shared/components/ActionFeedback";
+import { SubmitButton } from "@/shared/components/SubmitButton";
 import { ProfileModerationControls } from "@/features/admin/components/ProfileModerationControls";
 import { StaffAccountInviteForm } from "@/features/admin/components/StaffAccountInviteForm";
 import { formatLongDate, sortShifts } from "@/shared/lib/dates";
 import { CODE_RED_BLUE_PROGRAM, PROGRAMS, ROLE_LABELS, getProgramLabel, getRelatedProgramNames } from "@/shared/lib/constants";
 import { hasSuperAdminAccess } from "@/shared/lib/access";
+import { isNewPendingRequest } from "@/features/dashboard/lib/request-status";
+import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import type {
   AdminProfile,
   AppRole,
@@ -41,6 +44,10 @@ import type {
 
 function workerProgramNames(profile: WorkerProfile) {
   return profile.program_names?.length ? profile.program_names : [profile.program_name];
+}
+
+function requestViewKey(kind: "shift" | "time-off", id: string) {
+  return `${kind}:${id}`;
 }
 
 function programOptionsForData(data: DashboardData) {
@@ -226,70 +233,7 @@ export function SupervisorDashboard({
             )}
           </section>
 
-          {(role as AppRole) === "admin" ? (
-            <AdminRequestsWorkspace data={data} role={role} />
-          ) : (
-            <>
-              <section className="panel p-4 sm:p-5">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <p className="label">Review requests</p>
-                    <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
-                      Pending supervisor approval
-                    </h2>
-                  </div>
-                  <p className="text-sm text-harbor-midnight/60">
-                    Routed to bpataky@brightharbor.org
-                  </p>
-                </div>
-                <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                  {pendingRequests.length > 0 ? (
-                    pendingRequests.map((request) => (
-                      <RequestReviewCard
-                        key={request.id}
-                        request={request}
-                        shift={data.shifts.find((shift) => shift.id === request.shift_id)}
-                        role={role}
-                      />
-                    ))
-                  ) : (
-                    <EmptyState
-                      icon={UsersRound}
-                      title="No pending approvals"
-                      body="New employee shift requests will appear here."
-                    />
-                  )}
-                </div>
-              </section>
-
-              <section className="panel p-4 sm:p-5">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <p className="label">Time off requests</p>
-                    <h2 className="mt-1 text-xl font-medium text-harbor-midnight">
-                      Pending employee time off
-                    </h2>
-                  </div>
-                  <p className="text-sm text-harbor-midnight/60">
-                    {pendingTimeOffRequests.length} pending
-                  </p>
-                </div>
-                <div className="mt-4 grid gap-4 xl:grid-cols-2">
-                  {pendingTimeOffRequests.length > 0 ? (
-                    pendingTimeOffRequests.map((request) => (
-                      <TimeOffReviewCard key={request.id} request={request} role={role} />
-                    ))
-                  ) : (
-                    <EmptyState
-                      icon={CalendarX}
-                      title="No pending time off"
-                      body="Employee time off requests will appear here."
-                    />
-                  )}
-                </div>
-              </section>
-            </>
-          )}
+          <AdminRequestsWorkspace data={data} role={role} />
 
           <section className="panel p-4 sm:p-5">
             <p className="label">Manage and reschedule</p>
@@ -356,11 +300,14 @@ function AdminDashboardHome({
   role: AppRole;
   showAdminModeration: boolean;
 }) {
-  const lastSignOn = data.currentUser.last_sign_in_at ?? data.currentUser.created_at;
   const programOptions = useMemo(() => programOptionsForData(data), [data]);
   const [programFilter, setProgramFilter] = useState<ProgramName | "all">("all");
   const [showOooForm, setShowOooForm] = useState(false);
   const [showCodeRedShiftForm, setShowCodeRedShiftForm] = useState(false);
+  const [viewedRequestKeys, setViewedRequestKeys] = useState(
+    () => new Set(data.requestViews.map((view) => requestViewKey(view.request_kind, view.request_id)))
+  );
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const visibleData = useMemo(
     () => filterDashboardDataByProgram(data, programFilter),
     [data, programFilter]
@@ -373,13 +320,42 @@ function AdminDashboardHome({
   const otherVisibleShifts = visibleAllShifts.filter((shift) => shift.program_name !== CODE_RED_BLUE_PROGRAM);
   const visibleOpenShifts = visibleAllShifts.filter((shift) => shift.status === "open");
   const visibleCoveredShifts = visibleAllShifts.filter((shift) => shift.status === "covered");
-  const requestItems = [...visibleData.requests, ...visibleData.timeOffRequests];
-  const newRequestCount = requestItems.filter((request) => request.created_at > lastSignOn).length;
-  const pendingRequestCount = requestItems.filter((request) => request.status === "pending_supervisor_approval").length;
-  const approvedRequestCount = requestItems.filter((request) => request.status === "approved").length;
-  const deniedRequestCount = requestItems.filter((request) => request.status === "declined").length;
+  const requestItems = [
+    ...visibleData.requests.map((request) => ({ kind: "shift" as const, request })),
+    ...visibleData.timeOffRequests.map((request) => ({ kind: "time-off" as const, request }))
+  ];
+  const isNew = (item: (typeof requestItems)[number]) => isNewPendingRequest(
+    item.request,
+    data.currentUser,
+    viewedRequestKeys.has(requestViewKey(item.kind, item.request.id))
+  );
+  const newRequestCount = requestItems.filter(isNew).length;
+  const pendingRequestCount = requestItems.filter(
+    (item) => item.request.status === "pending_supervisor_approval" && !isNew(item)
+  ).length;
+  const approvedRequestCount = requestItems.filter((item) => item.request.status === "approved").length;
+  const deniedRequestCount = requestItems.filter((item) => item.request.status === "declined").length;
   const canManageAccountTypes = hasSuperAdminAccess(data);
   const roleLabel = ROLE_LABELS[role];
+
+  async function markReviewed(kind: "shift" | "time-off", requestId: string) {
+    setReviewError(null);
+
+    if (!data.isDemo) {
+      const { error } = await createSupabaseBrowserClient().from("request_views").insert({
+        reviewer_id: data.currentUser.id,
+        request_kind: kind,
+        request_id: requestId
+      });
+
+      if (error && error.code !== "23505") {
+        setReviewError("Could not mark this request as reviewed. Please try again.");
+        return;
+      }
+    }
+
+    setViewedRequestKeys((current) => new Set(current).add(requestViewKey(kind, requestId)));
+  }
 
   return (
     <DashboardShell role={role} data={data}>
@@ -425,7 +401,13 @@ function AdminDashboardHome({
 
       <section className="mt-5 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
         <div className="min-w-0 space-y-4">
-          <AdminRequestsWorkspace data={visibleData} role={role} />
+          <AdminRequestsWorkspace
+            data={visibleData}
+            role={role}
+            viewedRequestKeys={viewedRequestKeys}
+            onMarkReviewed={markReviewed}
+            reviewError={reviewError}
+          />
 
           {codeRedSupervisor ? (
             <CalendarBoard
@@ -614,10 +596,34 @@ type AdminRequestItem =
       request: TimeOffRequest;
     };
 
-function AdminRequestsWorkspace({ data, role }: { data: DashboardData; role: AppRole }) {
-  const [activeTab, setActiveTab] = useState<AdminRequestTab>("pending");
+function AdminRequestsWorkspace({
+  data,
+  role,
+  viewedRequestKeys = new Set<string>(),
+  onMarkReviewed = () => {},
+  reviewError = null
+}: {
+  data: DashboardData;
+  role: AppRole;
+  viewedRequestKeys?: Set<string>;
+  onMarkReviewed?: (kind: "shift" | "time-off", requestId: string) => void;
+  reviewError?: string | null;
+}) {
+  const [activeTab, setActiveTab] = useState<AdminRequestTab>(
+    [...data.requests.map((request) => ({ kind: "shift" as const, request })),
+      ...data.timeOffRequests.map((request) => ({ kind: "time-off" as const, request }))]
+      .some((item) => isNewPendingRequest(
+        item.request,
+        data.currentUser,
+        viewedRequestKeys.has(requestViewKey(item.kind, item.request.id))
+      ))
+      ? "new"
+      : "pending"
+  );
   const [completedFilter, setCompletedFilter] = useState<CompletedRequestFilter>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [notesRequest, setNotesRequest] = useState<AdminRequestItem | null>(null);
+  const [notesByRequest, setNotesByRequest] = useState<Record<string, string>>({});
   const roleLabel = ROLE_LABELS[role];
   const shiftById = useMemo(
     () => new Map(data.shifts.map((shift) => [shift.id, shift])),
@@ -641,10 +647,14 @@ function AdminRequestsWorkspace({ data, role }: { data: DashboardData; role: App
     ].sort((first, second) => second.created_at.localeCompare(first.created_at));
   }, [data.requests, data.timeOffRequests]);
 
-  const newCutoff = data.currentUser.last_sign_in_at ?? data.currentUser.created_at;
-  const newRequests = allRequests.filter((item) => item.created_at > newCutoff);
+  const isNew = (item: AdminRequestItem) => isNewPendingRequest(
+    item,
+    data.currentUser,
+    viewedRequestKeys.has(requestViewKey(item.type, item.request.id))
+  );
+  const newRequests = allRequests.filter(isNew);
   const pending = allRequests.filter(
-    (item) => item.status === "pending_supervisor_approval"
+    (item) => item.status === "pending_supervisor_approval" && !isNew(item)
   );
   const completed = allRequests.filter(
     (item) => item.status === "approved" || item.status === "declined"
@@ -749,29 +759,77 @@ function AdminRequestsWorkspace({ data, role }: { data: DashboardData; role: App
         </div>
       ) : null}
 
+      {reviewError ? <p className="mt-4 text-sm text-red-700" role="alert">{reviewError}</p> : null}
+
       {searchedRequests.length > 0 ? (
-        <div className="mt-4 grid gap-3 xl:grid-cols-2">
-          {searchedRequests.map((item) =>
-            item.type === "shift" ? (
-              <RequestReviewCard
-                key={`shift-${item.request.id}`}
-                request={item.request}
-                shift={shiftById.get(item.request.shift_id)}
-                role={role}
-              />
-            ) : (
-              <TimeOffReviewCard
-                key={`time-off-${item.request.id}`}
-                request={item.request}
-                role={role}
-              />
-            )
-          )}
+        <div className="mt-4 overflow-x-auto rounded-xl border border-harbor-ocean/15 bg-white">
+          <table className="w-full min-w-[950px] border-collapse text-left text-sm">
+            <thead className="bg-harbor-mist text-xs font-semibold uppercase tracking-wide text-harbor-ocean">
+              <tr>
+                {[
+                  "Employee", "Request", "Program", "Date / shift", "Submitted", "Status", "Decision", "Notes"
+                ].map((heading) => <th key={heading} scope="col" className="px-4 py-3">{heading}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-harbor-ocean/10">
+              {searchedRequests.map((item) => {
+                const shift = item.type === "shift" ? shiftById.get(item.request.shift_id) : undefined;
+                const key = requestViewKey(item.type, item.request.id);
+                const pendingDecision = item.status === "pending_supervisor_approval";
+                return (
+                  <tr key={key} className="align-top hover:bg-harbor-mist/40">
+                    <td className="px-4 py-4 font-medium text-harbor-midnight">
+                      {item.type === "shift" ? item.request.requestor_name : item.request.employee_name}
+                    </td>
+                    <td className="px-4 py-4 text-harbor-midnight/80">{item.type === "shift" ? "Shift coverage" : "Time off"}</td>
+                    <td className="px-4 py-4 text-harbor-midnight/80">{getProgramLabel(item.type === "shift" ? shift?.program_name ?? "" : item.request.program_name)}</td>
+                    <td className="px-4 py-4 text-harbor-midnight/80">
+                      {item.type === "shift" ? (
+                        <><span className="font-medium">{shift?.title ?? "Shift"}</span><br />{shift ? formatLongDate(shift.shift_date) : "Date unavailable"}</>
+                      ) : <>{formatLongDate(item.request.start_date)}<br />to {formatLongDate(item.request.end_date)}</>}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4 text-harbor-midnight/70">{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(item.created_at))}</td>
+                    <td className="px-4 py-4"><RequestQueueStatus status={item.status} /></td>
+                    <td className="px-4 py-4">
+                      {pendingDecision ? <RequestDecisionControls item={item} role={role} reviewComment={notesByRequest[key] ?? ""} /> : <span className="text-harbor-midnight/50">Reviewed</span>}
+                      {activeTab === "new" && pendingDecision ? <button type="button" onClick={() => onMarkReviewed(item.type, item.request.id)} className="mt-2 block text-xs font-medium text-harbor-ocean underline">Keep pending</button> : null}
+                    </td>
+                    <td className="px-4 py-4">
+                      <button type="button" onClick={() => setNotesRequest(item)} className="rounded-lg border border-harbor-ocean/20 px-3 py-1.5 font-medium text-harbor-ocean hover:bg-harbor-mist" aria-label={`Open notes for ${item.type === "shift" ? item.request.requestor_name : item.request.employee_name}`}>
+                        Notes{(notesByRequest[key] || item.request.review_comment) ? " •" : ""}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       ) : normalizedSearch ? (
         <p className="mt-4 text-sm text-harbor-midnight/60" role="status">
           No requests match your search.
         </p>
+      ) : null}
+      {notesRequest ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-harbor-midnight/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setNotesRequest(null); }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="request-notes-title" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div><p className="label">Request notes</p><h3 id="request-notes-title" className="mt-1 text-xl font-semibold text-harbor-midnight">{notesRequest.type === "shift" ? notesRequest.request.requestor_name : notesRequest.request.employee_name}</h3></div>
+              <button type="button" onClick={() => setNotesRequest(null)} aria-label="Close notes" className="rounded-lg p-2 text-harbor-midnight/60 hover:bg-harbor-mist"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="mt-5 rounded-lg bg-harbor-mist p-4 text-sm text-harbor-midnight/80">
+              <p className="font-semibold text-harbor-midnight">Employee request</p>
+              <p className="mt-1 whitespace-pre-wrap">{notesRequest.type === "shift" ? notesRequest.request.note || "No note included." : notesRequest.request.reason}</p>
+            </div>
+            {notesRequest.status === "pending_supervisor_approval" ? (
+              <label className="mt-5 block text-sm font-medium text-harbor-midnight">
+                Comment for employee
+                <textarea className="field mt-2 min-h-32" value={notesByRequest[requestViewKey(notesRequest.type, notesRequest.request.id)] ?? ""} onChange={(event) => setNotesByRequest((current) => ({ ...current, [requestViewKey(notesRequest.type, notesRequest.request.id)]: event.target.value }))} placeholder="Add the comment that will appear in the decision email." />
+              </label>
+            ) : <div className="mt-5 text-sm text-harbor-midnight"><p className="font-semibold">Decision comment</p><p className="mt-2 whitespace-pre-wrap">{notesRequest.request.review_comment || "No comment was added."}</p></div>}
+            <div className="mt-5 flex justify-end"><button type="button" onClick={() => setNotesRequest(null)} className="primary-button">Done</button></div>
+          </div>
+        </div>
       ) : null}
     </section>
   );
@@ -800,89 +858,56 @@ function RequestTabButton({
   );
 }
 
-function RequestReviewCard({
-  request,
-  shift,
-  role
-}: {
-  request: ShiftRequest;
-  shift?: ShiftPost;
-  role: AppRole;
-}) {
-  const canReview = request.status === "pending_supervisor_approval";
-
-  return (
-    <article className="rounded-lg border border-harbor-ocean/10 bg-white p-4 shadow-line">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-base font-medium text-harbor-midnight">
-            {request.requestor_name}
-          </h3>
-          <p className="mt-1 text-sm text-harbor-midnight/60">
-            {shift?.title ?? "Shift request"} at {shift?.location_name ?? "location pending"}
-          </p>
-        </div>
-        <StatusBadge value={request.status} />
-      </div>
-      {request.note ? (
-        <p className="mt-3 rounded-lg bg-harbor-mist p-3 text-sm leading-6 text-harbor-midnight/70">
-          {request.note}
-        </p>
-      ) : null}
-      {request.review_comment ? (
-        <p className="mt-3 rounded-lg border border-harbor-ocean/10 bg-white p-3 text-sm leading-6 text-harbor-midnight/70">
-          <span className="font-medium text-harbor-midnight">Review comment:</span>{" "}
-          {request.review_comment}
-        </p>
-      ) : null}
-      {canReview ? (
-        <div className="mt-4 space-y-4">
-          <ApprovalControls request={request} role={role} />
-          <MessageForm request={request} role={role} />
-        </div>
-      ) : null}
-    </article>
-  );
+function RequestQueueStatus({ status }: { status: ShiftRequest["status"] }) {
+  const color = status === "approved"
+    ? "border-green-200 bg-green-50 text-green-800"
+    : status === "declined"
+      ? "border-red-200 bg-red-50 text-red-800"
+      : status === "pending_supervisor_approval"
+        ? "border-orange-200 bg-orange-50 text-orange-800"
+        : "border-slate-200 bg-slate-50 text-slate-700";
+  const label = status === "pending_supervisor_approval"
+    ? "Pending"
+    : status === "declined"
+      ? "Denied"
+      : status.charAt(0).toUpperCase() + status.slice(1);
+  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${color}`}>{label}</span>;
 }
 
-function TimeOffReviewCard({
-  request,
-  role
+function RequestDecisionControls({
+  item,
+  role,
+  reviewComment
 }: {
-  request: TimeOffRequest;
+  item: AdminRequestItem;
   role: AppRole;
+  reviewComment: string;
 }) {
-  const canReview = request.status === "pending_supervisor_approval";
-
+  const action = item.type === "shift" ? updateRequestStatusAction : updateTimeOffRequestStatusAction;
+  const [approveState, approveAction] = useActionState(action, { ok: false, message: "" });
+  const [denyState, denyAction] = useActionState(action, { ok: false, message: "" });
   return (
-    <article className="rounded-lg border border-harbor-ocean/10 bg-white p-4 shadow-line">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-base font-medium text-harbor-midnight">
-            {request.employee_name}
-          </h3>
-          <p className="mt-1 text-sm text-harbor-midnight/60">
-            {getProgramLabel(request.program_name)} - {formatLongDate(request.start_date)} through{" "}
-            {formatLongDate(request.end_date)}
-          </p>
-        </div>
-        <StatusBadge value={request.status} />
+    <div className="min-w-36">
+      <div className="flex flex-wrap gap-1.5">
+        <form action={approveAction}>
+          <input type="hidden" name="request_id" value={item.request.id} />
+          {item.type === "shift" ? <input type="hidden" name="shift_id" value={item.request.shift_id} /> : null}
+          <input type="hidden" name="role" value={role} />
+          <input type="hidden" name="status" value="approved" />
+          <input type="hidden" name="review_comment" value={reviewComment} />
+          <SubmitButton className="!bg-green-700 !px-2.5 !py-1.5 !text-xs hover:!bg-green-800">Approve</SubmitButton>
+        </form>
+        <form action={denyAction}>
+          <input type="hidden" name="request_id" value={item.request.id} />
+          {item.type === "shift" ? <input type="hidden" name="shift_id" value={item.request.shift_id} /> : null}
+          <input type="hidden" name="role" value={role} />
+          <input type="hidden" name="status" value="declined" />
+          <input type="hidden" name="review_comment" value={reviewComment} />
+          <SubmitButton className="!bg-red-700 !px-2.5 !py-1.5 !text-xs hover:!bg-red-800">Deny</SubmitButton>
+        </form>
       </div>
-      <p className="mt-3 rounded-lg bg-harbor-mist p-3 text-sm leading-6 text-harbor-midnight/70">
-        {request.reason}
-      </p>
-      {request.review_comment ? (
-        <p className="mt-3 rounded-lg border border-harbor-ocean/10 bg-white p-3 text-sm leading-6 text-harbor-midnight/70">
-          <span className="font-medium text-harbor-midnight">Review comment:</span>{" "}
-          {request.review_comment}
-        </p>
-      ) : null}
-      {canReview ? (
-        <div className="mt-4">
-          <TimeOffApprovalControls request={request} role={role} />
-        </div>
-      ) : null}
-    </article>
+      <ActionFeedback state={approveState.message ? approveState : denyState} />
+    </div>
   );
 }
 

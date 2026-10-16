@@ -1,5 +1,6 @@
 import { MailPlus, ShieldCheck } from "lucide-react";
 import { AccountTypeControls } from "@/features/employees/components/AccountTypeControls";
+import { DeleteEmployeeControl } from "@/features/employees/components/DeleteEmployeeControl";
 import { StaffAccountInviteForm } from "@/features/admin/components/StaffAccountInviteForm";
 import { ProgramAssignmentControls } from "@/features/employees/components/ProgramAssignmentControls";
 import { DashboardShell } from "@/shared/components/DashboardShell";
@@ -96,7 +97,7 @@ export function AccountTypesDashboard({ data }: { data: DashboardData }) {
               Account Types
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-harbor-midnight/62">
-              Select a staff member’s account type to update their access.
+              Select a staff member’s account type to update their access, or delete an employee account.
             </p>
           </div>
           <span className="pill w-fit">{users.length} accounts</span>
@@ -146,6 +147,9 @@ export function AccountTypesDashboard({ data }: { data: DashboardData }) {
                     <tr key={user.id} className="align-top transition hover:bg-harbor-mist/45">
                       <td className="border-b border-harbor-ocean/10 px-3 py-2.5 font-medium text-harbor-midnight">
                         {user.full_name}
+                        {user.role === "employee" ? (
+                          <DeleteEmployeeControl userId={user.id} name={user.full_name} email={user.email} />
+                        ) : null}
                       </td>
                       <td className="max-w-[26rem] border-b border-harbor-ocean/10 px-3 py-2.5 text-xs leading-5 text-harbor-midnight/70">
                         {programText(programNames, isSuperAdmin)}

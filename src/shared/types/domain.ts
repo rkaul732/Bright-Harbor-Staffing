@@ -98,6 +98,8 @@ export type AppUser = {
   phone?: string | null;
   created_at: string;
   last_sign_in_at?: string | null;
+  previous_sign_in_at?: string | null;
+  deleted_at?: string | null;
   account_type_changed_at?: string | null;
 };
 
@@ -156,7 +158,7 @@ export type ShiftPost = {
   created_by: string;
   posted_by_role: AppRole;
   owner_user_id: string | null;
-  supervisor_email: string;
+  supervisor_email: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -168,7 +170,7 @@ export type ShiftRequest = {
   requestor_name: string;
   note: string | null;
   status: RequestStatus;
-  supervisor_email: string;
+  supervisor_email: string | null;
   routed_at: string;
   reviewed_by?: string | null;
   reviewed_at?: string | null;
@@ -201,6 +203,13 @@ export type Message = {
   body: string;
   created_at: string;
   read_at?: string | null;
+};
+
+export type RequestView = {
+  reviewer_id: string;
+  request_kind: "shift" | "time-off";
+  request_id: string;
+  viewed_at: string;
 };
 
 export type Reschedule = {
@@ -242,6 +251,8 @@ export type Notification = {
   body: string;
   created_at: string;
   read_at?: string | null;
+  request_kind?: "shift" | "time-off" | null;
+  request_id?: string | null;
 };
 
 export type AdSlot = {
@@ -317,6 +328,7 @@ export type DashboardData = {
   shifts: ShiftPost[];
   requests: ShiftRequest[];
   timeOffRequests: TimeOffRequest[];
+  requestViews: RequestView[];
   messages: Message[];
   savedShifts: SavedShift[];
   notifications: Notification[];

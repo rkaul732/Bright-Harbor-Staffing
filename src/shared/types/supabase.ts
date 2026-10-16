@@ -97,6 +97,8 @@ type UserRow = {
   phone: string | null;
   created_at: string;
   last_sign_in_at: string | null;
+  previous_sign_in_at: string | null;
+  deleted_at: string | null;
   account_type_changed_at: string | null;
 };
 
@@ -155,7 +157,7 @@ type ShiftPostRow = {
   created_by: string;
   posted_by_role: AppRole;
   owner_user_id: string | null;
-  supervisor_email: string;
+  supervisor_email: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -167,7 +169,7 @@ type RequestRow = {
   requestor_name: string;
   note: string | null;
   status: RequestStatus;
-  supervisor_email: string;
+  supervisor_email: string | null;
   routed_at: string;
   reviewed_by: string | null;
   reviewed_at: string | null;
@@ -188,6 +190,13 @@ type TimeOffRequestRow = {
   reviewed_at: string | null;
   review_comment: string | null;
   created_at: string;
+};
+
+type RequestViewRow = {
+  reviewer_id: string;
+  request_kind: "shift" | "time-off";
+  request_id: string;
+  viewed_at: string;
 };
 
 type MessageRow = {
@@ -245,6 +254,8 @@ type NotificationRow = {
   body: string;
   created_at: string;
   read_at: string | null;
+  request_kind: "shift" | "time-off" | null;
+  request_id: string | null;
 };
 
 type AdSlotRow = {
@@ -315,6 +326,8 @@ export type Database = {
           phone?: string | null;
           created_at?: string;
           last_sign_in_at?: string | null;
+          previous_sign_in_at?: string | null;
+          deleted_at?: string | null;
         }
       >;
       worker_profiles: Table<
@@ -359,6 +372,10 @@ export type Database = {
           end_date: string;
           reason: string;
         }
+      >;
+      request_views: Table<
+        RequestViewRow,
+        Pick<RequestViewRow, "reviewer_id" | "request_kind" | "request_id"> & Partial<RequestViewRow>
       >;
       messages: Table<
         MessageRow,
@@ -443,6 +460,10 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      current_account_active: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
       record_current_user_login: {
         Args: { login_at?: string };
         Returns: undefined;

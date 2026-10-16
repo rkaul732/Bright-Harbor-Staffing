@@ -18,9 +18,8 @@ export function DashboardShell({
   const canManageAccountTypes = hasSuperAdminAccess(data);
   const roleNotifications = data.notifications.filter(
     (notification) =>
-      notification.role === role ||
-      notification.role === "all" ||
-      notification.user_id === data.currentUser.id
+      notification.user_id === data.currentUser.id ||
+      (notification.user_id === null && (notification.role === role || notification.role === "all"))
   );
 
   return (

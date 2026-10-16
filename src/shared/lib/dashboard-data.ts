@@ -14,6 +14,7 @@ import type {
   MonthlyWinner,
   Notification,
   ProgramName,
+  RequestView,
   SavedShift,
   ShiftPost,
   ShiftRequest,
@@ -181,6 +182,12 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
     redirect("/auth");
   }
 
+  const { data: accountActive } = await supabase.rpc("current_account_active");
+
+  if (accountActive === false) {
+    redirect("/auth");
+  }
+
   const [
     usersResult,
     workerProfilesResult,
@@ -189,6 +196,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
     shiftsResult,
     requestsResult,
     timeOffRequestsResult,
+    requestViewsResult,
     messagesResult,
     savedShiftsResult,
     notificationsResult,
@@ -205,6 +213,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
       .from("time_off_requests")
       .select("*")
       .order("start_date", { ascending: true }),
+    supabase.from("request_views").select("*").eq("reviewer_id", user.id),
     supabase.from("messages").select("*").order("created_at", { ascending: false }),
     supabase.from("saved_shifts").select("*").order("created_at", { ascending: false }),
     supabase.from("notifications").select("*").order("created_at", { ascending: false }),
@@ -216,7 +225,14 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
     supabase.from("monthly_winners").select("*").order("month", { ascending: false })
   ]);
 
-  const users = (usersResult.data ?? []) as AppUser[];
+  const allUsers = (usersResult.data ?? []) as AppUser[];
+  const storedCurrentUser = allUsers.find((appUser) => appUser.id === user.id);
+
+  if (storedCurrentUser?.deleted_at) {
+    redirect("/auth");
+  }
+
+  const users = allUsers.filter((appUser) => !appUser.deleted_at);
   const workerProfiles = (workerProfilesResult.data ?? []) as WorkerProfile[];
   const supervisorProfiles = ((supervisorProfilesResult.data ?? []) as SupervisorProfile[]).map(
     (profile) => ({
@@ -234,6 +250,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
   const shifts = (shiftsResult.data ?? []) as ShiftPost[];
   const requests = (requestsResult.data ?? []) as ShiftRequest[];
   const timeOffRequests = (timeOffRequestsResult.data ?? []) as TimeOffRequest[];
+  const requestViews = (requestViewsResult.data ?? []) as RequestView[];
   const messages = (messagesResult.data ?? []) as Message[];
   const savedShifts = (savedShiftsResult.data ?? []) as SavedShift[];
   const notifications = (notificationsResult.data ?? []) as Notification[];
@@ -244,11 +261,10 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
     redirect("/auth/setup");
   }
 
-  const storedCurrentUser = users.find((appUser) => appUser.id === user.id);
   const currentUser = storedCurrentUser
     ? ({
         ...storedCurrentUser,
-        last_sign_in_at: user.last_sign_in_at ?? storedCurrentUser.created_at
+        last_sign_in_at: storedCurrentUser.last_sign_in_at ?? user.last_sign_in_at ?? storedCurrentUser.created_at
       } satisfies AppUser)
     : ({
         id: user.id,
@@ -270,6 +286,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
     shifts,
     requests,
     timeOffRequests,
+    requestViews,
     messages,
     savedShifts,
     notifications,

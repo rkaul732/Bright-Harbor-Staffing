@@ -550,6 +550,7 @@ export function getDemoDashboardData(role: AppRole): DashboardData {
     timeOffRequests: role === "employee"
       ? timeOffRequests.filter((request) => request.user_id === currentUser.id)
       : timeOffRequests,
+    requestViews: [],
     messages,
     savedShifts,
     notifications,

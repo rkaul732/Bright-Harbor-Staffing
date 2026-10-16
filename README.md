@@ -92,19 +92,16 @@ Invited staff members are routed through `/auth/callback` and then create their 
 
 Regular admins see requests, calendars, reports, and profile reviews for the programs assigned to their admin profile. Their dashboard filter lists every assigned program under its division, including programs without current activity. Super admins see every program. The migration marks `rkaul@brightharbor.org` as a super admin when that user exists.
 
+Super admins can delete employee accounts from Account Types after typing the employee's email to confirm. Migration `012_employee_account_deletion.sql` removes sign-in access, hides the employee from active lists, and retains staffing history with anonymized account details.
+
 ## Automated Messages
 
-Super admins can open `/automated-messages` from the initials menu to edit rich text email templates for approved and declined time off requests. The app queues rendered email records in `automated_email_deliveries`; connect that queue to the approved SMTP, Resend, SendGrid, or Supabase Edge Function email adapter to send mail from production.
+Super admins can open `/automated-messages` from the initials menu to edit rich text email templates for approved and declined time off requests. Approving or denying a time off or shift request sends a branded decision email to the employee through Resend, including the reviewer's comment. Configure `RESEND_API_KEY` and `RESEND_FROM_EMAIL` on the deployment; the sender address must use a domain verified in Resend. Time off email delivery results are recorded in `automated_email_deliveries` when migration `004_automated_messages.sql` has been applied.
 
 ## Approval Routing
-When an employee requests to pick up a shift, a `requests` row is created with:
+Pending time off and shift requests appear only in the dashboards of approved supervisors and admins assigned to the request's program. Database triggers create individual in-app notifications for those reviewers. A program without an assigned supervisor routes to its assigned admin; no default supervisor is substituted. Migration `011_program_request_routing.sql` adds ISC to Meghan Corrigan's approved admin profile when present, routes existing pending requests, and routes still-pending requests when a reviewer is assigned later.
 
-```text
-status = pending_supervisor_approval
-supervisor_email = bpataky@brightharbor.org
-```
-
-The database trigger creates a notification. The edge function at `supabase/functions/route-shift-request/index.ts` is ready to connect to an email provider such as Resend, SendGrid, or SMTP.
+The edge function at `supabase/functions/route-shift-request/index.ts` is an email adapter stub. It does not send email; connect an email provider separately if email delivery is required.
 
 ## Product Rules
 

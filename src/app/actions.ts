@@ -5,7 +5,6 @@ import { z } from "zod";
 import {
   APPROVAL_SUPERVISOR_EMAIL,
   CODE_RED_BLUE_PROGRAM,
-  CODE_RED_BLUE_SUPERVISOR_EMAIL,
   FIXED_EMERGENCY_PAY_RATE,
   FIXED_STANDARD_PAY_RATE,
   PROGRAMS,
@@ -13,14 +12,14 @@ import {
   LOCATIONS,
   SKILLS,
   ROLE_DASHBOARD_PATHS,
-  canUseShiftExchange,
-  getShiftSupervisorEmail
+  canUseShiftExchange
 } from "@/shared/lib/constants";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
 import { createSupabaseAdminClient, hasSupabaseServiceRoleKey } from "@/shared/lib/supabase/admin";
 import { getPasswordRequirementMessage } from "@/shared/lib/password";
 import { todayEasternISO } from "@/shared/lib/dates";
+import { sendDecisionEmail } from "@/shared/lib/decision-email";
 import {
   createCodeRedShift,
   getCodeRedAvailabilityDates,
@@ -197,11 +196,21 @@ async function getUserForAction(roleHint?: AppRole) {
     throw new Error("You must be signed in to complete this action.");
   }
 
+  const { data: accountActive } = await supabase.rpc("current_account_active");
+
+  if (accountActive === false) {
+    throw new Error("This account has been deleted.");
+  }
+
   const { data: appUser } = await supabase
     .from("users")
     .select("*")
     .eq("id", user.id)
     .single();
+
+  if (appUser?.deleted_at) {
+    throw new Error("This account has been deleted.");
+  }
 
   return {
     id: user.id,
@@ -384,7 +393,7 @@ function sanitizeRichText(html: string) {
     .replace(/javascript:/gi, "");
 }
 
-async function queueAutomatedTimeOffEmail({
+async function sendAutomatedTimeOffEmail({
   supabase,
   request,
   status,
@@ -413,9 +422,7 @@ async function queueAutomatedTimeOffEmail({
     .eq("event_type", eventType)
     .eq("active", true);
 
-  if (templateError) {
-    return "Automated email could not be queued until the message tables are set up.";
-  }
+  // A missing or disabled custom template must not suppress the decision email.
 
   const matchingTemplates = (templates ?? []).filter((template) => {
     const programNames = normalizeProgramNames(template.program_names);
@@ -427,10 +434,6 @@ async function queueAutomatedTimeOffEmail({
     return secondSpecificity - firstSpecificity;
   })[0];
 
-  if (!selectedTemplate) {
-    return "No active automated message matched this program.";
-  }
-
   const { data: recipient } = await supabase
     .from("users")
     .select("email,full_name")
@@ -440,7 +443,7 @@ async function queueAutomatedTimeOffEmail({
   const recipientEmail = recipient?.email ?? "";
 
   if (!recipientEmail) {
-    return "Automated email could not be queued because the employee email is missing.";
+    return "Employee email is missing; the decision email was not sent.";
   }
 
   const values = {
@@ -453,30 +456,51 @@ async function queueAutomatedTimeOffEmail({
     review_comment: reviewComment || "No additional comments were added.",
     reviewer_name: reviewerName
   };
-  const subject = renderAutomatedMessageTemplate(selectedTemplate.subject, values);
-  const bodyHtml = renderAutomatedMessageTemplate(selectedTemplate.body_html, values);
+  const subject = selectedTemplate
+    ? renderAutomatedMessageTemplate(selectedTemplate.subject, values)
+    : undefined;
+  const bodyHtml = selectedTemplate
+    ? sanitizeRichText(renderAutomatedMessageTemplate(selectedTemplate.body_html, values))
+    : undefined;
+  const sent = await sendDecisionEmail({
+    to: recipientEmail,
+    employeeName: request.employee_name,
+    requestKind: "time off",
+    programName: request.program_name,
+    dateDescription: `${request.start_date} through ${request.end_date}`,
+    status,
+    reviewComment,
+    reviewerName,
+    subject,
+    customBodyHtml: bodyHtml,
+    commentAlreadyInBody: selectedTemplate?.body_html.includes("{{review_comment}}") ?? false,
+    idempotencyKey: `time-off-decision/${request.id}/${status}`
+  });
+  if (templateError) {
+    return sent.ok ? "Decision email sent; template history is unavailable." : `Decision email failed: ${sent.error}`;
+  }
+
   const { error } = await supabase.from("automated_email_deliveries").insert({
-    template_id: selectedTemplate.id,
+    template_id: selectedTemplate?.id ?? null,
     request_id: request.id,
     event_type: eventType,
     program_name: request.program_name as ProgramName,
     recipient_user_id: request.user_id,
     recipient_email: recipientEmail,
     recipient_name: recipient?.full_name ?? request.employee_name,
-    subject,
-    body_html: bodyHtml,
-    status: "queued",
+    subject: subject ?? `Your time off request was ${status === "approved" ? "approved" : "denied"}`,
+    body_html: bodyHtml ?? `Your time off request was ${status}. Comment: ${reviewComment || "No additional comment was added."}`,
+    status: sent.ok ? "sent" : "failed",
+    sent_at: sent.ok ? new Date().toISOString() : null,
+    error_message: sent.error ?? null,
     metadata: {
       reviewComment,
       reviewerName
     }
   });
 
-  if (error) {
-    return "Automated email could not be queued: " + error.message;
-  }
-
-  return "Automated email queued for " + recipientEmail + ".";
+  if (!sent.ok) return `Decision email failed: ${sent.error}`;
+  return error ? "Decision email sent, but delivery history could not be saved." : `Decision email sent to ${recipientEmail}.`;
 }
 
 function revalidateDashboards() {
@@ -537,7 +561,7 @@ export async function employeePostShiftAction(
   if (!isSupabaseConfigured()) {
     return {
       ok: true,
-      message: `Demo mode: coverage request routed to ${getShiftSupervisorEmail(parsed.data.program_name)}.`
+      message: "Demo mode: coverage request submitted for program review."
     };
   }
 
@@ -554,8 +578,7 @@ export async function employeePostShiftAction(
     status: "open" as const,
     created_by: user.id,
     posted_by_role: "employee" as const,
-    owner_user_id: user.id,
-    supervisor_email: getShiftSupervisorEmail(parsed.data.program_name)
+    owner_user_id: user.id
   };
 
   const { error } = await supabase.from("shift_posts").insert(insert);
@@ -567,7 +590,7 @@ export async function employeePostShiftAction(
   revalidateDashboards();
   return {
     ok: true,
-    message: `Posted for coverage and routed to ${getShiftSupervisorEmail(parsed.data.program_name)}.`
+    message: "Posted for coverage for your program."
   };
 }
 
@@ -983,6 +1006,92 @@ export async function updateAccountTypeAction(
   return { ok: true, message: "Account type updated." };
 }
 
+export async function deleteEmployeeAccountAction(
+  _previousState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const currentUser = await getUserForAction("admin");
+  const parsed = z.object({
+    user_id: z.string().uuid(),
+    confirmation_email: z.string().email()
+  }).safeParse({
+    user_id: asString(formData.get("user_id")),
+    confirmation_email: asString(formData.get("confirmation_email")).toLowerCase()
+  });
+
+  if (!parsed.success) {
+    return { ok: false, message: "Enter the employee’s email address to confirm deletion." };
+  }
+
+  if (parsed.data.user_id === currentUser.id) {
+    return { ok: false, message: "You cannot delete your own account." };
+  }
+
+  if (!isSupabaseConfigured()) {
+    return { ok: true, message: "Demo mode: employee account would be deleted." };
+  }
+
+  if (!(await isSuperAdminForAction(currentUser))) {
+    return { ok: false, message: "Only super admins can delete employee accounts." };
+  }
+
+  if (!hasSupabaseServiceRoleKey()) {
+    return { ok: false, message: "The service role key is required to delete an employee account." };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const { data: employee, error: lookupError } = await adminClient
+    .from("users")
+    .select("id,email,role,deleted_at")
+    .eq("id", parsed.data.user_id)
+    .maybeSingle();
+
+  if (lookupError || !employee || employee.deleted_at) {
+    return { ok: false, message: "This active employee account could not be found." };
+  }
+
+  if (employee.role !== "employee") {
+    return { ok: false, message: "Only employee accounts can be deleted here." };
+  }
+
+  if (employee.email.toLowerCase() !== parsed.data.confirmation_email) {
+    return { ok: false, message: "The email address does not match this employee account." };
+  }
+
+  const { error: deleteError } = await adminClient.auth.admin.deleteUser(employee.id, true);
+
+  if (deleteError) {
+    return { ok: false, message: "Could not delete the employee account: " + deleteError.message };
+  }
+
+  const { error: archiveError } = await adminClient
+    .from("users")
+    .update({
+      deleted_at: new Date().toISOString(),
+      email: `deleted-${employee.id}@deleted.brightharbor.invalid`,
+      full_name: "Deleted employee",
+      phone: null,
+      avatar_url: null
+    })
+    .eq("id", employee.id);
+
+  if (archiveError) {
+    return { ok: false, message: "Sign-in access was removed, but the employee could not be hidden from active lists: " + archiveError.message };
+  }
+
+  const { error: profileError } = await adminClient
+    .from("worker_profiles")
+    .update({ status: "suspended", photo_url: null })
+    .eq("user_id", employee.id);
+
+  if (profileError) {
+    return { ok: false, message: "The account was deleted, but the employee profile could not be suspended: " + profileError.message };
+  }
+
+  revalidateDashboards();
+  return { ok: true, message: "Employee account deleted. Staffing history was retained." };
+}
+
 export async function updateStaffProgramsAction(
   _previousState: ActionState,
   formData: FormData
@@ -1385,8 +1494,7 @@ export async function supervisorPostShiftAction(
     status: "open",
     created_by: user.id,
     posted_by_role: user.role,
-    owner_user_id: null,
-    supervisor_email: getShiftSupervisorEmail(parsed.data.program_name)
+    owner_user_id: null
   });
 
   if (error) {
@@ -1469,7 +1577,7 @@ export async function requestShiftAction(
   if (!isSupabaseConfigured()) {
     return {
       ok: true,
-      message: "Demo mode: request routed to " + APPROVAL_SUPERVISOR_EMAIL + " for approval."
+      message: "Demo mode: request submitted to your program reviewers."
     };
   }
 
@@ -1544,8 +1652,7 @@ export async function requestShiftAction(
         requestor_id: user.id,
         requestor_name: user.full_name,
         note: requestNote,
-        status: "pending_supervisor_approval" as const,
-        supervisor_email: getShiftSupervisorEmail(item.program_name)
+        status: "pending_supervisor_approval" as const
       })),
       { onConflict: "shift_id,requestor_id", ignoreDuplicates: true }
     );
@@ -1554,26 +1661,11 @@ export async function requestShiftAction(
       return { ok: false, message: error.message };
     }
 
-    await supabase.from("notifications").insert({
-      user_id: null,
-      role: "supervisor",
-      title: "Code Red/Code Blue approval needed",
-      body:
-        user.full_name +
-        " requested " +
-        requestedShifts.length +
-        " Code Red/Code Blue shift" +
-        (requestedShifts.length === 1 ? "" : "s") +
-        ". Approval routed to " +
-        CODE_RED_BLUE_SUPERVISOR_EMAIL +
-        "."
-    });
-
     revalidateDashboards();
     return {
       ok: true,
       message: "Requested " + requestedShifts.length + " posted shift" +
-        (requestedShifts.length === 1 ? "" : "s") + ". Sent to " + CODE_RED_BLUE_SUPERVISOR_EMAIL + "."
+        (requestedShifts.length === 1 ? "" : "s") + ". Sent to assigned program reviewers."
     };
   }
 
@@ -1582,27 +1674,15 @@ export async function requestShiftAction(
     requestor_id: user.id,
     requestor_name: user.full_name,
     note: note || null,
-    status: "pending_supervisor_approval",
-    supervisor_email: getShiftSupervisorEmail(shift.program_name)
+    status: "pending_supervisor_approval"
   });
 
   if (error) {
     return { ok: false, message: error.message };
   }
 
-  await supabase.from("notifications").insert({
-    user_id: null,
-    role: "supervisor",
-    title: "Shift approval needed",
-    body:
-      user.full_name +
-      " requested a shift. Approval routed to " +
-      getShiftSupervisorEmail(shift.program_name) +
-      "."
-  });
-
   revalidateDashboards();
-  return { ok: true, message: "Request sent to " + getShiftSupervisorEmail(shift.program_name) + "." };
+  return { ok: true, message: "Request sent to assigned program reviewers." };
 }
 
 export async function saveShiftAction(
@@ -1698,7 +1778,7 @@ export async function submitTimeOffRequestAction(
   }
 
   revalidateDashboards();
-  return { ok: true, message: "Time off request submitted." };
+  return { ok: true, message: "Time off request sent to your program reviewers." };
 }
 
 export async function adminAddOutOfOfficeAction(
@@ -1813,7 +1893,7 @@ export async function updateTimeOffRequestStatusAction(
     return scopeError;
   }
 
-  const { error } = await supabase
+  const { data: updatedRequests, error } = await supabase
     .from("time_off_requests")
     .update({
       status: status as "approved" | "declined" | "cancelled",
@@ -1821,15 +1901,20 @@ export async function updateTimeOffRequestStatusAction(
       reviewed_at: new Date().toISOString(),
       review_comment: reviewComment || null
     })
-    .eq("id", requestId);
+    .eq("id", requestId)
+    .eq("status", "pending_supervisor_approval")
+    .select("id");
 
   if (error) {
     return { ok: false, message: error.message };
   }
+  if (!updatedRequests?.length) {
+    return { ok: false, message: "This request has already been reviewed. Refresh the queue." };
+  }
 
   const emailMessage =
     status === "approved" || status === "declined"
-      ? await queueAutomatedTimeOffEmail({
+      ? await sendAutomatedTimeOffEmail({
           supabase,
           request: requestToReview,
           status,
@@ -1840,7 +1925,7 @@ export async function updateTimeOffRequestStatusAction(
 
   revalidateDashboards();
   return {
-    ok: true,
+    ok: !emailMessage?.toLowerCase().includes("email failed") && !emailMessage?.includes("not sent"),
     message: `Time off request ${status}.${emailMessage ? " " + emailMessage : ""}`
   };
 }
@@ -1870,13 +1955,13 @@ export async function updateRequestStatusAction(
   const supabase = await createSupabaseServerClient();
   const { data: shift } = await supabase
     .from("shift_posts")
-    .select("program_name,openings,filled_openings")
+    .select("title,shift_date,program_name,openings,filled_openings")
     .eq("id", shiftId)
     .single();
 
   const { data: requestToReview } = await supabase
     .from("requests")
-    .select("note")
+    .select("note,requestor_id,requestor_name")
     .eq("id", requestId)
     .single();
 
@@ -1894,7 +1979,7 @@ export async function updateRequestStatusAction(
     return scopeError;
   }
 
-  const { error } = await supabase
+  const { data: updatedRequests, error } = await supabase
     .from("requests")
     .update({
       status: status as "approved" | "declined" | "cancelled",
@@ -1902,10 +1987,15 @@ export async function updateRequestStatusAction(
       reviewed_at: new Date().toISOString(),
       review_comment: reviewComment || null
     })
-    .eq("id", requestId);
+    .eq("id", requestId)
+    .eq("status", "pending_supervisor_approval")
+    .select("id");
 
   if (error) {
     return { ok: false, message: error.message };
+  }
+  if (!updatedRequests?.length) {
+    return { ok: false, message: "This request has already been reviewed. Refresh the queue." };
   }
 
   if (status === "approved") {
@@ -1925,8 +2015,36 @@ export async function updateRequestStatusAction(
       .eq("id", shiftId);
   }
 
+  let emailMessage = "";
+  if ((status === "approved" || status === "declined") && requestToReview?.requestor_id) {
+    const { data: recipient } = await supabase
+      .from("users")
+      .select("email")
+      .eq("id", requestToReview.requestor_id)
+      .maybeSingle();
+    if (recipient?.email) {
+      const sent = await sendDecisionEmail({
+        to: recipient.email,
+        employeeName: requestToReview.requestor_name,
+        requestKind: "shift coverage",
+        programName: shift.program_name,
+        dateDescription: `${shift.title} on ${shift.shift_date}`,
+        status,
+        reviewComment,
+        reviewerName: user.full_name,
+        idempotencyKey: `shift-decision/${requestId}/${status}`
+      });
+      emailMessage = sent.ok ? "Decision email sent." : `Decision email failed: ${sent.error}`;
+    } else {
+      emailMessage = "Employee email is missing; the decision email was not sent.";
+    }
+  }
+
   revalidateDashboards();
-  return { ok: true, message: `Request ${status}.` };
+  return {
+    ok: !emailMessage.toLowerCase().includes("email failed") && !emailMessage.includes("not sent"),
+    message: `Request ${status}.${emailMessage ? " " + emailMessage : ""}`
+  };
 }
 
 export async function sendMessageAction(
