@@ -14,6 +14,7 @@ import { AdSlots } from "@/shared/components/AdSlots";
 import { StatusBadge } from "@/shared/components/StatusBadge";
 import { SupervisorProfileForm } from "@/features/profiles/components/ProfileForms";
 import { SupervisorShiftPostForm } from "@/features/shifts/components/ShiftPostForms";
+import { CodeRedShiftCreationForm } from "@/features/shifts/components/CodeRedShiftCreationForm";
 import { AdminOutOfOfficeForm, TimeOffApprovalControls } from "@/features/time-off/components/TimeOffForms";
 import {
   ApprovalControls,
@@ -24,7 +25,7 @@ import {
 import { ProfileModerationControls } from "@/features/admin/components/ProfileModerationControls";
 import { StaffAccountInviteForm } from "@/features/admin/components/StaffAccountInviteForm";
 import { formatLongDate, sortShifts } from "@/shared/lib/dates";
-import { PROGRAMS, ROLE_LABELS, getProgramLabel, getRelatedProgramNames } from "@/shared/lib/constants";
+import { CODE_RED_BLUE_PROGRAM, PROGRAMS, ROLE_LABELS, getProgramLabel, getRelatedProgramNames } from "@/shared/lib/constants";
 import { hasSuperAdminAccess } from "@/shared/lib/access";
 import type {
   AdminProfile,
@@ -359,11 +360,17 @@ function AdminDashboardHome({
   const programOptions = useMemo(() => programOptionsForData(data), [data]);
   const [programFilter, setProgramFilter] = useState<ProgramName | "all">("all");
   const [showOooForm, setShowOooForm] = useState(false);
+  const [showCodeRedShiftForm, setShowCodeRedShiftForm] = useState(false);
   const visibleData = useMemo(
     () => filterDashboardDataByProgram(data, programFilter),
     [data, programFilter]
   );
   const visibleAllShifts = sortShifts(visibleData.shifts);
+  const codeRedSupervisor = role === "supervisor" && data.supervisorProfiles.some(
+    (profile) => profile.user_id === data.currentUser.id && profile.status === "approved" && profile.program_names.includes(CODE_RED_BLUE_PROGRAM)
+  );
+  const codeRedShifts = sortShifts(data.shifts.filter((shift) => shift.program_name === CODE_RED_BLUE_PROGRAM));
+  const otherVisibleShifts = visibleAllShifts.filter((shift) => shift.program_name !== CODE_RED_BLUE_PROGRAM);
   const visibleOpenShifts = visibleAllShifts.filter((shift) => shift.status === "open");
   const visibleCoveredShifts = visibleAllShifts.filter((shift) => shift.status === "covered");
   const requestItems = [...visibleData.requests, ...visibleData.timeOffRequests];
@@ -420,25 +427,70 @@ function AdminDashboardHome({
         <div className="min-w-0 space-y-4">
           <AdminRequestsWorkspace data={visibleData} role={role} />
 
-          <CalendarBoard
-            title="Team Schedule"
-            shifts={visibleAllShifts}
-            timeOffRequests={visibleData.timeOffRequests}
-            showByNameView
-            initialMode="by-name"
-            emptyLabel="No staffing shifts for this date."
-            compact
-            headerAction={role === "admin" ? (
-              <button
-                type="button"
-                onClick={() => setShowOooForm(true)}
-                className="word-button font-semibold"
-              >
-                <CalendarPlus className="h-4 w-4" aria-hidden="true" />
-                Add OOO
-              </button>
-            ) : null}
-          />
+          {codeRedSupervisor ? (
+            <CalendarBoard
+              title="Code Red/Code Blue Coverage"
+              shifts={codeRedShifts}
+              initialMode="month"
+              emptyLabel="No Code Red/Code Blue shifts have been added for this date."
+              codeRedStaffing
+              compact
+              headerAction={(
+                <button
+                  type="button"
+                  onClick={() => setShowCodeRedShiftForm(true)}
+                  className="word-button font-semibold"
+                >
+                  <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+                  Add Shifts
+                </button>
+              )}
+            />
+          ) : null}
+
+          {!codeRedSupervisor || otherVisibleShifts.length > 0 ? (
+            <CalendarBoard
+              title="Team Schedule"
+              shifts={codeRedSupervisor ? otherVisibleShifts : visibleAllShifts}
+              timeOffRequests={visibleData.timeOffRequests}
+              showByNameView
+              initialMode="by-name"
+              emptyLabel="No staffing shifts for this date."
+              compact
+              headerAction={role === "admin" ? (
+                <button
+                  type="button"
+                  onClick={() => setShowOooForm(true)}
+                  className="word-button font-semibold"
+                >
+                  <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+                  Add OOO
+                </button>
+              ) : null}
+            />
+          ) : null}
+
+          {showCodeRedShiftForm ? (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-harbor-midnight/35 px-3 py-5 backdrop-blur-sm"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="code-red-shifts-title"
+            >
+              <section className="max-h-full w-full max-w-lg overflow-y-auto rounded-lg border border-white/70 bg-white p-4 shadow-soft sm:p-5">
+                <div className="mb-4 flex items-start justify-between gap-4 border-b border-harbor-ocean/10 pb-4">
+                  <div>
+                    <p className="label">Code Red/Code Blue Coverage</p>
+                    <h2 id="code-red-shifts-title" className="mt-1 text-xl font-medium text-harbor-midnight">Add Shifts</h2>
+                  </div>
+                  <button type="button" onClick={() => setShowCodeRedShiftForm(false)} className="ghost-button px-1.5" aria-label="Close Add Shifts">
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                </div>
+                <CodeRedShiftCreationForm />
+              </section>
+            </div>
+          ) : null}
 
           {showOooForm ? (
             <div

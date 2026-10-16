@@ -72,20 +72,8 @@ function createGeneratedId(date: string, slug: string) {
   ].join("-");
 }
 
-function shiftKey(shift: Pick<ShiftPost, "program_name" | "shift_date" | "title" | "start_time" | "end_time">) {
-  return [shift.program_name, shift.shift_date, shift.title, shift.start_time, shift.end_time].join("|");
-}
-
-function generatedShiftKey(date: string, template: CodeRedShiftTemplate) {
-  return [CODE_RED_BLUE_PROGRAM, date, template.title, CODE_RED_START_TIME, CODE_RED_END_TIME].join("|");
-}
-
 export function isCodeRedShift(shift: Pick<ShiftPost, "program_name">) {
   return shift.program_name === CODE_RED_BLUE_PROGRAM;
-}
-
-export function isGeneratedCodeRedShiftId(shiftId: string) {
-  return shiftId.startsWith(GENERATED_CODE_RED_PREFIX + "-");
 }
 
 export function getCodeRedCoverageOption(value: string | null | undefined) {
@@ -100,14 +88,6 @@ export function getCodeRedTemplateFromSlug(slug: string) {
   return CODE_RED_SHIFT_TEMPLATES.find((template) => template.slug === slug) ?? null;
 }
 
-export function getGeneratedCodeRedShiftFromId(shiftId: string) {
-  if (!isGeneratedCodeRedShiftId(shiftId)) {
-    return null;
-  }
-
-  return getGeneratedCodeRedShifts([]).find((shift) => shift.id === shiftId) ?? null;
-}
-
 export function getCodeRedWeekDates(startDate: string) {
   const start = parseLocalDate(startDate);
 
@@ -120,7 +100,13 @@ export function getCodeRedAvailabilityDates(startDate: string) {
   return Array.from({ length: 14 }, (_, index) => toISODate(addDays(start, index)));
 }
 
-export function createCodeRedShift(date: string, template: CodeRedShiftTemplate): ShiftPost {
+export function createCodeRedShift(
+  date: string,
+  template: CodeRedShiftTemplate,
+  createdBy: string
+): ShiftPost {
+  const createdAt = new Date().toISOString();
+
   return {
     id: createGeneratedId(date, template.slug),
     title: template.title,
@@ -138,33 +124,28 @@ export function createCodeRedShift(date: string, template: CodeRedShiftTemplate)
     category: "standard",
     urgent: false,
     status: "open",
-    created_by: "system-code-red-blue",
+    created_by: createdBy,
     posted_by_role: "supervisor",
     owner_user_id: null,
     supervisor_email: CODE_RED_BLUE_SUPERVISOR_EMAIL,
-    created_at: date + "T00:00:00.000Z",
-    updated_at: date + "T00:00:00.000Z"
+    created_at: createdAt,
+    updated_at: createdAt
   };
 }
 
-export function getGeneratedCodeRedShifts(existingShifts: ShiftPost[], anchorDate = new Date()) {
-  const existingKeys = new Set(existingShifts.map(shiftKey));
-  const start = addDays(anchorDate, -31);
-  const generated: ShiftPost[] = [];
+export type CodeRedDayStaffing = "empty" | "unfilled" | "partial" | "full";
 
-  for (let index = 0; index < 120; index += 1) {
-    const date = toISODate(addDays(start, index));
+export function getCodeRedDayStaffing(shifts: ShiftPost[], date: string): CodeRedDayStaffing {
+  const activeShifts = shifts.filter(
+    (shift) => isCodeRedShift(shift) && shift.shift_date === date &&
+      shift.status !== "cancelled" && shift.status !== "draft"
+  );
 
-    CODE_RED_SHIFT_TEMPLATES.forEach((template) => {
-      if (!existingKeys.has(generatedShiftKey(date, template))) {
-        generated.push(createCodeRedShift(date, template));
-      }
-    });
-  }
+  if (activeShifts.length === 0) return "empty";
 
-  return generated;
-}
+  const openings = activeShifts.reduce((sum, shift) => sum + shift.openings, 0);
+  const filled = activeShifts.reduce((sum, shift) => sum + shift.filled_openings, 0);
 
-export function withGeneratedCodeRedShifts(shifts: ShiftPost[]) {
-  return [...shifts, ...getGeneratedCodeRedShifts(shifts)];
+  if (filled === 0) return "unfilled";
+  return filled >= openings ? "full" : "partial";
 }

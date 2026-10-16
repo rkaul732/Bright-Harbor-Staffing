@@ -91,6 +91,10 @@ const divisionChoices: { name: string; choices: ProgramChoice[] }[] = [
     ]
   },
   {
+    name: "Code Red/Code Blue",
+    choices: [{ label: "Code Red/Code Blue", programNames: [CODE_RED_BLUE_PROGRAM] }]
+  },
+  {
     name: "Development",
     choices: [
       { label: "Marketing/Development", programNames: ["Marketing/Development"] },
@@ -134,7 +138,6 @@ export const PROGRAMS: ProgramName[] = [...new Set(PROGRAM_DIVISIONS.flatMap((di
 // Keep former identifiers readable so existing accounts and requests retain their scope.
 export const LEGACY_PROGRAMS: ProgramName[] = [
   "Bayside",
-  "Code Red/Code Blue",
   "Front Desk",
   "Intensive Outpatient",
   "Level I Outpatient",

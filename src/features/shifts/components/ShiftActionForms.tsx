@@ -17,7 +17,6 @@ import { formatShortDate } from "@/shared/lib/dates";
 import {
   CODE_RED_COVERAGE_OPTIONS,
   getCodeRedAvailabilityDates,
-  getCodeRedTemplateFromTitle,
   isCodeRedShift
 } from "@/shared/lib/shift-templates";
 import type { AppRole, ShiftPost, ShiftRequest } from "@/shared/types/domain";
@@ -35,7 +34,6 @@ export function RequestShiftForm({
   const [isConfirming, setIsConfirming] = useState(false);
   const [requestScope, setRequestScope] = useState("single");
   const codeRedShift = isCodeRedShift(shift);
-  const codeRedTemplate = codeRedShift ? getCodeRedTemplateFromTitle(shift.title) : null;
   const availabilityDates = codeRedShift ? getCodeRedAvailabilityDates(shift.shift_date) : [];
 
   return (
@@ -83,13 +81,6 @@ export function RequestShiftForm({
 
             <form action={formAction} className="mt-5 space-y-3">
               <input type="hidden" name="shift_id" value={shift.id} />
-              {codeRedTemplate ? (
-                <>
-                  <input type="hidden" name="code_red_template_slug" value={codeRedTemplate.slug} />
-                  <input type="hidden" name="code_red_shift_date" value={shift.shift_date} />
-                </>
-              ) : null}
-
               {codeRedShift ? (
                 <div className="space-y-4 rounded-lg border border-harbor-ocean/10 bg-harbor-mist/45 p-3">
                   <fieldset>

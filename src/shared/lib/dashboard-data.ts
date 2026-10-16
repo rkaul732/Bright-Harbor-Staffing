@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getDemoDashboardData } from "@/shared/lib/demo-data";
 import { CODE_RED_BLUE_PROGRAM, CODE_RED_BLUE_SUPERVISOR_EMAIL } from "@/shared/lib/constants";
-import { withGeneratedCodeRedShifts } from "@/shared/lib/shift-templates";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
 import type {
@@ -232,7 +231,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
       is_super_admin: profile.is_super_admin === true
     })
   );
-  const shifts = withGeneratedCodeRedShifts((shiftsResult.data ?? []) as ShiftPost[]);
+  const shifts = (shiftsResult.data ?? []) as ShiftPost[];
   const requests = (requestsResult.data ?? []) as ShiftRequest[];
   const timeOffRequests = (timeOffRequestsResult.data ?? []) as TimeOffRequest[];
   const messages = (messagesResult.data ?? []) as Message[];

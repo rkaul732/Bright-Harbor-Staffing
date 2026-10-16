@@ -16,6 +16,7 @@ import {
 import { cn } from "@/shared/lib/cn";
 import { ShiftCard } from "@/shared/components/ShiftCard";
 import { StatusBadge } from "@/shared/components/StatusBadge";
+import { getCodeRedDayStaffing } from "@/shared/lib/shift-templates";
 import type {
   CalendarMode,
   LocationName,
@@ -81,7 +82,8 @@ export function CalendarBoard({
   showByNameView = false,
   initialMode = "month",
   headerAction,
-  compact = false
+  compact = false,
+  codeRedStaffing = false
 }: {
   title: string;
   shifts: ShiftPost[];
@@ -92,6 +94,7 @@ export function CalendarBoard({
   initialMode?: CalendarViewMode;
   headerAction?: React.ReactNode;
   compact?: boolean;
+  codeRedStaffing?: boolean;
 }) {
   const [mode, setMode] = useState<CalendarViewMode>(() =>
     initialMode === "by-name" && !showByNameView ? "month" : initialMode
@@ -193,7 +196,7 @@ export function CalendarBoard({
           </div>
         </div>
 
-        {mode !== "by-name" ? (
+        {mode !== "by-name" && !codeRedStaffing ? (
           <label className={cn("flex items-center gap-2 rounded-lg border border-harbor-ocean/10 bg-harbor-mist px-3 py-2 sm:max-w-xs", compact ? "mt-2" : "mt-4")}>
             <ListFilter className="h-4 w-4 text-harbor-ocean" aria-hidden="true" />
             <select
@@ -210,6 +213,15 @@ export function CalendarBoard({
             </select>
           </label>
         ) : null}
+
+        {codeRedStaffing ? (
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-harbor-midnight/70" aria-label="Code Red staffing legend">
+            <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-red-400" />Unstaffed</span>
+            <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-orange-400" />Partially staffed</span>
+            <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-green-500" />Fully staffed</span>
+            <span><i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm bg-slate-400" />No shifts</span>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -222,26 +234,39 @@ export function CalendarBoard({
           {days.map((day) => {
             const allDateShifts = getShiftsForDate(day.iso);
             const dateShifts = allDateShifts.slice(0, compact ? 1 : 2);
+            const staffing = codeRedStaffing ? getCodeRedDayStaffing(allDateShifts, day.iso) : null;
+            const staffingLabel = staffing === "unfilled" ? "Unstaffed"
+              : staffing === "partial" ? "Partially staffed"
+                : staffing === "full" ? "Fully staffed" : "No shifts";
 
             return (
               <button
                 key={day.iso}
                 type="button"
+                aria-label={codeRedStaffing ? `${formatLongDate(day.iso)}: ${staffingLabel}` : undefined}
                 onClick={() => {
                   setSelectedDate(day.iso);
                   setMode("day");
                 }}
                 className={cn(
-                  "flex aspect-square min-h-0 min-w-0 flex-col items-start justify-start overflow-hidden bg-white text-left transition hover:bg-harbor-mist",
+                  "flex aspect-square min-h-0 min-w-0 flex-col items-start justify-start overflow-hidden text-left transition",
+                  codeRedStaffing
+                    ? staffing === "unfilled" ? "bg-red-100 text-red-900 hover:bg-red-200"
+                      : staffing === "partial" ? "bg-orange-100 text-orange-900 hover:bg-orange-200"
+                        : staffing === "full" ? "bg-green-100 text-green-900 hover:bg-green-200"
+                          : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    : "bg-white hover:bg-harbor-mist",
                   compact ? "p-1" : "p-1.5 sm:p-2",
-                  !day.isCurrentMonth && "bg-white/60 text-harbor-midnight/40",
+                  !day.isCurrentMonth && (codeRedStaffing ? "opacity-50" : "bg-white/60 text-harbor-midnight/40"),
                   selectedDate === day.iso && "ring-2 ring-inset ring-harbor-sky",
-                  day.isToday && "bg-harbor-lemon/30"
+                  day.isToday && !codeRedStaffing && "bg-harbor-lemon/30"
                 )}
               >
                 <div className="flex w-full items-start justify-between gap-1">
                   <span className="self-start text-xs font-medium leading-none">{day.date.getDate()}</span>
-                  {getNeedsCount(allDateShifts) > 0 ? (
+                  {codeRedStaffing ? (
+                    <span className="truncate text-[10px] font-semibold leading-none">{staffingLabel}</span>
+                  ) : getNeedsCount(allDateShifts) > 0 ? (
                     <span className="truncate text-[10px] font-medium leading-none text-[#9b1c1c]">
                       Needs {getNeedsCount(allDateShifts)}
                     </span>
@@ -358,6 +383,13 @@ export function CalendarBoard({
           <div className="mb-4 flex items-center gap-2 text-harbor-ocean">
             <CalendarDays className="h-4 w-4" aria-hidden="true" />
             <p className="text-sm">{formatLongDate(selectedDate)}</p>
+            {codeRedStaffing ? (
+              <span className="ml-auto text-xs font-semibold text-harbor-midnight/70">
+                {getCodeRedDayStaffing(dayShifts, selectedDate) === "unfilled" ? "Unstaffed"
+                  : getCodeRedDayStaffing(dayShifts, selectedDate) === "partial" ? "Partially staffed"
+                    : getCodeRedDayStaffing(dayShifts, selectedDate) === "full" ? "Fully staffed" : "No shifts"}
+              </span>
+            ) : null}
           </div>
 
           {dayShifts.length > 0 ? (
@@ -371,7 +403,7 @@ export function CalendarBoard({
           ) : (
             <div className="rounded-lg border border-dashed border-harbor-ocean/20 bg-white/70 p-4 text-center">
               <p className="text-sm text-harbor-midnight/60">
-                {emptyLabel} Try another day or location filter.
+                {emptyLabel}{codeRedStaffing ? "" : " Try another day or location filter."}
               </p>
             </div>
           )}

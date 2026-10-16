@@ -6,7 +6,6 @@ import {
   FIXED_STANDARD_PAY_RATE
 } from "@/shared/lib/constants";
 import { toISODate } from "@/shared/lib/dates";
-import { withGeneratedCodeRedShifts } from "@/shared/lib/shift-templates";
 import type {
   AdSlot,
   AdminProfile,
@@ -546,7 +545,7 @@ export function getDemoDashboardData(role: AppRole): DashboardData {
     workerProfiles,
     supervisorProfiles,
     adminProfiles,
-    shifts: withGeneratedCodeRedShifts(shifts),
+    shifts,
     requests,
     timeOffRequests: role === "employee"
       ? timeOffRequests.filter((request) => request.user_id === currentUser.id)

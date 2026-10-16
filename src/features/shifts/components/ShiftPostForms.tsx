@@ -7,9 +7,11 @@ import {
   supervisorPostShiftAction
 } from "@/app/actions";
 import {
+  CODE_RED_BLUE_PROGRAM,
   FIXED_EMERGENCY_PAY_RATE,
   FIXED_STANDARD_PAY_RATE,
   LOCATIONS,
+  PROGRAMS,
   SHIFT_EXCHANGE_PROGRAMS
 } from "@/shared/lib/constants";
 import { ProgramSelectOptions } from "@/shared/components/ProgramSelectOptions";
@@ -48,7 +50,7 @@ export function EmployeeCoveragePostForm({
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const eligibleProgramNames = programNames.filter((program) =>
-    SHIFT_EXCHANGE_PROGRAMS.includes(program)
+    SHIFT_EXCHANGE_PROGRAMS.includes(program) && program !== CODE_RED_BLUE_PROGRAM
   );
   const hours = calculateShiftHours(startTime, endTime);
 
@@ -149,7 +151,7 @@ export function SupervisorShiftPostForm({ role = "supervisor" }: { role?: AppRol
         <label className="block">
           <span className="label">Program</span>
           <select name="program_name" className="field mt-1.5" required>
-            <ProgramSelectOptions />
+            <ProgramSelectOptions allowedProgramNames={PROGRAMS.filter((program) => program !== CODE_RED_BLUE_PROGRAM)} />
           </select>
         </label>
       </div>

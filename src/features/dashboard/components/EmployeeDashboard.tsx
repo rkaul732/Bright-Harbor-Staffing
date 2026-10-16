@@ -27,7 +27,7 @@ import {
   MyCalendarBoard,
   type MyCalendarEvent
 } from "@/features/dashboard/components/MyCalendarBoard";
-import { formatLongDate, parseLocalDate, sortShifts, todayISO } from "@/shared/lib/dates";
+import { formatLongDate, parseLocalDate, sortShifts, todayEasternISO, todayISO } from "@/shared/lib/dates";
 import type {
   DashboardData,
   ProgramName,
@@ -104,6 +104,7 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
     visibleShifts.filter(
       (shift) =>
         shift.status === "open" &&
+        shift.shift_date >= todayEasternISO() &&
         shift.owner_user_id !== data.currentUser.id &&
         shift.openings > shift.filled_openings
     )

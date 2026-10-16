@@ -20,6 +20,7 @@ import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
 import { createSupabaseAdminClient, hasSupabaseServiceRoleKey } from "@/shared/lib/supabase/admin";
 import { getPasswordRequirementMessage } from "@/shared/lib/password";
+import { todayEasternISO } from "@/shared/lib/dates";
 import {
   createCodeRedShift,
   getCodeRedAvailabilityDates,
@@ -27,9 +28,7 @@ import {
   getCodeRedTemplateFromSlug,
   getCodeRedTemplateFromTitle,
   getCodeRedWeekDates,
-  getGeneratedCodeRedShiftFromId,
-  isCodeRedShift,
-  isGeneratedCodeRedShiftId
+  isCodeRedShift
 } from "@/shared/lib/shift-templates";
 import type {
   AutomatedMessageEvent,
@@ -516,6 +515,10 @@ export async function employeePostShiftAction(
 
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the form." };
+  }
+
+  if (parsed.data.program_name === CODE_RED_BLUE_PROGRAM) {
+    return { ok: false, message: "Use Add Shifts to publish Code Red/Code Blue coverage." };
   }
 
   const user = await getUserForAction("employee");
@@ -1336,6 +1339,10 @@ export async function supervisorPostShiftAction(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the form." };
   }
 
+  if (parsed.data.program_name === CODE_RED_BLUE_PROGRAM) {
+    return { ok: false, message: "Use Add Shifts to publish Code Red/Code Blue coverage." };
+  }
+
   const user = await getUserForAction(role === "admin" ? "admin" : "supervisor");
 
   if (user.role !== "supervisor") {
@@ -1376,6 +1383,50 @@ export async function supervisorPostShiftAction(
   return { ok: true, message: "Shift posting is live." };
 }
 
+export async function addCodeRedShiftsAction(
+  _previousState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const shiftDate = asString(formData.get("shift_date"));
+  const slugs = [...new Set(formData.getAll("template_slugs").map(asString))];
+  const templates = slugs.map((slug) => getCodeRedTemplateFromSlug(slug));
+
+  if (!dateSchema.safeParse(shiftDate).success ||
+      !Number.isFinite(Date.parse(`${shiftDate}T12:00:00Z`)) ||
+      new Date(`${shiftDate}T12:00:00Z`).toISOString().slice(0, 10) !== shiftDate ||
+      shiftDate < todayEasternISO()) {
+    return { ok: false, message: "Choose today or a future date." };
+  }
+
+  if (templates.length === 0 || templates.some((template) => !template)) {
+    return { ok: false, message: "Choose at least one valid shift." };
+  }
+
+  const user = await getUserForAction("supervisor");
+  if (user.role !== "supervisor") {
+    return { ok: false, message: "Only the Code Red/Code Blue supervisor can add these shifts." };
+  }
+
+  const scopeError = await scopedProgramAccessError(user, [CODE_RED_BLUE_PROGRAM], "add Code Red/Code Blue shifts");
+  if (scopeError) return scopeError;
+
+  if (!isSupabaseConfigured()) {
+    return { ok: false, message: "Connect Supabase to publish Code Red/Code Blue shifts." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const shifts = templates.map((template) => createCodeRedShift(shiftDate, template!, user.id));
+  const { error } = await supabase.from("shift_posts").upsert(shifts, {
+    onConflict: "id",
+    ignoreDuplicates: true
+  });
+
+  if (error) return { ok: false, message: error.message };
+
+  revalidateDashboards();
+  return { ok: true, message: "Selected shifts are available for staff to request." };
+}
+
 export async function requestShiftAction(
   _previousState: ActionState,
   formData: FormData
@@ -1384,8 +1435,6 @@ export async function requestShiftAction(
   const note = asString(formData.get("note"));
   const requestScope = asString(formData.get("request_scope")) || "single";
   const coverage = getCodeRedCoverageOption(asString(formData.get("coverage_option")));
-  const codeRedTemplateSlug = asString(formData.get("code_red_template_slug"));
-  const codeRedShiftDate = asString(formData.get("code_red_shift_date"));
   const availabilityDates = formData
     .getAll("availability_dates")
     .filter((value): value is string => dateSchema.safeParse(value).success);
@@ -1411,48 +1460,56 @@ export async function requestShiftAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  let shift = isGeneratedCodeRedShiftId(shiftId)
-    ? getGeneratedCodeRedShiftFromId(shiftId)
-    : null;
-
-  if (!shift) {
-    const { data } = await supabase
-      .from("shift_posts")
-      .select("*")
-      .eq("id", shiftId)
-      .single();
-
-    shift = (data ?? null) as ShiftPost | null;
-  }
+  const { data: shiftData } = await supabase
+    .from("shift_posts")
+    .select("*")
+    .eq("id", shiftId)
+    .single();
+  const shift = (shiftData ?? null) as ShiftPost | null;
 
   if (!shift || !programNames.includes(shift.program_name as ProgramName)) {
     return { ok: false, message: "Choose a shift from one of your programs." };
   }
 
   if (isCodeRedShift(shift)) {
-    const template =
-      getCodeRedTemplateFromSlug(codeRedTemplateSlug) ??
-      getCodeRedTemplateFromTitle(shift.title);
+    const template = getCodeRedTemplateFromTitle(shift.title);
 
     if (!template) {
       return { ok: false, message: "Choose a valid Code Red/Code Blue shift." };
     }
 
-    const baseDate = dateSchema.safeParse(codeRedShiftDate).success
-      ? codeRedShiftDate
-      : shift.shift_date;
+    const baseDate = shift.shift_date;
+    const allowedAvailabilityDates = getCodeRedAvailabilityDates(baseDate);
     const requestDates =
       requestScope === "week"
         ? getCodeRedWeekDates(baseDate)
         : requestScope === "availability"
-          ? availabilityDates.length > 0
-            ? availabilityDates
-            : getCodeRedAvailabilityDates(baseDate).slice(0, 1)
+          ? availabilityDates.filter((date) => allowedAvailabilityDates.includes(date))
           : [baseDate];
-    const requestedShifts = requestDates.map((date) => ({
-      ...createCodeRedShift(date, template),
-      created_by: user.id
-    }));
+
+    if (requestDates.length === 0) {
+      return { ok: false, message: "Choose at least one available date." };
+    }
+
+    const { data: matchingShiftData, error: matchingShiftError } = await supabase
+      .from("shift_posts")
+      .select("*")
+      .eq("program_name", CODE_RED_BLUE_PROGRAM)
+      .eq("title", template.title)
+      .eq("status", "open")
+      .in("shift_date", requestDates);
+
+    if (matchingShiftError) return { ok: false, message: matchingShiftError.message };
+
+    const coverageUnits = coverage.value === "full" ? 2 : 1;
+    const requestedShifts = ((matchingShiftData ?? []) as ShiftPost[]).filter(
+      (item) => item.openings - item.filled_openings >= coverageUnits &&
+        (requestScope !== "single" || item.id === shift.id)
+    );
+
+    if (requestedShifts.length === 0) {
+      return { ok: false, message: "No matching posted shifts have enough coverage available." };
+    }
     const scopeLabel =
       requestScope === "week"
         ? "same shift for the week"
@@ -1466,22 +1523,6 @@ export async function requestShiftAction(
     ]
       .filter(Boolean)
       .join(" ");
-
-    if (!hasSupabaseServiceRoleKey()) {
-      return {
-        ok: false,
-        message: "Add SUPABASE_SERVICE_ROLE_KEY in Netlify so Code Red/Code Blue requests can be saved."
-      };
-    }
-
-    const adminClient = createSupabaseAdminClient();
-    const { error: shiftError } = await adminClient
-      .from("shift_posts")
-      .upsert(requestedShifts, { onConflict: "id" });
-
-    if (shiftError) {
-      return { ok: false, message: shiftError.message };
-    }
 
     const { error } = await supabase.from("requests").upsert(
       requestedShifts.map((item) => ({
@@ -1517,7 +1558,8 @@ export async function requestShiftAction(
     revalidateDashboards();
     return {
       ok: true,
-      message: "Request sent to " + CODE_RED_BLUE_SUPERVISOR_EMAIL + "."
+      message: "Requested " + requestedShifts.length + " posted shift" +
+        (requestedShifts.length === 1 ? "" : "s") + ". Sent to " + CODE_RED_BLUE_SUPERVISOR_EMAIL + "."
     };
   }
 
@@ -1566,40 +1608,15 @@ export async function saveShiftAction(
 
   const supabase = await createSupabaseServerClient();
   const programNames = await getWorkerProgramsForAction(user.id);
-  let shift = isGeneratedCodeRedShiftId(shiftId)
-    ? getGeneratedCodeRedShiftFromId(shiftId)
-    : null;
-
-  if (!shift) {
-    const { data } = await supabase
-      .from("shift_posts")
-      .select("*")
-      .eq("id", shiftId)
-      .single();
-
-    shift = (data ?? null) as ShiftPost | null;
-  }
+  const { data: shiftData } = await supabase
+    .from("shift_posts")
+    .select("*")
+    .eq("id", shiftId)
+    .single();
+  const shift = (shiftData ?? null) as ShiftPost | null;
 
   if (!shift || !programNames.includes(shift.program_name as ProgramName)) {
     return { ok: false, message: "Choose a shift from one of your programs." };
-  }
-
-  if (isCodeRedShift(shift) && isGeneratedCodeRedShiftId(shift.id)) {
-    if (!hasSupabaseServiceRoleKey()) {
-      return {
-        ok: false,
-        message: "Add SUPABASE_SERVICE_ROLE_KEY in Netlify so generated Code Red/Code Blue shifts can be saved."
-      };
-    }
-
-    const adminClient = createSupabaseAdminClient();
-    const { error: shiftError } = await adminClient
-      .from("shift_posts")
-      .upsert([{ ...shift, created_by: user.id }], { onConflict: "id" });
-
-    if (shiftError) {
-      return { ok: false, message: shiftError.message };
-    }
   }
 
   const { error } = await supabase
