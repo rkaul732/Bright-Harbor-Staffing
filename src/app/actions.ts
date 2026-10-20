@@ -2444,11 +2444,42 @@ export async function moderateProfileAction(
 
   const supabase = await createSupabaseServerClient();
 
-  if (role === "admin") {
-    if (!(await isSuperAdminForAction(user))) {
-      return { ok: false, message: "Only super admins can manage admin access." };
+  if ((role === "admin" || role === "supervisor") && !(await isSuperAdminForAction(user))) {
+    return {
+      ok: false,
+      message: role === "admin"
+        ? "Only super admins can manage admin access."
+        : "Only super admins can moderate supervisor profiles."
+    };
+  }
+
+  if (status === "approved" && (role === "admin" || role === "supervisor")) {
+    if (!hasSupabaseServiceRoleKey()) {
+      return { ok: false, message: "Account setup verification is unavailable until the service role key is configured." };
     }
 
+    const table = role === "admin" ? "admin_profiles" : "supervisor_profiles";
+    const { data: targetProfile, error: targetProfileError } = await supabase
+      .from(table)
+      .select("user_id")
+      .eq("id", profileId)
+      .maybeSingle();
+
+    if (targetProfileError || !targetProfile) {
+      return { ok: false, message: "Reviewer profile not found." };
+    }
+
+    const { data: authResult, error: authLookupError } = await createSupabaseAdminClient().auth.admin.getUserById(targetProfile.user_id);
+    if (authLookupError || !authResult.user) {
+      return { ok: false, message: "Could not verify the staff member's account setup." };
+    }
+
+    if (authResult.user.user_metadata?.setup_required && !authResult.user.user_metadata?.setup_completed_at) {
+      return { ok: false, message: "This staff member must finish account setup before reviewer access can be approved." };
+    }
+  }
+
+  if (role === "admin") {
     const adminProgramNames = asPrograms(formData);
     const isSuperAdmin = formData.get("is_super_admin") === "on";
 
@@ -2477,10 +2508,6 @@ export async function moderateProfileAction(
   }
 
   if (role === "supervisor") {
-    if (!(await isSuperAdminForAction(user))) {
-      return { ok: false, message: "Only super admins can moderate supervisor profiles." };
-    }
-
     const supervisorProgramNames = asPrograms(formData);
 
     if (status === "approved" && supervisorProgramNames.length === 0) {
