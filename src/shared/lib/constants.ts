@@ -147,6 +147,16 @@ export const LEGACY_PROGRAMS: ProgramName[] = [
 
 export const KNOWN_PROGRAMS: ProgramName[] = [...PROGRAMS, ...LEGACY_PROGRAMS];
 
+export function normalizeAssignedProgramNames(programNames: readonly string[]): ProgramName[] {
+  const expanded = programNames.flatMap((programName) =>
+    programName === "PACT" ? ["PACT I", "PACT II"] : [programName]
+  );
+
+  return [...new Set(expanded)].filter((programName): programName is ProgramName =>
+    KNOWN_PROGRAMS.includes(programName as ProgramName)
+  );
+}
+
 export const PROGRAM_SELECT_OPTIONS = PROGRAM_DIVISIONS.flatMap((division) =>
   division.choices.flatMap((choice) => [choice, ...(choice.children ?? [])].map((item) => ({
     value: item.programNames[0],
@@ -157,6 +167,8 @@ export const PROGRAM_SELECT_OPTIONS = PROGRAM_DIVISIONS.flatMap((division) =>
 ).sort((a, b) => a.label.localeCompare(b.label) || a.division.localeCompare(b.division));
 
 export function getProgramLabel(programName: string) {
+  if (programName === "PACT") return "PACT I / PACT II";
+
   return (
     PROGRAM_SELECT_OPTIONS.find((option) => option.value === programName)?.label ??
     PROGRAM_SELECT_OPTIONS.find((option) => option.programNames.includes(programName as ProgramName))?.label ??
@@ -256,9 +268,7 @@ export function getProfileProgramNames(profile?: {
       ? [profile.program_name]
       : [];
 
-  return names.filter((programName): programName is ProgramName =>
-    KNOWN_PROGRAMS.includes(programName as ProgramName)
-  );
+  return normalizeAssignedProgramNames(names);
 }
 
 export function getShiftSupervisorEmail(programName?: string | null) {

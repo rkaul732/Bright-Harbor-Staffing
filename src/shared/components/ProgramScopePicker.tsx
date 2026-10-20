@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { LEGACY_PROGRAMS, PROGRAMS, PROGRAM_DIVISIONS } from "@/shared/lib/constants";
+import { LEGACY_PROGRAMS, PROGRAMS, PROGRAM_DIVISIONS, normalizeAssignedProgramNames } from "@/shared/lib/constants";
 import { cn } from "@/shared/lib/cn";
 import type { ProgramName } from "@/shared/types/domain";
 
@@ -48,7 +48,7 @@ export function ProgramScopePicker({
     [allowedSet]
   );
   const initialSelected = useMemo(
-    () => uniquePrograms(defaultSelectedProgramNames.filter((programName) =>
+    () => uniquePrograms(normalizeAssignedProgramNames(defaultSelectedProgramNames).filter((programName) =>
       allowedSet.has(programName) || LEGACY_PROGRAMS.includes(programName)
     )),
     [allowedSet, defaultSelectedProgramNames]

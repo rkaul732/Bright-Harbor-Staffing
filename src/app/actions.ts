@@ -9,6 +9,7 @@ import {
   FIXED_STANDARD_PAY_RATE,
   PROGRAMS,
   KNOWN_PROGRAMS,
+  normalizeAssignedProgramNames,
   LOCATIONS,
   SKILLS,
   ROLE_DASHBOARD_PATHS,
@@ -18,8 +19,8 @@ import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
 import { createSupabaseAdminClient, hasSupabaseServiceRoleKey } from "@/shared/lib/supabase/admin";
 import { getPasswordRequirementMessage } from "@/shared/lib/password";
-import { todayEasternISO } from "@/shared/lib/dates";
-import { sendDecisionEmail } from "@/shared/lib/decision-email";
+import { formatTimeRange, todayEasternISO } from "@/shared/lib/dates";
+import { escapeEmailHtml, sendDecisionEmail, sendSubmissionEmail } from "@/shared/lib/decision-email";
 import {
   createCodeRedShift,
   getCodeRedAvailabilityDates,
@@ -236,10 +237,10 @@ async function getWorkerProgramsForAction(userId: string) {
   const programNames = data?.program_names as ProgramName[] | null | undefined;
 
   if (programNames?.length) {
-    return programNames;
+    return normalizeAssignedProgramNames(programNames);
   }
 
-  return data?.program_name ? [data.program_name as ProgramName] : [];
+  return data?.program_name ? normalizeAssignedProgramNames([data.program_name]) : [];
 }
 
 type ActionUser = Awaited<ReturnType<typeof getUserForAction>>;
@@ -257,9 +258,9 @@ type SupervisorScope = {
 
 function normalizeProgramNames(value: unknown) {
   return Array.isArray(value)
-    ? value.filter((programName): programName is ProgramName =>
-        programSchema.safeParse(programName).success
-      )
+    ? normalizeAssignedProgramNames(value.filter((programName): programName is string =>
+        typeof programName === "string"
+      ))
     : [];
 }
 
@@ -376,13 +377,23 @@ function escapeTemplateValue(value: string) {
 
 function renderAutomatedMessageTemplate(
   template: string,
-  values: Record<string, string>
+  values: Record<string, string>,
+  multilineSummary = false
 ) {
   return Object.entries(values).reduce(
     (current, [key, value]) =>
-      current.replaceAll("{{" + key + "}}", escapeTemplateValue(value)),
+      current.replaceAll(
+        "{{" + key + "}}",
+        multilineSummary && key === "request_summary"
+          ? escapeTemplateValue(value).replace(/\r?\n/g, "<br>")
+          : escapeTemplateValue(value)
+      ),
     template
   );
+}
+
+function renderRequestSummaryHtml(summary: string) {
+  return escapeEmailHtml(summary).replace(/\r?\n/g, "<br>");
 }
 
 function sanitizeRichText(html: string) {
@@ -391,6 +402,120 @@ function sanitizeRichText(html: string) {
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/\son[a-z]+=("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
     .replace(/javascript:/gi, "");
+}
+
+function formatDateForEmail(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match ? `${match[2]}/${match[3]}/${match[1]}` : value;
+}
+
+async function sendRequestSubmissionConfirmation({
+  user,
+  requestId,
+  requestKind,
+  programName,
+  submittedAt,
+  requestSummary
+}: {
+  user: ActionUser;
+  requestId: string;
+  requestKind: "time off" | "shift coverage";
+  programName: ProgramName;
+  submittedAt: string;
+  requestSummary: string;
+}) {
+  if (!user.email) return "Confirmation email could not be sent because your account has no email address.";
+
+  try {
+    const emailClient = hasSupabaseServiceRoleKey()
+      ? createSupabaseAdminClient()
+      : await createSupabaseServerClient();
+    const { data: templates } = await emailClient
+      .from("automated_message_templates")
+      .select("*")
+      .eq("event_type", "request_submitted")
+      .eq("active", true);
+    const selectedTemplate = (templates ?? [])
+      .filter((template) => {
+        const programs = normalizeProgramNames(template.program_names);
+        return programs.length === 0 || programs.includes(programName);
+      })
+      .sort((first, second) => {
+        const firstPrograms = normalizeProgramNames(first.program_names);
+        const secondPrograms = normalizeProgramNames(second.program_names);
+        if (firstPrograms.length === 0 && secondPrograms.length === 0) {
+          return second.updated_at.localeCompare(first.updated_at);
+        }
+        if (firstPrograms.length === 0) return 1;
+        if (secondPrograms.length === 0) return -1;
+        return firstPrograms.length - secondPrograms.length ||
+          second.updated_at.localeCompare(first.updated_at);
+      })[0];
+
+    const submittedAtParts = new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: "America/New_York",
+      timeZoneName: "short"
+    }).formatToParts(new Date(submittedAt));
+    const submittedAtPart = (type: Intl.DateTimeFormatPartTypes) =>
+      submittedAtParts.find((part) => part.type === type)?.value ?? "";
+    const submittedAtLabel = `${submittedAtPart("month")}/${submittedAtPart("day")}/${submittedAtPart("year")} at ${submittedAtPart("hour")}:${submittedAtPart("minute")} ${submittedAtPart("dayPeriod")} ${submittedAtPart("timeZoneName")}`;
+    const values = {
+      employee_name: user.full_name,
+      request_kind: requestKind,
+      program_name: programName,
+      submitted_at: submittedAtLabel,
+      request_summary: requestSummary,
+      status: "submitted"
+    };
+    const subject = selectedTemplate
+      ? renderAutomatedMessageTemplate(selectedTemplate.subject, values)
+      : "Your Request Has Been Submitted";
+    const templateBody = selectedTemplate
+      ? sanitizeRichText(renderAutomatedMessageTemplate(selectedTemplate.body_html, values, true))
+      : `<p>Hello ${escapeEmailHtml(user.full_name)},</p><p>Your ${escapeEmailHtml(requestKind)} request was successfully submitted on <strong>${escapeEmailHtml(submittedAtLabel)}</strong>.</p><p><strong>Request Summary</strong><br>${renderRequestSummaryHtml(requestSummary)}</p><p>Your request is awaiting review. We will email you when a decision is made.</p>`;
+    const bodyHtml = templateBody + (selectedTemplate && !selectedTemplate.body_html.includes("{{submitted_at}}")
+      ? `<p><strong>Submitted:</strong> ${escapeEmailHtml(submittedAtLabel)}</p>`
+      : "") + (selectedTemplate && !selectedTemplate.body_html.includes("{{request_summary}}")
+      ? `<p><strong>Request Summary</strong><br>${renderRequestSummaryHtml(requestSummary)}</p>`
+      : "");
+
+    const sent = await sendSubmissionEmail({
+      to: user.email,
+      subject,
+      bodyHtml,
+      idempotencyKey: `request-submitted/${requestKind === "time off" ? "time-off" : "shift"}/${requestId}`
+    });
+
+    if (hasSupabaseServiceRoleKey()) {
+      await emailClient.from("automated_email_deliveries").insert({
+        template_id: selectedTemplate?.id ?? null,
+        request_id: requestKind === "time off" ? requestId : null,
+        event_type: "request_submitted",
+        program_name: programName,
+        recipient_user_id: user.id,
+        recipient_email: user.email,
+        recipient_name: user.full_name,
+        subject,
+        body_html: bodyHtml,
+        status: sent.ok ? "sent" : "failed",
+        sent_at: sent.ok ? new Date().toISOString() : null,
+        error_message: sent.error ?? null,
+        metadata: { requestKind, requestId, submittedAt, requestSummary }
+      });
+    }
+
+    return sent.ok
+      ? "A confirmation email was sent to your Bright Harbor address."
+      : `Your request was saved, but the confirmation email could not be sent: ${sent.error}`;
+  } catch (error) {
+    return "Your request was saved, but the confirmation email could not be sent: " +
+      (error instanceof Error ? error.message : "email service unavailable.");
+  }
 }
 
 async function sendAutomatedTimeOffEmail({
@@ -581,16 +706,28 @@ export async function employeePostShiftAction(
     owner_user_id: user.id
   };
 
-  const { error } = await supabase.from("shift_posts").insert(insert);
+  const { data: postedShift, error } = await supabase.from("shift_posts")
+    .insert(insert)
+    .select("id,created_at")
+    .single();
 
   if (error) {
     return { ok: false, message: error.message };
   }
 
+  const confirmation = await sendRequestSubmissionConfirmation({
+    user,
+    requestId: postedShift.id,
+    requestKind: "shift coverage",
+    programName: parsed.data.program_name,
+    submittedAt: postedShift.created_at,
+    requestSummary: `Program: ${parsed.data.program_name}\nDate: ${formatDateForEmail(parsed.data.shift_date)}\nTime: ${parsed.data.start_time}–${parsed.data.end_time}\nLocation: ${parsed.data.location_name}\nReason: ${parsed.data.details}`
+  });
+
   revalidateDashboards();
   return {
     ok: true,
-    message: "Posted for coverage for your program."
+    message: "Posted for coverage for your program. " + confirmation
   };
 }
 
@@ -1646,7 +1783,7 @@ export async function requestShiftAction(
       .filter(Boolean)
       .join(" ");
 
-    const { error } = await supabase.from("requests").upsert(
+    const { data: insertedRequests, error } = await supabase.from("requests").upsert(
       requestedShifts.map((item) => ({
         shift_id: item.id,
         requestor_id: user.id,
@@ -1655,34 +1792,58 @@ export async function requestShiftAction(
         status: "pending_supervisor_approval" as const
       })),
       { onConflict: "shift_id,requestor_id", ignoreDuplicates: true }
-    );
+    ).select("id,shift_id,created_at");
 
     if (error) {
       return { ok: false, message: error.message };
     }
 
+    if (!insertedRequests?.length) {
+      return { ok: false, message: "You have already requested the selected posted shifts." };
+    }
+
+    const submittedShiftIds = new Set(insertedRequests.map((request) => request.shift_id));
+    const submittedShifts = requestedShifts.filter((item) => submittedShiftIds.has(item.id));
+    const confirmation = await sendRequestSubmissionConfirmation({
+      user,
+      requestId: insertedRequests[0].id,
+      requestKind: "shift coverage",
+      programName: shift.program_name,
+      submittedAt: insertedRequests[0].created_at,
+      requestSummary: `Program: ${shift.program_name}\nShift: ${shift.title}\nDates: ${submittedShifts.map((item) => formatDateForEmail(item.shift_date)).join(", ")}\nTime: ${formatTimeRange(shift)}\nCoverage: ${coverage.label}${note ? `\nNote: ${note}` : ""}`
+    });
+
     revalidateDashboards();
     return {
       ok: true,
-      message: "Requested " + requestedShifts.length + " posted shift" +
-        (requestedShifts.length === 1 ? "" : "s") + ". Sent to assigned program reviewers."
+      message: "Requested " + insertedRequests.length + " posted shift" +
+        (insertedRequests.length === 1 ? "" : "s") + ". Sent to assigned program reviewers. " + confirmation
     };
   }
 
-  const { error } = await supabase.from("requests").insert({
+  const { data: submittedRequest, error } = await supabase.from("requests").insert({
     shift_id: shift.id,
     requestor_id: user.id,
     requestor_name: user.full_name,
     note: note || null,
     status: "pending_supervisor_approval"
-  });
+  }).select("id,created_at").single();
 
   if (error) {
     return { ok: false, message: error.message };
   }
 
+  const confirmation = await sendRequestSubmissionConfirmation({
+    user,
+    requestId: submittedRequest.id,
+    requestKind: "shift coverage",
+    programName: shift.program_name,
+    submittedAt: submittedRequest.created_at,
+    requestSummary: `Program: ${shift.program_name}\nShift: ${shift.title}\nDate: ${formatDateForEmail(shift.shift_date)}\nTime: ${formatTimeRange(shift)}\nLocation: ${shift.location_name}${note ? `\nNote: ${note}` : ""}`
+  });
+
   revalidateDashboards();
-  return { ok: true, message: "Request sent to assigned program reviewers." };
+  return { ok: true, message: "Request sent to assigned program reviewers. " + confirmation };
 }
 
 export async function saveShiftAction(
@@ -1766,19 +1927,28 @@ export async function submitTimeOffRequestAction(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from("time_off_requests").insert({
+  const { data: submittedRequest, error } = await supabase.from("time_off_requests").insert({
     user_id: user.id,
     employee_name: user.full_name,
     ...parsed.data,
     status: "pending_supervisor_approval"
-  });
+  }).select("id,created_at").single();
 
   if (error) {
     return { ok: false, message: error.message };
   }
 
+  const confirmation = await sendRequestSubmissionConfirmation({
+    user,
+    requestId: submittedRequest.id,
+    requestKind: "time off",
+    programName: parsed.data.program_name,
+    submittedAt: submittedRequest.created_at,
+    requestSummary: `Program: ${parsed.data.program_name}\nDates: ${formatDateForEmail(parsed.data.start_date)} - ${formatDateForEmail(parsed.data.end_date)}\nReason: ${parsed.data.reason}`
+  });
+
   revalidateDashboards();
-  return { ok: true, message: "Time off request sent to your program reviewers." };
+  return { ok: true, message: "Time off request sent to your program reviewers. " + confirmation };
 }
 
 export async function adminAddOutOfOfficeAction(
@@ -2184,7 +2354,7 @@ export async function saveAutomatedMessageTemplateAction(
   const parsed = z
     .object({
       name: z.string().min(3, "Add a message name."),
-      event_type: z.enum(["time_off_approved", "time_off_declined"]),
+      event_type: z.enum(["request_submitted", "time_off_approved", "time_off_declined"]),
       subject: z.string().min(4, "Add an email subject."),
       body_html: z.string().min(12, "Add message body text."),
       active: z.boolean()

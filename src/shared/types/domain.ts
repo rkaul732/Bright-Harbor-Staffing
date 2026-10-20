@@ -81,7 +81,7 @@ export type RequestStatus =
   | "declined"
   | "cancelled";
 
-export type AutomatedMessageEvent = "time_off_approved" | "time_off_declined";
+export type AutomatedMessageEvent = "request_submitted" | "time_off_approved" | "time_off_declined";
 
 export type AutomatedEmailStatus = "queued" | "sent" | "failed";
 

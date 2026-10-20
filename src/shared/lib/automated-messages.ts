@@ -7,6 +7,19 @@ import type {
 
 const demoTemplates: AutomatedMessageTemplate[] = [
   {
+    id: "demo-submitted-template",
+    name: "Your Request Has Been Submitted",
+    event_type: "request_submitted",
+    program_names: [],
+    subject: "Your Request Has Been Submitted",
+    body_html: "<p>Hello {{employee_name}},</p><p>Your {{request_kind}} request was successfully submitted on <strong>{{submitted_at}}</strong>.</p><p><strong>Request summary</strong><br>{{request_summary}}</p><p>Your request is awaiting review. We will email you when a decision is made.</p>",
+    active: true,
+    created_by: null,
+    updated_by: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
     id: "demo-approved-template",
     name: "Time off approved",
     event_type: "time_off_approved",

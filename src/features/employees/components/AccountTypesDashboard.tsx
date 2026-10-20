@@ -5,7 +5,7 @@ import { StaffAccountInviteForm } from "@/features/admin/components/StaffAccount
 import { ProgramAssignmentControls } from "@/features/employees/components/ProgramAssignmentControls";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { EmptyState } from "@/shared/components/EmptyState";
-import { PROGRAMS, getProfileProgramNames, getProgramLabel } from "@/shared/lib/constants";
+import { PROGRAMS, getProfileProgramNames, getProgramLabel, normalizeAssignedProgramNames } from "@/shared/lib/constants";
 import type {
   AdminProfile,
   AppUser,
@@ -37,11 +37,11 @@ function programNamesForUser(data: DashboardData, user: AppUser) {
   }
 
   if (user.role === "supervisor" && supervisorProfile?.program_names.length) {
-    return supervisorProfile.program_names;
+    return normalizeAssignedProgramNames(supervisorProfile.program_names);
   }
 
   if (user.role === "admin" && adminProfile?.program_names.length) {
-    return adminProfile.program_names;
+    return normalizeAssignedProgramNames(adminProfile.program_names);
   }
 
   const workerProgramNames = getProfileProgramNames(workerProfile);
@@ -51,10 +51,10 @@ function programNamesForUser(data: DashboardData, user: AppUser) {
   }
 
   if (supervisorProfile?.program_names.length) {
-    return supervisorProfile.program_names;
+    return normalizeAssignedProgramNames(supervisorProfile.program_names);
   }
 
-  return adminProfile?.program_names ?? [];
+  return normalizeAssignedProgramNames(adminProfile?.program_names ?? []);
 }
 
 function programText(programNames: ProgramName[], isSuperAdmin: boolean) {

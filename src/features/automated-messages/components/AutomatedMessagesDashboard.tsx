@@ -40,15 +40,15 @@ type DraftTemplate = {
 const initialState = { ok: false, message: "" };
 const blankTemplate: DraftTemplate = {
   id: "",
-  name: "",
-  event_type: "time_off_approved",
-  subject: "Time off request {{status}} for {{start_date}}",
+  name: "Your Request Has Been Submitted",
+  event_type: "request_submitted",
+  subject: "Your Request Has Been Submitted",
   body_html:
-    "<p>Hello {{employee_name}},</p><p>Your time off request for <strong>{{program_name}}</strong> from {{start_date}} to {{end_date}} has been <strong>{{status}}</strong>.</p><p>{{review_comment}}</p>",
+    "<p>Hello {{employee_name}},</p><p>Your {{request_kind}} request was successfully submitted on <strong>{{submitted_at}}</strong>.</p><p><strong>Request Summary</strong><br>{{request_summary}}</p><p>Your request is awaiting review. We will email you when a decision is made.</p>",
   program_names: [],
   active: true
 };
-const tokenNames = [
+const decisionTokenNames = [
   "employee_name",
   "program_name",
   "start_date",
@@ -57,9 +57,17 @@ const tokenNames = [
   "review_comment",
   "reviewer_name"
 ];
+const submissionTokenNames = [
+  "employee_name",
+  "request_kind",
+  "program_name",
+  "submitted_at",
+  "request_summary"
+];
 const fontOptions = ["DM Sans", "Inter", "Arial", "Georgia", "Times New Roman", "Verdana"];
 
 function eventLabel(eventType: AutomatedMessageEvent) {
+  if (eventType === "request_submitted") return "Request submitted";
   return eventType === "time_off_approved" ? "Time off approved" : "Time off declined";
 }
 
@@ -76,10 +84,12 @@ function templateToDraft(template: AutomatedMessageTemplate): DraftTemplate {
 }
 
 function defaultDraftForEvent(eventType: AutomatedMessageEvent) {
+  if (eventType === "request_submitted") return { ...blankTemplate };
   return {
     ...blankTemplate,
     event_type: eventType,
     name: eventLabel(eventType),
+    body_html: "<p>Hello {{employee_name}},</p><p>Your time off request for <strong>{{program_name}}</strong> from {{start_date}} to {{end_date}} has been <strong>{{status}}</strong>.</p><p>{{review_comment}}</p>",
     subject:
       eventType === "time_off_approved"
         ? "Time off request approved for {{start_date}}"
@@ -184,7 +194,7 @@ export function AutomatedMessagesDashboard({
               Automated Messages
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-harbor-midnight/65">
-              Manage the email wording sent after time off requests are approved or declined.
+              Manage the emails sent when requests are submitted and when time off is approved or declined.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:min-w-64 lg:min-w-72">
@@ -215,7 +225,7 @@ export function AutomatedMessagesDashboard({
             </div>
             <button
               type="button"
-              onClick={() => setDraft(defaultDraftForEvent("time_off_approved"))}
+              onClick={() => setDraft(defaultDraftForEvent("request_submitted"))}
               className="word-button font-semibold"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
@@ -263,7 +273,7 @@ export function AutomatedMessagesDashboard({
               <EmptyState
                 icon={MailCheck}
                 title="No templates yet"
-                body="Create the first automated message for time off approvals or denials."
+                body="Create the first automated message for submissions or time off decisions."
               />
             )}
           </div>
@@ -316,6 +326,7 @@ export function AutomatedMessagesDashboard({
                 >
                   <option value="time_off_approved">Time off approved</option>
                   <option value="time_off_declined">Time off declined</option>
+                  <option value="request_submitted">Request submitted</option>
                 </select>
               </label>
             </div>
@@ -396,7 +407,7 @@ export function AutomatedMessagesDashboard({
               />
 
               <div className="mt-3 flex flex-wrap gap-2">
-                {tokenNames.map((token) => (
+                {(draft.event_type === "request_submitted" ? submissionTokenNames : decisionTokenNames).map((token) => (
                   <button
                     key={token}
                     type="button"
@@ -461,7 +472,7 @@ export function AutomatedMessagesDashboard({
             <EmptyState
               icon={MailCheck}
               title="No emails queued yet"
-              body="Approved or declined time off requests will create delivery records here."
+              body="Request submissions and time off decisions will create delivery records here."
             />
           )}
         </div>

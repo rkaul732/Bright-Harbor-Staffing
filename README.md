@@ -22,6 +22,8 @@ A mobile-first Next.js app for Bright Harbor employees and admins to manage time
 
 Employees choose one or more programs from the official Directors & Supervisors program list during account creation. Their dashboard, shift posting, open shift pickup, requests, and calendar are limited to those selected programs.
 
+Acute Care Services (Crisis) offers CREST, Crisis Diversion, Crisis Stabilization, IOC, PACT I, and PACT II. The standalone legacy PACT value is not selectable. Run `015_replace_standalone_pact.sql` to expand existing PACT account and message-template assignments to both PACT I and PACT II. Its final query reports historical requests, shifts, ads, and email delivery records still labeled PACT. Review requests, shifts, and ads individually before assigning one of the two programs; delivery records are an audit trail of the original message.
+
 ## Local Setup
 
 1. Install dependencies:
@@ -96,7 +98,9 @@ Super admins can delete employee accounts from Account Types after typing the em
 
 ## Automated Messages
 
-Super admins can open `/automated-messages` from the initials menu to edit rich text email templates for approved and declined time off requests. Approving or denying a time off or shift request sends a branded decision email to the employee through Resend, including the reviewer's comment. Configure `RESEND_API_KEY` and `RESEND_FROM_EMAIL` on the deployment; the sender address must use a domain verified in Resend. Time off email delivery results are recorded in `automated_email_deliveries` when migration `004_automated_messages.sql` has been applied.
+Super admins can open `/automated-messages` from the initials menu to edit rich text email templates for approved and declined time off requests. Approving or denying a time off or shift request sends a decision email to the employee through Resend, including the reviewer's comment and the same branded layout as the Supabase Auth templates. Configure `RESEND_API_KEY` and `RESEND_FROM_EMAIL` in Netlify's production environment, then redeploy; the sender address must use a domain verified in Resend. The Resend-to-Supabase integration configures Auth email delivery only and does not set these Netlify variables. Time off email delivery results are recorded in `automated_email_deliveries` when migration `004_automated_messages.sql` has been applied.
+
+The message editor also includes **Your Request Has Been Submitted**. It sends to the employee after a new time off or shift coverage request is saved and includes the Eastern submission date and time plus a request summary. Run `013_request_submitted_event.sql` and `014_request_submitted_template.sql` separately, in that order, before editing or sending the new event. The email requires the same Netlify Resend settings as decision emails. A failed email leaves the request saved and reports the delivery problem to the employee.
 
 ## Approval Routing
 Pending time off and shift requests appear only in the dashboards of approved supervisors and admins assigned to the request's program. Database triggers create individual in-app notifications for those reviewers. A program without an assigned supervisor routes to its assigned admin; no default supervisor is substituted. Migration `011_program_request_routing.sql` adds ISC to Meghan Corrigan's approved admin profile when present, routes existing pending requests, and routes still-pending requests when a reviewer is assigned later.

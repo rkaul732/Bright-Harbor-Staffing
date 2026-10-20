@@ -73,7 +73,7 @@ type RequestStatus =
   | "approved"
   | "declined"
   | "cancelled";
-type AutomatedMessageEvent = "time_off_approved" | "time_off_declined";
+type AutomatedMessageEvent = "request_submitted" | "time_off_approved" | "time_off_declined";
 type AutomatedEmailStatus = "queued" | "sent" | "failed";
 type SkillName =
   | "Direct care"
