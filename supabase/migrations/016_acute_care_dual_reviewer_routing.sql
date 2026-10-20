@@ -37,7 +37,6 @@ as $$
         )
       )
     )
-    and u.deleted_at is null
     and target_program = any(sp.program_names)
   order by u.full_name, u.id
   limit 1
@@ -66,8 +65,7 @@ begin
     target_kind,
     target_request_id
   from public.users u
-  where u.deleted_at is null
-    and (
+  where (
       (
         (
           u.role = 'supervisor'
