@@ -5,7 +5,7 @@ import { StaffAccountInviteForm } from "@/features/admin/components/StaffAccount
 import { ProgramAssignmentControls } from "@/features/employees/components/ProgramAssignmentControls";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { EmptyState } from "@/shared/components/EmptyState";
-import { PROGRAMS, getProfileProgramNames, getProgramLabel, normalizeAssignedProgramNames } from "@/shared/lib/constants";
+import { PROGRAMS, PROGRAM_DIVISIONS, getProfileProgramNames, getProgramLabel, normalizeAssignedProgramNames } from "@/shared/lib/constants";
 import type {
   AdminProfile,
   AppUser,
@@ -57,14 +57,35 @@ function programNamesForUser(data: DashboardData, user: AppUser) {
   return normalizeAssignedProgramNames(adminProfile?.program_names ?? []);
 }
 
-function programText(programNames: ProgramName[], isSuperAdmin: boolean) {
+function ProgramSummary({ programNames, isSuperAdmin }: { programNames: ProgramName[]; isSuperAdmin: boolean }) {
   if (isSuperAdmin) {
-    return "All programs";
+    return <>All programs</>;
   }
 
-  return programNames.length
-    ? [...new Set(programNames.map(getProgramLabel))].join(", ")
-    : "No programs assigned";
+  if (programNames.length === 0) {
+    return <>No programs assigned</>;
+  }
+
+  const groups = PROGRAM_DIVISIONS.map((division) => ({
+    name: division.name,
+    labels: [...new Set(programNames
+      .filter((programName) => division.programNames.includes(programName))
+      .map(getProgramLabel))]
+  })).filter((group) => group.labels.length > 0);
+  const ungrouped = [...new Set(programNames
+    .filter((programName) => !PROGRAM_DIVISIONS.some((division) => division.programNames.includes(programName)))
+    .map(getProgramLabel))];
+
+  return (
+    <div className="space-y-1">
+      {groups.map((group) => (
+        <p key={group.name}>
+          <span className="font-semibold text-harbor-midnight">{group.name}:</span> {group.labels.join(", ")}
+        </p>
+      ))}
+      {ungrouped.length > 0 ? <p>{ungrouped.join(", ")}</p> : null}
+    </div>
+  );
 }
 
 function formatAccountChange(value?: string | null) {
@@ -140,7 +161,9 @@ export function AccountTypesDashboard({ data }: { data: DashboardData }) {
               <tbody>
                 {users.map((user) => {
                   const adminProfile = userAdminProfile(user, data.adminProfiles);
+                  const supervisorProfile = userSupervisorProfile(user, data.supervisorProfiles);
                   const isSuperAdmin = adminProfile?.is_super_admin === true;
+                  const isDualReviewer = user.role === "admin" && Boolean(supervisorProfile && supervisorProfile.status !== "suspended");
                   const programNames = programNamesForUser(data, user);
 
                   return (
@@ -152,7 +175,7 @@ export function AccountTypesDashboard({ data }: { data: DashboardData }) {
                         ) : null}
                       </td>
                       <td className="max-w-[26rem] border-b border-harbor-ocean/10 px-3 py-2.5 text-xs leading-5 text-harbor-midnight/70">
-                        {programText(programNames, isSuperAdmin)}
+                        <ProgramSummary programNames={programNames} isSuperAdmin={isSuperAdmin} />
                         {user.role === "employee" && !isSuperAdmin ? (
                           <ProgramAssignmentControls
                             userId={user.id}
@@ -171,11 +194,18 @@ export function AccountTypesDashboard({ data }: { data: DashboardData }) {
                             Super Admin
                           </span>
                         ) : (
-                          <AccountTypeControls
-                            userId={user.id}
-                            currentRole={user.role}
-                            programNames={programNames}
-                          />
+                          <>
+                            <AccountTypeControls
+                              userId={user.id}
+                              currentRole={user.role}
+                              programNames={programNames}
+                            />
+                            {isDualReviewer ? (
+                              <span className="mt-1 block text-xs text-harbor-ocean">
+                                Also supervisor{supervisorProfile?.status === "pending" ? " (pending)" : ""}
+                              </span>
+                            ) : null}
+                          </>
                         )}
                       </td>
                     </tr>

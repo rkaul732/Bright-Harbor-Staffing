@@ -847,7 +847,7 @@ export async function createStaffAccountAction(
     .object({
       full_name: z.string().min(2, "Add the staff member's name."),
       email: z.string().email("Use a valid email address."),
-      role: z.enum(["employee", "supervisor", "admin"])
+      role: z.enum(["employee", "supervisor", "admin", "admin_supervisor"])
     })
     .safeParse({
       full_name: asString(formData.get("full_name")),
@@ -864,7 +864,7 @@ export async function createStaffAccountAction(
     return { ok: false, message: "You must use your Bright Harbor Email." };
   }
 
-  if ((parsed.data.role === "employee" || parsed.data.role === "supervisor") && programNames.length === 0) {
+  if ((parsed.data.role === "employee" || parsed.data.role === "supervisor" || parsed.data.role === "admin_supervisor") && programNames.length === 0) {
     return { ok: false, message: "Choose at least one starting program." };
   }
 
@@ -884,7 +884,7 @@ export async function createStaffAccountAction(
     return { ok: false, message: "Only admins can create staff accounts." };
   }
 
-  if ((parsed.data.role === "supervisor" || parsed.data.role === "admin") && !(await isSuperAdminForAction(currentUser))) {
+  if ((parsed.data.role === "supervisor" || parsed.data.role === "admin" || parsed.data.role === "admin_supervisor") && !(await isSuperAdminForAction(currentUser))) {
     return { ok: false, message: "Only super admins can create supervisor or admin accounts." };
   }
 
@@ -908,17 +908,19 @@ export async function createStaffAccountAction(
   }
 
   const adminClient = createSupabaseAdminClient();
+  const invitedRole = parsed.data.role === "admin_supervisor" ? "admin" : parsed.data.role;
   const metadata = {
-    role: parsed.data.role,
+    role: invitedRole,
     full_name: parsed.data.full_name,
     program_name:
-      parsed.data.role === "employee" || parsed.data.role === "supervisor"
+      parsed.data.role === "employee" || parsed.data.role === "supervisor" || parsed.data.role === "admin_supervisor"
         ? programNames[0]
         : undefined,
     program_names:
-      parsed.data.role === "employee" || parsed.data.role === "supervisor"
+      parsed.data.role === "employee" || parsed.data.role === "supervisor" || parsed.data.role === "admin_supervisor"
         ? programNames
         : undefined,
+    dual_reviewer: parsed.data.role === "admin_supervisor",
     invited_by: currentUser.id,
     invited_by_email: currentUser.email,
     setup_required: true
@@ -941,7 +943,7 @@ export async function createStaffAccountAction(
     id: invitedUser.id,
     email: parsed.data.email,
     full_name: parsed.data.full_name,
-    role: parsed.data.role
+    role: invitedRole
   });
 
   if (userRecordError) {
@@ -992,6 +994,21 @@ export async function createStaffAccountAction(
 
     if (adminProfileError) {
       return { ok: false, message: adminProfileError.message };
+    }
+
+    if (parsed.data.role === "admin_supervisor") {
+      const { error: supervisorProfileError } = await adminClient.from("supervisor_profiles").upsert(
+        {
+          user_id: invitedUser.id,
+          status: "pending",
+          program_names: programNames
+        },
+        { onConflict: "user_id" }
+      );
+
+      if (supervisorProfileError) {
+        return { ok: false, message: "Setup email sent, but the supervisor profile could not be saved: " + supervisorProfileError.message };
+      }
     }
   }
 

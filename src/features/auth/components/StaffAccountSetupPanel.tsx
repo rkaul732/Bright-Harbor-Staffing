@@ -24,7 +24,7 @@ export function StaffAccountSetupPanel() {
   const [role, setRole] = useState<AppRole>("employee");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [programNames, setProgramNames] = useState<ProgramName[]>([PROGRAMS[0]]);
+  const [programNames, setProgramNames] = useState<ProgramName[]>([]);
   const [availability, setAvailability] = useState<string[]>([]);
 
   useEffect(() => {
@@ -153,7 +153,7 @@ export function StaffAccountSetupPanel() {
         {role === "admin" ? (
           <div>
             <ProgramScopePicker
-              defaultSelectedProgramNames={[]}
+              defaultSelectedProgramNames={programNames}
               legend="Divisions and programs to oversee"
               compact
             />

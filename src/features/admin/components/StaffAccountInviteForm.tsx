@@ -13,7 +13,7 @@ const initialState = { ok: false, message: "" };
 
 export function StaffAccountInviteForm({ canInviteAdmin = false }: { canInviteAdmin?: boolean }) {
   const [state, formAction] = useActionState(createStaffAccountAction, initialState);
-  const [role, setRole] = useState<AppRole>("employee");
+  const [role, setRole] = useState<AppRole | "admin_supervisor">("employee");
 
   return (
     <form action={formAction} className="space-y-4">
@@ -50,6 +50,7 @@ export function StaffAccountInviteForm({ canInviteAdmin = false }: { canInviteAd
           <option value="employee">Employee</option>
           <option value="supervisor">Supervisor</option>
           {canInviteAdmin ? <option value="admin">Admin</option> : null}
+          {canInviteAdmin ? <option value="admin_supervisor">Admin and supervisor</option> : null}
         </select>
       </label>
 
@@ -60,8 +61,8 @@ export function StaffAccountInviteForm({ canInviteAdmin = false }: { canInviteAd
       ) : (
         <ProgramScopePicker
           allowedProgramNames={PROGRAMS}
-          defaultSelectedProgramNames={PROGRAMS.slice(0, 1)}
-          legend={role === "supervisor" ? "Supervisor assigned programs" : "Starting programs"}
+          defaultSelectedProgramNames={role === "admin_supervisor" ? [] : PROGRAMS.slice(0, 1)}
+          legend={role === "admin_supervisor" ? "Supervisor programs (admin scope is reviewed during setup)" : role === "supervisor" ? "Supervisor assigned programs" : "Starting programs"}
           compact
         />
       )}
