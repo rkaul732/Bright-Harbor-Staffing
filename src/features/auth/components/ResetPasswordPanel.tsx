@@ -164,7 +164,8 @@ export function ResetPasswordPanel() {
               "one uppercase letter",
               "one lowercase letter",
               "one number",
-              "one symbol"
+              "one symbol",
+              "a password different from the temporary staff password"
             ].map((item) => {
               const met = password.length > 0 && !passwordFailures.includes(item);
 

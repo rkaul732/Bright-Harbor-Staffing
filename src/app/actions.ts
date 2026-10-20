@@ -18,7 +18,7 @@ import {
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
 import { createSupabaseAdminClient, hasSupabaseServiceRoleKey } from "@/shared/lib/supabase/admin";
-import { getPasswordRequirementMessage } from "@/shared/lib/password";
+import { getPasswordRequirementMessage, INVITED_ACCOUNT_TEMPORARY_PASSWORD } from "@/shared/lib/password";
 import { formatTimeRange, todayEasternISO } from "@/shared/lib/dates";
 import { escapeEmailHtml, sendDecisionEmail, sendSubmissionEmail } from "@/shared/lib/decision-email";
 import {
@@ -1010,6 +1010,18 @@ export async function createStaffAccountAction(
         return { ok: false, message: "Setup email sent, but the supervisor profile could not be saved: " + supervisorProfileError.message };
       }
     }
+  }
+
+  const { error: temporaryPasswordError } = await adminClient.auth.admin.updateUserById(
+    invitedUser.id,
+    { password: INVITED_ACCOUNT_TEMPORARY_PASSWORD }
+  );
+
+  if (temporaryPasswordError) {
+    return {
+      ok: false,
+      message: "Setup email sent and account created, but the temporary password could not be set: " + temporaryPasswordError.message
+    };
   }
 
   revalidateDashboards();
