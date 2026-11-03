@@ -104,6 +104,19 @@ export function StaffAccountSetupPanel() {
 
       <form action={formAction} className="mt-6 space-y-4">
         <input type="hidden" name="profile_role" value={role} />
+        <div className="rounded-xl border border-harbor-sky/20 bg-harbor-mist/60 px-4 py-4">
+          <p className="label">Your invited account</p>
+          <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-harbor-midnight/60">Account type</dt>
+              <dd className="mt-1 font-semibold text-harbor-midnight">{role === "admin" ? "Admin" : role === "supervisor" ? "Supervisor" : "Employee"}</dd>
+            </div>
+            <div>
+              <dt className="text-harbor-midnight/60">Programs</dt>
+              <dd className="mt-1 font-semibold text-harbor-midnight">{programNames.length > 0 ? programNames.join(", ") : "Choose below"}</dd>
+            </div>
+          </dl>
+        </div>
         <label className="block">
           <span className="label">Email</span>
           <input value={email} className="field mt-1.5" disabled />
