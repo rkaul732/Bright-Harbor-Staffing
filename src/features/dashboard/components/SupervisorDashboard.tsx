@@ -384,9 +384,14 @@ function AdminDashboardHome({
               Reports
             </Link>
             {canManageAccountTypes ? (
-              <Link href="/employees/account-types" className="word-button font-semibold">
-                Account Types
-              </Link>
+              <>
+                <Link href="/activity" className="word-button font-semibold">
+                  Activity
+                </Link>
+                <Link href="/employees/account-types" className="word-button font-semibold">
+                  Account Types
+                </Link>
+              </>
             ) : null}
           </div>
         </div>

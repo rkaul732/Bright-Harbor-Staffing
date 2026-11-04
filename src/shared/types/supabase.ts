@@ -138,6 +138,14 @@ type AdminProfileRow = {
   last_sign_in_at: string | null;
 };
 
+type StaffLoginEventRow = {
+  id: number;
+  user_id: string;
+  signed_in_at: string;
+  is_prior_last_sign_in: boolean;
+  created_at: string;
+};
+
 type ShiftPostRow = {
   id: string;
   title: string;
@@ -341,6 +349,10 @@ export type Database = {
       admin_profiles: Table<
         AdminProfileRow,
         Partial<AdminProfileRow> & { user_id: string }
+      >;
+      staff_login_events: Table<
+        StaffLoginEventRow,
+        { user_id: string; signed_in_at: string; is_prior_last_sign_in?: boolean }
       >;
       shift_posts: Table<
         ShiftPostRow,

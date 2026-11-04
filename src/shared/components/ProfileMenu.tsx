@@ -170,6 +170,15 @@ export function ProfileMenu({
             ) : null}
             {canAccessAdmin ? (
               <>
+                {canManageAccountTypes ? (
+                  <Link
+                    href="/activity"
+                    className={menuItemClass(pathname.startsWith("/activity"))}
+                    onClick={() => setOpen(false)}
+                  >
+                    Activity
+                  </Link>
+                ) : null}
                 <Link
                   href="/reports"
                   className={menuItemClass(pathname.startsWith("/reports"))}

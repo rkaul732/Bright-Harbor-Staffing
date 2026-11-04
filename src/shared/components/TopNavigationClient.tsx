@@ -13,7 +13,7 @@ const viewLinks = [
 
 function activeViewForPath(pathname: string) {
   if (pathname.startsWith("/employee")) return "employee";
-  if (["/admin", "/employees", "/reports", "/automated-messages"].some((path) => pathname.startsWith(path))) {
+  if (["/admin", "/employees", "/reports", "/automated-messages", "/activity"].some((path) => pathname.startsWith(path))) {
     return "admin";
   }
 

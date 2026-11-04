@@ -96,6 +96,8 @@ Regular admins see requests, calendars, reports, and profile reviews for the pro
 
 Super admins can delete employee accounts from Account Types after typing the employee's email to confirm. Migration `012_employee_account_deletion.sql` removes sign-in access, hides the employee from active lists, and retains staffing history with anonymized account details.
 
+Approved super admins can open `/activity` from the dashboard or initials menu to review successful sign-in times and search for one staff member. Apply `017_super_admin_login_activity.sql` to create the event history and its Super Admin-only read policy. The migration labels each existing account's last known sign-in as a prior record; earlier individual sign-ins were not stored and cannot be reconstructed.
+
 ## Automated Messages
 
 Super admins can open `/automated-messages` from the initials menu to edit rich text email templates for approved and declined time off requests. Approving or denying a time off or shift request sends a decision email to the employee through Resend, including the reviewer's comment and the same branded layout as the Supabase Auth templates. Configure `RESEND_API_KEY` and `RESEND_FROM_EMAIL` in Netlify's production environment, then redeploy; the sender address must use a domain verified in Resend. The Resend-to-Supabase integration configures Auth email delivery only and does not set these Netlify variables. Time off email delivery results are recorded in `automated_email_deliveries` when migration `004_automated_messages.sql` has been applied.
