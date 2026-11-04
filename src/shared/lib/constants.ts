@@ -81,6 +81,7 @@ const divisionChoices: { name: string; choices: ProgramChoice[] }[] = [
   {
     name: "Children's Services",
     choices: [
+      { label: "Bayside", programNames: ["Bayside"] },
       { label: "EMBRACE", programNames: ["Empowering Mind, Body and Recovery after Challenging Experiences (EMBRACE)"] },
       { label: "HOPES", programNames: ["Healing through Outpatient Perinatal Education & Support (HOPES)"] },
       { label: "IIC", programNames: ["Intensive In Community Services (IIC)"] },
@@ -138,7 +139,6 @@ export const PROGRAMS: ProgramName[] = [...new Set(PROGRAM_DIVISIONS.flatMap((di
 
 // Keep former identifiers readable so existing accounts and requests retain their scope.
 export const LEGACY_PROGRAMS: ProgramName[] = [
-  "Bayside",
   "Intensive Outpatient",
   "Level I Outpatient",
   "Medication Assisted Treatment (MAT)",
