@@ -111,6 +111,7 @@ const divisionChoices: { name: string; choices: ProgramChoice[] }[] = [
       { label: "Payroll", programNames: ["Payroll"] }
     ]
   },
+  { name: "Front Desk", choices: [{ label: "Front Desk", programNames: ["Front Desk"] }] },
   { name: "HR", choices: [{ label: "HR", programNames: ["HR"] }] },
   { name: "IT", choices: [{ label: "IT", programNames: ["IT"] }] },
   { name: "Ocean Academy", choices: [{ label: "Ocean Academy", programNames: ["Ocean Academy"] }] },
@@ -138,7 +139,6 @@ export const PROGRAMS: ProgramName[] = [...new Set(PROGRAM_DIVISIONS.flatMap((di
 // Keep former identifiers readable so existing accounts and requests retain their scope.
 export const LEGACY_PROGRAMS: ProgramName[] = [
   "Bayside",
-  "Front Desk",
   "Intensive Outpatient",
   "Level I Outpatient",
   "Medication Assisted Treatment (MAT)",
