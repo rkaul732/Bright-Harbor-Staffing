@@ -1532,17 +1532,6 @@ export async function completeStaffSetupAction(
     }
   }
 
-  const { error: authError } = await supabase.auth.updateUser({
-    data: {
-      full_name: fullName,
-      setup_completed_at: new Date().toISOString()
-    }
-  });
-
-  if (authError) {
-    return { ok: false, message: authError.message };
-  }
-
   const { error: userError } = await supabase
     .from("users")
     .update({
@@ -1595,6 +1584,17 @@ export async function completeStaffSetupAction(
     if (error) {
       return { ok: false, message: error.message };
     }
+  }
+
+  const { error: authError } = await supabase.auth.updateUser({
+    data: {
+      full_name: fullName,
+      setup_completed_at: new Date().toISOString()
+    }
+  });
+
+  if (authError) {
+    return { ok: false, message: authError.message };
   }
 
   await notifyAdminsInApp({
