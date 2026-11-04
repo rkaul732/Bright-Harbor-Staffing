@@ -3,16 +3,11 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, LogIn, UserPlus } from "lucide-react";
-import {
-  PROGRAMS,
-  ROLE_DASHBOARD_PATHS
-} from "@/shared/lib/constants";
+import { ROLE_DASHBOARD_PATHS } from "@/shared/lib/constants";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import { getPasswordRequirementMessage } from "@/shared/lib/password";
 import { AvailabilityCheckboxGroup } from "@/shared/components/AvailabilityCheckboxGroup";
-import { ProgramScopePicker } from "@/shared/components/ProgramScopePicker";
-import type { ProgramName } from "@/shared/types/domain";
 
 type AuthMode = "sign-in" | "sign-up";
 
@@ -61,7 +56,6 @@ export function AuthPanel({
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [programNames, setProgramNames] = useState<ProgramName[]>([PROGRAMS[0]]);
   const [availability, setAvailability] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -137,11 +131,6 @@ export function AuthPanel({
       return;
     }
 
-    if (mode === "sign-up" && programNames.length === 0) {
-      setMessage("Choose at least one program.");
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
@@ -164,11 +153,13 @@ export function AuthPanel({
                   full_name: fullName || normalizedEmail.split("@")[0],
                   first_name: firstName.trim() || undefined,
                   last_name: lastName.trim() || undefined,
-                  program_name: programNames[0],
-                  program_names: programNames,
+                  program_name: "Unassigned",
+                  program_names: [],
+                  setup_required: true,
+                  signup_password_set_at: new Date().toISOString(),
                   availability
                 },
-                emailRedirectTo: `${window.location.origin}/auth/callback?next=${ROLE_DASHBOARD_PATHS.employee}`
+                emailRedirectTo: `${window.location.origin}/auth/callback?next=/auth/setup`
               }
             });
 
@@ -178,7 +169,7 @@ export function AuthPanel({
       }
 
       if (mode === "sign-up" && !result.data.session) {
-        setMessage("Check your email to confirm your account, then sign in.");
+        setMessage("Check your email to confirm your account. You’ll choose your programs when you first sign in.");
         return;
       }
 
@@ -214,7 +205,7 @@ export function AuthPanel({
           {configured
             ? mode === "sign-in"
               ? "Log in with your Bright Harbor account to reach the right dashboard for your role."
-              : "Register with your Bright Harbor email to access your personal staffing workspace."
+              : "Register with your Bright Harbor email. You’ll select your programs when you first sign in."
             : "Demo mode is active because Supabase keys are not configured yet."}
         </p>
       </div>
@@ -246,12 +237,6 @@ export function AuthPanel({
                 />
               </label>
             </div>
-            <ProgramScopePicker
-              legend="Programs"
-              compact
-              selectedProgramNames={programNames}
-              onChange={setProgramNames}
-            />
           </div>
         ) : null}
 

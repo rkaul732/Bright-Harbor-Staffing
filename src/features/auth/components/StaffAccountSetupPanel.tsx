@@ -54,7 +54,7 @@ export function StaffAccountSetupPanel() {
           : user?.email?.split("@")[0] ?? ""
       );
       setEmail(user?.email ?? "");
-      setPasswordChanged(Boolean(metadata.setup_password_changed_at));
+      setPasswordChanged(Boolean(metadata.setup_password_changed_at || metadata.signup_password_set_at));
       if (metadataPrograms.length > 0) {
         setProgramNames(metadataPrograms);
       }
@@ -128,14 +128,14 @@ export function StaffAccountSetupPanel() {
         <p className="mt-2 text-sm leading-6 text-harbor-midnight/70">
           {role === "admin"
             ? "Choose the divisions you oversee. A super admin will review your access after setup."
-            : "Confirm your account information below. After you submit, administrators will be notified for profile review."}
+            : "Select every program you work in and confirm your information below. After you submit, administrators will be notified for profile review."}
         </p>
       </div>
 
       <form action={formAction} className="mt-6 space-y-4">
         <input type="hidden" name="profile_role" value={role} />
         <div className="rounded-xl border border-harbor-sky/20 bg-harbor-mist/60 px-4 py-4">
-          <p className="label">Your invited account</p>
+          <p className="label">Your account</p>
           <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-harbor-midnight/60">Account type</dt>

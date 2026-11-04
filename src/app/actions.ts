@@ -1504,7 +1504,11 @@ export async function completeStaffSetupAction(
 
   const supabase = await createSupabaseServerClient();
   const { data: authData, error: authLookupError } = await supabase.auth.getUser();
-  if (authLookupError || !authData.user?.user_metadata?.setup_password_changed_at) {
+  const setupMetadata = authData.user?.user_metadata;
+  if (authLookupError || !setupMetadata?.setup_required || setupMetadata.setup_completed_at) {
+    return { ok: false, message: "This account does not need first-time setup." };
+  }
+  if (!setupMetadata.setup_password_changed_at && !setupMetadata.signup_password_set_at) {
     return { ok: false, message: "Change your temporary password before choosing programs." };
   }
 
