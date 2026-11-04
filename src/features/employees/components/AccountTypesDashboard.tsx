@@ -176,7 +176,7 @@ export function AccountTypesDashboard({ data }: { data: DashboardData }) {
                       </td>
                       <td className="max-w-[26rem] border-b border-harbor-ocean/10 px-3 py-2.5 text-xs leading-5 text-harbor-midnight/70">
                         <ProgramSummary programNames={programNames} isSuperAdmin={isSuperAdmin} />
-                        {user.role === "employee" && !isSuperAdmin ? (
+                        {!isSuperAdmin ? (
                           <ProgramAssignmentControls
                             userId={user.id}
                             programNames={programNames}

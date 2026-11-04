@@ -1327,8 +1327,8 @@ export async function updateStaffProgramsAction(
   }
 
   const targetRole = targetUser.role as AppRole;
-  if (targetRole !== "employee") {
-    return { ok: false, message: "Only employee programs can be updated here." };
+  if (targetRole !== "employee" && !adminScope.isSuperAdmin) {
+    return { ok: false, message: "Only super admins can update reviewer programs." };
   }
   const { data: existingAdminProfile } = await adminClient
     .from("admin_profiles")
@@ -1338,6 +1338,54 @@ export async function updateStaffProgramsAction(
 
   if (existingAdminProfile?.is_super_admin) {
     return { ok: false, message: "Super admin program access is protected." };
+  }
+
+  if (targetRole === "supervisor") {
+    const { data: updated, error } = await adminClient
+      .from("supervisor_profiles")
+      .update({ program_names: programNames })
+      .eq("user_id", parsed.data.user_id)
+      .select("id")
+      .maybeSingle();
+
+    if (error || !updated) {
+      return { ok: false, message: error?.message ?? "Supervisor profile not found." };
+    }
+
+    revalidateDashboards();
+    return { ok: true, message: "Supervisor programs updated." };
+  }
+
+  if (targetRole === "admin") {
+    const { data: updated, error } = await adminClient
+      .from("admin_profiles")
+      .update({ program_names: programNames })
+      .eq("user_id", parsed.data.user_id)
+      .select("id")
+      .maybeSingle();
+
+    if (error || !updated) {
+      return { ok: false, message: error?.message ?? "Admin profile not found." };
+    }
+
+    const { data: supervisorProfile } = await adminClient
+      .from("supervisor_profiles")
+      .select("id,status")
+      .eq("user_id", parsed.data.user_id)
+      .maybeSingle();
+
+    if (supervisorProfile && supervisorProfile.status !== "suspended") {
+      const { error: supervisorError } = await adminClient
+        .from("supervisor_profiles")
+        .update({ program_names: programNames })
+        .eq("id", supervisorProfile.id);
+      if (supervisorError) {
+        return { ok: false, message: supervisorError.message };
+      }
+    }
+
+    revalidateDashboards();
+    return { ok: true, message: "Admin programs updated." };
   }
 
   let updatedProgramNames = programNames;
@@ -1384,13 +1432,51 @@ export async function updateStaffProgramsAction(
   return { ok: true, message: "Programs updated." };
 }
 
+export async function changeTemporaryPasswordAction(
+  _previousState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  await getUserForAction();
+  const password = asString(formData.get("password"));
+  const confirmPassword = asString(formData.get("confirm_password"));
+  const requirementMessage = getPasswordRequirementMessage(password);
+
+  if (requirementMessage) {
+    return { ok: false, message: requirementMessage };
+  }
+
+  if (password !== confirmPassword) {
+    return { ok: false, message: "Passwords do not match." };
+  }
+
+  if (!isSupabaseConfigured()) {
+    return { ok: true, message: "Demo mode: password updated." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: authData, error: lookupError } = await supabase.auth.getUser();
+
+  if (lookupError || !authData.user?.user_metadata?.setup_required) {
+    return { ok: false, message: "This account does not need first-time setup." };
+  }
+
+  const { error } = await supabase.auth.updateUser({
+    password,
+    data: { setup_password_changed_at: new Date().toISOString() }
+  });
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+
+  return { ok: true, message: "Password updated. Select all programs you work in." };
+}
+
 export async function completeStaffSetupAction(
   _previousState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
   const user = await getUserForAction();
-  const password = asString(formData.get("password"));
-  const confirmPassword = asString(formData.get("confirm_password"));
   const fullName = asString(formData.get("full_name"));
   const phone = asString(formData.get("phone"));
   const role = user.role;
@@ -1398,16 +1484,6 @@ export async function completeStaffSetupAction(
 
   if (fullName.length < 2) {
     return { ok: false, message: "Add your full name." };
-  }
-
-  const passwordRequirementMessage = getPasswordRequirementMessage(password);
-
-  if (passwordRequirementMessage) {
-    return { ok: false, message: passwordRequirementMessage };
-  }
-
-  if (password !== confirmPassword) {
-    return { ok: false, message: "Passwords do not match." };
   }
 
   if (programNames.length === 0) {
@@ -1424,6 +1500,12 @@ export async function completeStaffSetupAction(
       message: "Demo mode: account setup completed.",
       redirectTo: ROLE_DASHBOARD_PATHS[role]
     };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: authData, error: authLookupError } = await supabase.auth.getUser();
+  if (authLookupError || !authData.user?.user_metadata?.setup_password_changed_at) {
+    return { ok: false, message: "Change your temporary password before choosing programs." };
   }
 
   if (role === "admin") {
@@ -1450,9 +1532,7 @@ export async function completeStaffSetupAction(
     }
   }
 
-  const supabase = await createSupabaseServerClient();
   const { error: authError } = await supabase.auth.updateUser({
-    password,
     data: {
       full_name: fullName,
       setup_completed_at: new Date().toISOString()

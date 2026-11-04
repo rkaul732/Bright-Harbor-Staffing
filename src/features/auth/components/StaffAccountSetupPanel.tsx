@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, KeyRound } from "lucide-react";
-import { completeStaffSetupAction } from "@/app/actions";
+import { changeTemporaryPasswordAction, completeStaffSetupAction } from "@/app/actions";
 import { LOCATIONS, PROGRAMS, SKILLS } from "@/shared/lib/constants";
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
@@ -19,8 +19,10 @@ export function StaffAccountSetupPanel() {
   const router = useRouter();
   const configured = useMemo(() => isSupabaseConfigured(), []);
   const [state, formAction] = useActionState(completeStaffSetupAction, initialState);
+  const [passwordState, passwordAction] = useActionState(changeTemporaryPasswordAction, initialState);
   const [loading, setLoading] = useState(configured);
   const [sessionReady, setSessionReady] = useState(!configured);
+  const [passwordChanged, setPasswordChanged] = useState(false);
   const [role, setRole] = useState<AppRole>("employee");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -52,6 +54,7 @@ export function StaffAccountSetupPanel() {
           : user?.email?.split("@")[0] ?? ""
       );
       setEmail(user?.email ?? "");
+      setPasswordChanged(Boolean(metadata.setup_password_changed_at));
       if (metadataPrograms.length > 0) {
         setProgramNames(metadataPrograms);
       }
@@ -88,12 +91,39 @@ export function StaffAccountSetupPanel() {
     );
   }
 
+  if (!passwordChanged && !passwordState.ok) {
+    return (
+      <div className="panel mx-auto w-full max-w-md p-5 sm:p-6">
+        <p className="label">Account setup · Step 1 of 2</p>
+        <h1 className="mt-2 text-3xl font-medium text-harbor-midnight">Change your password</h1>
+        <p className="mt-2 text-sm leading-6 text-harbor-midnight/70">
+          Choose a private password for {email}. Next, you’ll select every program you work in.
+        </p>
+        <form action={passwordAction} className="mt-6 space-y-4">
+          <label className="block">
+            <span className="label">New password</span>
+            <input name="password" type="password" autoComplete="new-password" className="field mt-1.5" required />
+          </label>
+          <label className="block">
+            <span className="label">Confirm password</span>
+            <input name="confirm_password" type="password" autoComplete="new-password" className="field mt-1.5" required />
+          </label>
+          <ActionFeedback state={passwordState} />
+          <SubmitButton className="w-full py-2">
+            <KeyRound className="h-4 w-4" aria-hidden="true" />
+            Save password and continue
+          </SubmitButton>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className="panel mx-auto w-full max-w-3xl p-5 sm:p-6">
       <div>
-        <p className="label">Account setup</p>
+        <p className="label">Account setup · Step 2 of 2</p>
         <h1 className="mt-2 text-3xl font-medium text-harbor-midnight">
-          Create your password and verify your profile
+          Select your programs and verify your profile
         </h1>
         <p className="mt-2 text-sm leading-6 text-harbor-midnight/70">
           {role === "admin"
@@ -132,31 +162,6 @@ export function StaffAccountSetupPanel() {
             required
           />
         </label>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="label">New password</span>
-            <input
-              name="password"
-              type="password"
-              className="field mt-1.5"
-              placeholder="At least 8 characters"
-              autoComplete="new-password"
-              required
-            />
-          </label>
-          <label className="block">
-            <span className="label">Confirm password</span>
-            <input
-              name="confirm_password"
-              type="password"
-              className="field mt-1.5"
-              placeholder="Retype password"
-              autoComplete="new-password"
-              required
-            />
-          </label>
-        </div>
 
         <label className="block">
           <span className="label">Phone</span>
@@ -245,7 +250,7 @@ export function StaffAccountSetupPanel() {
         ) : null}
 
         <SubmitButton className="w-full py-2">
-          <KeyRound className="h-4 w-4" aria-hidden="true" />
+          <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
           Finish account setup
         </SubmitButton>
         <ActionFeedback state={state} />

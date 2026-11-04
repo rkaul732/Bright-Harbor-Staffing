@@ -186,6 +186,12 @@ export function AuthPanel({
         await recordLastLogin(supabase);
       }
 
+      if (result.data.user?.user_metadata?.setup_required && !result.data.user.user_metadata.setup_completed_at) {
+        router.push("/auth/setup");
+        router.refresh();
+        return;
+      }
+
       const dashboardPath = await dashboardPathForSignedInUser(
         supabase,
         result.data.user?.id
