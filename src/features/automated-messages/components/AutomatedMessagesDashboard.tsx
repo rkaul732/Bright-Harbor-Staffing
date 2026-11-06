@@ -445,6 +445,7 @@ export function AutomatedMessagesDashboard({
           <div>
             <p className="label">Delivery log</p>
             <h2 className="mt-1 text-xl font-medium text-harbor-midnight">Recent automated emails</h2>
+            <p className="mt-1 text-xs text-harbor-midnight/60">Accepted means Resend received the message. Check Resend for delivered, bounced, or suppressed status.</p>
           </div>
           <CheckCircle2 className="h-5 w-5 text-harbor-ocean" aria-hidden="true" />
         </div>
@@ -460,12 +461,16 @@ export function AutomatedMessagesDashboard({
                     </p>
                   </div>
                   <span className={cn("rounded-full border px-2 py-0.5 text-xs font-medium", deliveryStatusClass(delivery.status))}>
-                    {delivery.status}
+                    {delivery.status === "sent" ? "Accepted by Resend" : delivery.status === "failed" ? "Failed" : "Queued"}
                   </span>
                 </div>
                 <p className="mt-3 text-xs text-harbor-midnight/55">
                   {eventLabel(delivery.event_type)} • {getProgramLabel(delivery.program_name)} • {formatShortDate(delivery.created_at.slice(0, 10))}
                 </p>
+                {delivery.error_message ? <p className="mt-2 text-xs text-red-700">{delivery.error_message}</p> : null}
+                {typeof delivery.metadata.resendId === "string" ? (
+                  <p className="mt-1 break-all text-xs text-harbor-midnight/55">Resend ID: {delivery.metadata.resendId}</p>
+                ) : null}
               </article>
             ))
           ) : (

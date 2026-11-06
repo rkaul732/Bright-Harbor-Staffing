@@ -20,7 +20,7 @@ import {
   CancelShiftForm,
   RescheduleShiftForm
 } from "@/features/shifts/components/ShiftActionForms";
-import { updateRequestStatusAction, updateTimeOffRequestStatusAction } from "@/app/actions";
+import { resendTimeOffDecisionEmailAction, updateRequestStatusAction, updateTimeOffRequestStatusAction } from "@/app/actions";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
 import { SubmitButton } from "@/shared/components/SubmitButton";
 import { ProfileModerationControls } from "@/features/admin/components/ProfileModerationControls";
@@ -796,7 +796,11 @@ function AdminRequestsWorkspace({
                     <td className="whitespace-nowrap px-4 py-4 text-harbor-midnight/70">{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(item.created_at))}</td>
                     <td className="px-4 py-4"><RequestQueueStatus status={item.status} /></td>
                     <td className="px-4 py-4">
-                      {pendingDecision ? <RequestDecisionControls item={item} role={role} reviewComment={notesByRequest[key] ?? ""} /> : <span className="text-harbor-midnight/50">Reviewed</span>}
+                      {pendingDecision ? (
+                        <RequestDecisionControls item={item} role={role} reviewComment={notesByRequest[key] ?? ""} />
+                      ) : item.type === "time-off" && (item.status === "approved" || item.status === "declined") ? (
+                        <ResendTimeOffDecisionControl requestId={item.request.id} role={role} />
+                      ) : <span className="text-harbor-midnight/50">Reviewed</span>}
                       {activeTab === "new" && pendingDecision ? <button type="button" onClick={() => onMarkReviewed(item.type, item.request.id)} className="mt-2 block text-xs font-medium text-harbor-ocean underline">Keep pending</button> : null}
                     </td>
                     <td className="px-4 py-4">
@@ -912,6 +916,20 @@ function RequestDecisionControls({
         </form>
       </div>
       <ActionFeedback state={approveState.message ? approveState : denyState} />
+    </div>
+  );
+}
+
+function ResendTimeOffDecisionControl({ requestId, role }: { requestId: string; role: AppRole }) {
+  const [state, action] = useActionState(resendTimeOffDecisionEmailAction, { ok: false, message: "" });
+  return (
+    <div className="min-w-36">
+      <form action={action}>
+        <input type="hidden" name="request_id" value={requestId} />
+        <input type="hidden" name="role" value={role} />
+        <SubmitButton className="!px-2.5 !py-1.5 !text-xs">Resend decision email</SubmitButton>
+      </form>
+      <ActionFeedback state={state} />
     </div>
   );
 }

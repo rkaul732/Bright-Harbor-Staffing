@@ -523,7 +523,8 @@ async function sendAutomatedTimeOffEmail({
   request,
   status,
   reviewComment,
-  reviewerName
+  reviewerName,
+  idempotencyKey
 }: {
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
   request: {
@@ -538,10 +539,12 @@ async function sendAutomatedTimeOffEmail({
   status: "approved" | "declined";
   reviewComment: string;
   reviewerName: string;
+  idempotencyKey?: string;
 }) {
+  const emailClient = hasSupabaseServiceRoleKey() ? createSupabaseAdminClient() : supabase;
   const eventType: AutomatedMessageEvent =
     status === "approved" ? "time_off_approved" : "time_off_declined";
-  const { data: templates, error: templateError } = await supabase
+  const { data: templates, error: templateError } = await emailClient
     .from("automated_message_templates")
     .select("*")
     .eq("event_type", eventType)
@@ -559,7 +562,7 @@ async function sendAutomatedTimeOffEmail({
     return secondSpecificity - firstSpecificity;
   })[0];
 
-  const { data: recipient } = await supabase
+  const { data: recipient } = await emailClient
     .from("users")
     .select("email,full_name")
     .eq("id", request.user_id)
@@ -599,13 +602,10 @@ async function sendAutomatedTimeOffEmail({
     subject,
     customBodyHtml: bodyHtml,
     commentAlreadyInBody: selectedTemplate?.body_html.includes("{{review_comment}}") ?? false,
-    idempotencyKey: `time-off-decision/${request.id}/${status}`
+    idempotencyKey: idempotencyKey ?? `time-off-decision/${request.id}/${status}`
   });
-  if (templateError) {
-    return sent.ok ? "Decision email sent; template history is unavailable." : `Decision email failed: ${sent.error}`;
-  }
 
-  const { error } = await supabase.from("automated_email_deliveries").insert({
+  const { error } = await emailClient.from("automated_email_deliveries").insert({
     template_id: selectedTemplate?.id ?? null,
     request_id: request.id,
     event_type: eventType,
@@ -620,12 +620,16 @@ async function sendAutomatedTimeOffEmail({
     error_message: sent.error ?? null,
     metadata: {
       reviewComment,
-      reviewerName
+      reviewerName,
+      resendId: sent.resendId ?? null,
+      templateLookupError: templateError?.message ?? null
     }
   });
 
   if (!sent.ok) return `Decision email failed: ${sent.error}`;
-  return error ? "Decision email sent, but delivery history could not be saved." : `Decision email sent to ${recipientEmail}.`;
+  return error
+    ? `Resend accepted the decision email, but its delivery record could not be saved: ${error.message}`
+    : `Resend accepted the decision email for ${recipientEmail}. Check its delivery status in Resend.`;
 }
 
 function revalidateDashboards() {
@@ -2210,6 +2214,58 @@ export async function updateTimeOffRequestStatusAction(
   return {
     ok: !emailMessage?.toLowerCase().includes("email failed") && !emailMessage?.includes("not sent"),
     message: `Time off request ${status}.${emailMessage ? " " + emailMessage : ""}`
+  };
+}
+
+export async function resendTimeOffDecisionEmailAction(
+  _previousState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const requestId = asString(formData.get("request_id"));
+  const user = await getUserForAction(asString(formData.get("role")) === "admin" ? "admin" : "supervisor");
+
+  if (!requestId || !["admin", "supervisor"].includes(user.role)) {
+    return { ok: false, message: "A reviewer account and completed time off request are required." };
+  }
+  if (!isSupabaseConfigured()) {
+    return { ok: false, message: "Email delivery is unavailable in demo mode." };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: request, error } = await supabase
+    .from("time_off_requests")
+    .select("id,user_id,employee_name,program_name,start_date,end_date,reason,status,review_comment,reviewed_by")
+    .eq("id", requestId)
+    .single();
+
+  if (error || !request || (request.status !== "approved" && request.status !== "declined")) {
+    return { ok: false, message: "This time off request has no completed decision to email." };
+  }
+
+  const scopeError = await scopedProgramAccessError(
+    user,
+    [request.program_name as ProgramName],
+    "resend time off decisions"
+  );
+  if (scopeError) return scopeError;
+
+  const emailClient = hasSupabaseServiceRoleKey() ? createSupabaseAdminClient() : supabase;
+  const { data: reviewer } = request.reviewed_by
+    ? await emailClient.from("users").select("full_name").eq("id", request.reviewed_by).maybeSingle()
+    : { data: null };
+  const emailMessage = await sendAutomatedTimeOffEmail({
+    supabase,
+    request,
+    status: request.status,
+    reviewComment: request.review_comment ?? "",
+    reviewerName: reviewer?.full_name ?? user.full_name,
+    idempotencyKey: `time-off-decision-retry/${request.id}/${request.status}/${Math.floor(Date.now() / 60000)}`
+  });
+
+  revalidatePath("/automated-messages");
+  return {
+    ok: !emailMessage.startsWith("Decision email failed") && !emailMessage.includes("not sent"),
+    message: emailMessage
   };
 }
 

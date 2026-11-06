@@ -27,10 +27,11 @@ async function deliverResendEmail({
   subject: string;
   html: string;
   idempotencyKey: string;
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; resendId?: string }> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL;
-  if (!apiKey || !from) return { ok: false, error: "Resend sender settings are missing." };
+  const from = process.env.RESEND_FROM_EMAIL?.trim() ||
+    "Bright Harbor Staffing <notifications@brightharborstaffing.org>";
+  if (!apiKey) return { ok: false, error: "RESEND_API_KEY is missing from the site's environment settings." };
 
   try {
     const response = await fetch("https://api.resend.com/emails", {
@@ -49,13 +50,14 @@ async function deliverResendEmail({
       return { ok: false, error: `Resend rejected the email (${response.status}): ${error.slice(0, 300)}` };
     }
 
-    return { ok: true };
+    const result = await response.json().catch(() => null) as { id?: unknown } | null;
+    return { ok: true, resendId: typeof result?.id === "string" ? result.id : undefined };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Email service unavailable." };
   }
 }
 
-export async function sendDecisionEmail(message: DecisionEmail): Promise<{ ok: boolean; error?: string }> {
+export async function sendDecisionEmail(message: DecisionEmail): Promise<{ ok: boolean; error?: string; resendId?: string }> {
   const approved = message.status === "approved";
   const statusColor = approved ? "#166534" : "#b91c1c";
   const comment = message.reviewComment.trim() || "No additional comment was added.";
@@ -110,7 +112,7 @@ export async function sendSubmissionEmail({
   subject: string;
   bodyHtml: string;
   idempotencyKey: string;
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; resendId?: string }> {
   const html = `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Your Request Has Been Submitted</title></head>
