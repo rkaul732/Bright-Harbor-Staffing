@@ -27,6 +27,7 @@ export function StaffAccountSetupPanel() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [programNames, setProgramNames] = useState<ProgramName[]>([]);
+  const [accessPreapproved, setAccessPreapproved] = useState(false);
   const [availability, setAvailability] = useState<string[]>([]);
 
   useEffect(() => {
@@ -42,9 +43,24 @@ export function StaffAccountSetupPanel() {
       const { data: appUser } = user
         ? await supabase.from("users").select("role").eq("id", user.id).maybeSingle()
         : { data: null };
+      const reviewerRole = appUser?.role === "admin" ? "admin" : appUser?.role === "supervisor" ? "supervisor" : null;
+      const { data: reviewerProfile } = user && reviewerRole
+        ? await supabase
+            .from(reviewerRole === "admin" ? "admin_profiles" : "supervisor_profiles")
+            .select("program_names")
+            .eq("user_id", user.id)
+            .maybeSingle()
+        : { data: null };
       const metadataPrograms = Array.isArray(metadata.program_names)
         ? metadata.program_names.filter((program): program is ProgramName => PROGRAMS.includes(program))
         : [];
+      const assignedPrograms = Array.isArray(reviewerProfile?.program_names)
+        ? reviewerProfile.program_names.filter((program): program is ProgramName => PROGRAMS.includes(program as ProgramName))
+        : [];
+      const preapprovedPrograms = reviewerRole === "admin"
+        ? user?.app_metadata?.staffing_preapproved_admin_programs
+        : user?.app_metadata?.staffing_preapproved_supervisor_programs;
+      const hasPreapprovedPrograms = Array.isArray(preapprovedPrograms) && preapprovedPrograms.length > 0;
 
       setSessionReady(Boolean(user));
       setRole(appUser?.role === "admin" ? "admin" : appUser?.role === "supervisor" ? "supervisor" : "employee");
@@ -54,10 +70,13 @@ export function StaffAccountSetupPanel() {
           : user?.email?.split("@")[0] ?? ""
       );
       setEmail(user?.email ?? "");
-      setPasswordChanged(Boolean(metadata.setup_password_changed_at || metadata.signup_password_set_at));
-      if (metadataPrograms.length > 0) {
-        setProgramNames(metadataPrograms);
+      setPasswordChanged(hasPreapprovedPrograms
+        ? Boolean(user?.app_metadata?.staffing_setup_password_changed_at)
+        : Boolean(metadata.setup_password_changed_at || metadata.signup_password_set_at));
+      if (assignedPrograms.length > 0 || metadataPrograms.length > 0) {
+        setProgramNames(assignedPrograms.length > 0 ? assignedPrograms : metadataPrograms);
       }
+      setAccessPreapproved(hasPreapprovedPrograms);
       if (Array.isArray(metadata.availability)) {
         setAvailability(metadata.availability.filter((item): item is string => typeof item === "string"));
       }
@@ -126,9 +145,11 @@ export function StaffAccountSetupPanel() {
           Select your programs and verify your profile
         </h1>
         <p className="mt-2 text-sm leading-6 text-harbor-midnight/70">
-          {role === "admin"
-            ? "Choose the divisions you oversee. A super admin will review your access after setup."
-            : "Select every program you work in and confirm your information below. After you submit, administrators will be notified for profile review."}
+          {accessPreapproved
+            ? "Your listed programs are preapproved. Confirm them to activate access after changing your password. New programs require review."
+            : role === "admin"
+              ? "Choose the divisions you oversee. A super admin will review your access after setup."
+              : "Select every program you work in and confirm your information below. After you submit, administrators will be notified for profile review."}
         </p>
       </div>
 
@@ -171,12 +192,13 @@ export function StaffAccountSetupPanel() {
         {role === "admin" ? (
           <div>
             <ProgramScopePicker
-              defaultSelectedProgramNames={programNames}
+              selectedProgramNames={programNames}
+              onChange={setProgramNames}
               legend="Divisions and programs to oversee"
               compact
             />
             <p className="mt-2 text-xs leading-5 text-harbor-midnight/60">
-              Select a division to include every program in it. A super admin will review this access before it becomes active.
+              Select a division to include every program in it. Programs beyond your preapproved assignment require super admin review.
             </p>
           </div>
         ) : (

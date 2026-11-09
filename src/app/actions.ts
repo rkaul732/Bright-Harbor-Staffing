@@ -1534,6 +1534,10 @@ export async function changeTemporaryPasswordAction(
     return { ok: true, message: "Demo mode: password updated." };
   }
 
+  if (!hasSupabaseServiceRoleKey()) {
+    return { ok: false, message: "Account setup is unavailable until the service role key is configured." };
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data: authData, error: lookupError } = await supabase.auth.getUser();
 
@@ -1548,6 +1552,16 @@ export async function changeTemporaryPasswordAction(
 
   if (error) {
     return { ok: false, message: error.message };
+  }
+
+  const { error: setupMarkerError } = await createSupabaseAdminClient().auth.admin.updateUserById(authData.user.id, {
+    app_metadata: {
+      ...authData.user.app_metadata,
+      staffing_setup_password_changed_at: new Date().toISOString()
+    }
+  });
+  if (setupMarkerError) {
+    return { ok: false, message: "Password changed, but setup could not continue: " + setupMarkerError.message };
   }
 
   return { ok: true, message: "Password updated. Select all programs you work in." };
@@ -1571,8 +1585,8 @@ export async function completeStaffSetupAction(
     return { ok: false, message: role === "admin" ? "Choose at least one division or program." : "Choose at least one program." };
   }
 
-  if (role === "admin" && !hasSupabaseServiceRoleKey() && isSupabaseConfigured()) {
-    return { ok: false, message: "Admin account setup is unavailable until the service role key is configured." };
+  if ((role === "admin" || role === "supervisor") && !hasSupabaseServiceRoleKey() && isSupabaseConfigured()) {
+    return { ok: false, message: "Reviewer account setup is unavailable until the service role key is configured." };
   }
 
   if (!isSupabaseConfigured()) {
@@ -1593,27 +1607,78 @@ export async function completeStaffSetupAction(
     return { ok: false, message: "Change your temporary password before choosing programs." };
   }
 
+  const adminClient = createSupabaseAdminClient();
+  const preapprovedBy = z.string().uuid().safeParse(authData.user.app_metadata?.staffing_preapproved_by);
+  const preapprovedAdminPrograms = normalizeProgramNames(authData.user.app_metadata?.staffing_preapproved_admin_programs);
+  const preapprovedSupervisorPrograms = normalizeProgramNames(authData.user.app_metadata?.staffing_preapproved_supervisor_programs);
+  if ((preapprovedAdminPrograms.length > 0 || preapprovedSupervisorPrograms.length > 0) &&
+      !authData.user.app_metadata?.staffing_setup_password_changed_at) {
+    return { ok: false, message: "Change your temporary password before activating preapproved access." };
+  }
+  let reviewerAccessApproved = false;
+  let dualSupervisorAccessApproved = false;
+
   if (role === "admin") {
-    const adminClient = createSupabaseAdminClient();
-    const { data: pendingProfile, error: pendingProfileError } = await adminClient
+    const { data: adminProfile, error: adminProfileError } = await adminClient
       .from("admin_profiles")
-      .select("id")
+      .select("id,status,program_names")
       .eq("user_id", user.id)
-      .eq("status", "pending")
       .maybeSingle();
 
-    if (pendingProfileError || !pendingProfile) {
+    if (adminProfileError || !adminProfile || adminProfile.status === "suspended") {
       return { ok: false, message: "Your admin invitation is not awaiting setup." };
     }
 
+    const approvedPrograms = preapprovedAdminPrograms.length > 0
+      ? preapprovedAdminPrograms
+      : adminProfile.status === "approved"
+        ? normalizeProgramNames(adminProfile.program_names)
+        : [];
+    reviewerAccessApproved = approvedPrograms.length > 0 && programNames.every((programName) => approvedPrograms.includes(programName));
+
     const { error } = await adminClient
       .from("admin_profiles")
-      .update({ program_names: programNames, is_super_admin: false })
-      .eq("id", pendingProfile.id)
-      .eq("status", "pending");
+      .update({
+        program_names: programNames,
+        is_super_admin: false,
+        status: "pending",
+        approved_by: null,
+        approved_at: null
+      })
+      .eq("id", adminProfile.id);
 
     if (error) {
       return { ok: false, message: error.message };
+    }
+
+    const { data: supervisorProfile, error: supervisorProfileError } = await adminClient
+      .from("supervisor_profiles")
+      .select("id,status,program_names")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (supervisorProfileError) {
+      return { ok: false, message: supervisorProfileError.message };
+    }
+    if (supervisorProfile && supervisorProfile.status !== "suspended") {
+      const approvedSupervisorPrograms = preapprovedSupervisorPrograms.length > 0
+        ? preapprovedSupervisorPrograms
+        : supervisorProfile.status === "approved"
+          ? normalizeProgramNames(supervisorProfile.program_names)
+          : [];
+      dualSupervisorAccessApproved = reviewerAccessApproved && approvedSupervisorPrograms.length > 0 &&
+        programNames.every((programName) => approvedSupervisorPrograms.includes(programName));
+      const { error: supervisorError } = await adminClient
+        .from("supervisor_profiles")
+        .update({
+          program_names: programNames,
+          status: "pending",
+          approved_by: null,
+          approved_at: null
+        })
+        .eq("id", supervisorProfile.id);
+      if (supervisorError) {
+        return { ok: false, message: supervisorError.message };
+      }
     }
   }
 
@@ -1654,14 +1719,30 @@ export async function completeStaffSetupAction(
       return { ok: false, message: error.message };
     }
   } else if (role === "supervisor") {
-    const { error } = await supabase.from("supervisor_profiles").upsert(
+    const { data: supervisorProfile, error: profileError } = await adminClient
+      .from("supervisor_profiles")
+      .select("status,program_names")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (profileError || supervisorProfile?.status === "suspended") {
+      return { ok: false, message: profileError?.message ?? "Supervisor access is unavailable." };
+    }
+    const approvedPrograms = preapprovedSupervisorPrograms.length > 0
+      ? preapprovedSupervisorPrograms
+      : supervisorProfile?.status === "approved"
+        ? normalizeProgramNames(supervisorProfile.program_names)
+        : [];
+    reviewerAccessApproved = approvedPrograms.length > 0 && programNames.every((programName) => approvedPrograms.includes(programName));
+    const { error } = await adminClient.from("supervisor_profiles").upsert(
       {
         user_id: user.id,
         status: "pending",
         program_names: programNames,
         location_name: asString(formData.get("location_name")) || null,
         front_desk_location_name: asString(formData.get("front_desk_location_name")) || null,
-        title: asString(formData.get("title")) || null
+        title: asString(formData.get("title")) || null,
+        approved_by: null,
+        approved_at: null
       },
       { onConflict: "user_id" }
     );
@@ -1682,17 +1763,50 @@ export async function completeStaffSetupAction(
     return { ok: false, message: authError.message };
   }
 
-  await notifyAdminsInApp({
-    staffName: fullName,
-    staffEmail: user.email,
-    role,
-    message: "completed account setup and submitted profile information for review."
-  });
+  if (reviewerAccessApproved) {
+    const { error: approvalError } = await adminClient
+      .from(role === "admin" ? "admin_profiles" : "supervisor_profiles")
+      .update({
+        status: "approved",
+        approved_by: preapprovedBy.data ?? null,
+        approved_at: new Date().toISOString()
+      })
+      .eq("user_id", user.id);
+    if (approvalError) {
+      return { ok: false, message: "Account setup is complete, but reviewer access could not be activated: " + approvalError.message };
+    }
+    if (dualSupervisorAccessApproved) {
+      const { error: supervisorApprovalError } = await adminClient
+        .from("supervisor_profiles")
+        .update({
+          status: "approved",
+          approved_by: preapprovedBy.data ?? null,
+          approved_at: new Date().toISOString()
+        })
+        .eq("user_id", user.id);
+      if (supervisorApprovalError) {
+        return { ok: false, message: "Account setup is complete, but supervisor access could not be activated: " + supervisorApprovalError.message };
+      }
+    }
+  }
+
+  if (!reviewerAccessApproved) {
+    await notifyAdminsInApp({
+      staffName: fullName,
+      staffEmail: user.email,
+      role,
+      message: "completed account setup and submitted profile information for review."
+    });
+  }
 
   revalidateDashboards();
   return {
     ok: true,
-    message: role === "admin" ? "Account setup complete. A super admin will review your access." : "Account setup complete. Administrators have been notified.",
+    message: reviewerAccessApproved
+      ? "Account setup complete. Your approved program access is ready."
+      : role === "admin"
+        ? "Account setup complete. A super admin will review your access."
+        : "Account setup complete. Administrators have been notified.",
     redirectTo: ROLE_DASHBOARD_PATHS[role]
   };
 }
@@ -1726,8 +1840,12 @@ export async function updateSupervisorProfileAction(
     return { ok: true, message: "Demo mode: supervisor profile updated." };
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from("supervisor_profiles").upsert(
+  if (!hasSupabaseServiceRoleKey()) {
+    return { ok: false, message: "Supervisor profile updates are unavailable until the service role key is configured." };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const { error } = await adminClient.from("supervisor_profiles").upsert(
     {
       user_id: user.id,
       status: "pending",
