@@ -472,6 +472,10 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      request_review_recipients: {
+        Args: { target_kind: string; target_program: string; target_requester_id: string };
+        Returns: { user_id: string; email: string; full_name: string; role: string }[];
+      };
       current_account_active: {
         Args: Record<string, never>;
         Returns: boolean;

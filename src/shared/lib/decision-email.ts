@@ -106,18 +106,22 @@ export async function sendSubmissionEmail({
   to,
   subject,
   bodyHtml,
-  idempotencyKey
+  idempotencyKey,
+  heading = "Your Request Has Been Submitted",
+  preheader = "Your Bright Harbor request was successfully submitted."
 }: {
   to: string;
   subject: string;
   bodyHtml: string;
   idempotencyKey: string;
+  heading?: string;
+  preheader?: string;
 }): Promise<{ ok: boolean; error?: string; resendId?: string }> {
   const html = `<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Your Request Has Been Submitted</title></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeEmailHtml(heading)}</title></head>
 <body style="margin:0;padding:0;background-color:#eef5fb;font-family:Arial,Helvetica,sans-serif;color:#1c2f43;">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your Bright Harbor request was successfully submitted.</div>
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeEmailHtml(preheader)}</div>
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#eef5fb" style="background-color:#eef5fb;">
     <tr><td align="center" style="padding:36px 16px;">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #dce8f1;border-radius:16px;overflow:hidden;">
@@ -125,7 +129,7 @@ export async function sendSubmissionEmail({
         <tr><td><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td width="40%" height="5" bgcolor="#4BA0D8" style="font-size:0;line-height:0;">&nbsp;</td><td width="40%" height="5" bgcolor="#346990" style="font-size:0;line-height:0;">&nbsp;</td><td width="20%" height="5" bgcolor="#f7f5ac" style="font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
         <tr><td style="padding:38px 36px 34px;">
           <p style="margin:0 0 12px;color:#346990;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Bright Harbor Staffing Portal</p>
-          <h1 style="margin:0 0 18px;color:#1c2f43;font-size:30px;font-weight:700;line-height:38px;">Your Request Has Been Submitted</h1>
+          <h1 style="margin:0 0 18px;color:#1c2f43;font-size:30px;font-weight:700;line-height:38px;">${escapeEmailHtml(heading)}</h1>
           <div style="color:#40566b;font-size:16px;line-height:26px;">${bodyHtml}</div>
         </td></tr>
         <tr><td bgcolor="#f7fafc" style="padding:20px 36px;border-top:1px solid #dce8f1;color:#718394;font-size:12px;line-height:19px;">Bright Harbor Healthcare Staffing<br>Staffing Portal</td></tr>

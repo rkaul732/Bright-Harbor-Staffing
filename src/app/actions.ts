@@ -10,6 +10,7 @@ import {
   PROGRAMS,
   KNOWN_PROGRAMS,
   normalizeAssignedProgramNames,
+  getProgramLabel,
   LOCATIONS,
   SKILLS,
   ROLE_DASHBOARD_PATHS,
@@ -357,7 +358,7 @@ async function scopedProgramAccessError(
     ? programNames.every((programName) => allowedPrograms.has(programName))
     : programNames.some((programName) => allowedPrograms.has(programName));
 
-  if (programNames.length > 0 && hasAccess) {
+  if (scope.isApproved && programNames.length > 0 && hasAccess) {
     return null;
   }
 
@@ -515,6 +516,81 @@ async function sendRequestSubmissionConfirmation({
   } catch (error) {
     return "Your request was saved, but the confirmation email could not be sent: " +
       (error instanceof Error ? error.message : "email service unavailable.");
+  }
+}
+
+async function sendReviewerSubmissionNotifications({
+  user,
+  requestId,
+  requestKind,
+  programName,
+  submittedAt,
+  requestSummary
+}: {
+  user: ActionUser;
+  requestId: string;
+  requestKind: "time off" | "shift coverage";
+  programName: ProgramName;
+  submittedAt: string;
+  requestSummary: string;
+}) {
+  if (!hasSupabaseServiceRoleKey()) {
+    return "Reviewer emails could not be sent because the server email configuration is incomplete.";
+  }
+
+  try {
+    const emailClient = createSupabaseAdminClient();
+    const { data: recipients, error } = await emailClient.rpc("request_review_recipients", {
+      target_kind: requestKind === "time off" ? "time-off" : "shift",
+      target_program: programName,
+      target_requester_id: user.id
+    });
+    if (error) throw error;
+    if (!recipients?.length) {
+      return "No approved reviewer is assigned to receive an email for this program.";
+    }
+
+    const displayProgramName = getProgramLabel(programName);
+    const subject = `${user.full_name} submitted a ${requestKind} request for ${displayProgramName}`;
+    const bodyHtml = `<p>Hello,</p><p><strong>${escapeEmailHtml(user.full_name)}</strong> submitted a ${escapeEmailHtml(requestKind)} request on ${escapeEmailHtml(new Intl.DateTimeFormat("en-US", {
+      dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York", timeZoneName: "short"
+    }).format(new Date(submittedAt)))}.</p><p><strong>Request Summary</strong><br>${renderRequestSummaryHtml(requestSummary)}</p><p><a href="${appBaseUrl()}${recipients[0].role === "admin" ? "/admin" : "/supervisor"}" style="color:#346990;font-weight:700;">Review the request in the staffing portal</a></p>`;
+    const results = await Promise.all(recipients.map(async (recipient) => {
+      const sent = await sendSubmissionEmail({
+        to: recipient.email,
+        subject,
+        bodyHtml,
+        heading: "New Request to Review",
+        preheader: `${user.full_name} submitted a ${requestKind} request for ${displayProgramName}.`,
+        idempotencyKey: `reviewer-submitted/${requestKind === "time off" ? "time-off" : "shift"}/${requestId}/${recipient.user_id}`
+      });
+      const { error: deliveryError } = await emailClient.from("automated_email_deliveries").insert({
+        request_id: requestKind === "time off" ? requestId : null,
+        event_type: "request_submitted",
+        program_name: programName,
+        recipient_user_id: recipient.user_id,
+        recipient_email: recipient.email,
+        recipient_name: recipient.full_name,
+        subject,
+        body_html: bodyHtml,
+        status: sent.ok ? "sent" : "failed",
+        sent_at: sent.ok ? new Date().toISOString() : null,
+        error_message: sent.error ?? null,
+        metadata: { requestKind, requestId, submittedAt, requestSummary, purpose: "reviewer" }
+      });
+      return { sent, deliveryError };
+    }));
+
+    const failed = results.filter((result) => !result.sent.ok);
+    if (failed.length) {
+      return `${failed.length} reviewer email${failed.length === 1 ? "" : "s"} could not be sent: ${failed[0].sent.error}`;
+    }
+    const unlogged = results.filter((result) => result.deliveryError);
+    return unlogged.length
+      ? `Reviewer emails were accepted by Resend, but ${unlogged.length} delivery record${unlogged.length === 1 ? "" : "s"} could not be saved.`
+      : `Resend accepted the email notification for ${recipients.length} assigned reviewer${recipients.length === 1 ? "" : "s"}.`;
+  } catch (error) {
+    return `Reviewer emails could not be sent: ${error instanceof Error ? error.message : "email service unavailable."}`;
   }
 }
 
@@ -2008,7 +2084,13 @@ export async function submitTimeOffRequestAction(
   formData: FormData
 ): Promise<ActionState> {
   const user = await getUserForAction("employee");
-  const programNames = await getWorkerProgramsForAction(user.id);
+  const programNames = user.role === "supervisor"
+    ? (await getSupervisorScopeForAction(user.id)).programNames
+    : user.role === "admin"
+      ? (await getAdminScopeForAction(user.id)).programNames
+      : await getWorkerProgramsForAction(user.id);
+  const canRequestAnyProgram = user.role === "admin" &&
+    (await getAdminScopeForAction(user.id)).isSuperAdmin;
 
   const parsed = z
     .object({
@@ -2031,11 +2113,11 @@ export async function submitTimeOffRequestAction(
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the form." };
   }
 
-  if (programNames.length === 0) {
-    return { ok: false, message: "Save your employee program before requesting time off." };
+  if (programNames.length === 0 && !canRequestAnyProgram) {
+    return { ok: false, message: "Select your assigned program before requesting time off." };
   }
 
-  if (!programNames.includes(parsed.data.program_name)) {
+  if (!canRequestAnyProgram && !programNames.includes(parsed.data.program_name)) {
     return { ok: false, message: "Choose one of your selected programs." };
   }
 
@@ -2055,17 +2137,21 @@ export async function submitTimeOffRequestAction(
     return { ok: false, message: error.message };
   }
 
-  const confirmation = await sendRequestSubmissionConfirmation({
+  const submissionEmail = {
     user,
     requestId: submittedRequest.id,
     requestKind: "time off",
     programName: parsed.data.program_name,
     submittedAt: submittedRequest.created_at,
-    requestSummary: `Program: ${parsed.data.program_name}\nDates: ${formatDateForEmail(parsed.data.start_date)} - ${formatDateForEmail(parsed.data.end_date)}\nReason: ${parsed.data.reason}`
-  });
+    requestSummary: `Program: ${getProgramLabel(parsed.data.program_name)}\nDates: ${formatDateForEmail(parsed.data.start_date)} - ${formatDateForEmail(parsed.data.end_date)}\nReason: ${parsed.data.reason}`
+  } as const;
+  const [confirmation, reviewerNotice] = await Promise.all([
+    sendRequestSubmissionConfirmation(submissionEmail),
+    sendReviewerSubmissionNotifications(submissionEmail)
+  ]);
 
   revalidateDashboards();
-  return { ok: true, message: "Time off request sent to your program reviewers. " + confirmation };
+  return { ok: true, message: `Time off request saved. ${confirmation} ${reviewerNotice}` };
 }
 
 export async function adminAddOutOfOfficeAction(
@@ -2168,6 +2254,22 @@ export async function updateTimeOffRequestStatusAction(
 
   if (!requestToReview) {
     return { ok: false, message: "Time off request not found." };
+  }
+
+  if (requestToReview.user_id === user.id) {
+    return { ok: false, message: "You cannot review your own time off request." };
+  }
+
+  const { data: requester } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", requestToReview.user_id)
+    .single();
+  if (requester?.role === "admin" && !(await isSuperAdminForAction(user))) {
+    return { ok: false, message: "An approved super admin must review admin time off." };
+  }
+  if (requester?.role === "supervisor" && user.role !== "admin") {
+    return { ok: false, message: "An assigned admin must review supervisor time off." };
   }
 
   const scopeError = await scopedProgramAccessError(

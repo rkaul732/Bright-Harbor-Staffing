@@ -157,13 +157,8 @@ function scopeDashboardDataForCurrentUser(
     (profile) => profile.user_id === data.currentUser.id
   );
 
-  if (currentAdminProfile?.is_super_admin) {
-    return data;
-  }
-
   return {
-    ...filterCollectionsByProgram(data, currentAdminProfile?.program_names ?? []),
-    supervisorProfiles: [],
+    ...data,
     adminProfiles: currentAdminProfile ? [currentAdminProfile] : []
   };
 }

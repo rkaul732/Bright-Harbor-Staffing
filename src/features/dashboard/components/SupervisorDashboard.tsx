@@ -15,7 +15,7 @@ import { StatusBadge } from "@/shared/components/StatusBadge";
 import { SupervisorProfileForm } from "@/features/profiles/components/ProfileForms";
 import { SupervisorShiftPostForm } from "@/features/shifts/components/ShiftPostForms";
 import { CodeRedShiftCreationForm } from "@/features/shifts/components/CodeRedShiftCreationForm";
-import { AdminOutOfOfficeForm } from "@/features/time-off/components/TimeOffForms";
+import { AdminOutOfOfficeForm, TimeOffRequestForm } from "@/features/time-off/components/TimeOffForms";
 import {
   CancelShiftForm,
   RescheduleShiftForm
@@ -55,9 +55,7 @@ function programOptionsForData(data: DashboardData) {
     (profile) => profile.user_id === data.currentUser.id
   );
   if (data.currentUser.role === "admin" && currentAdminProfile) {
-    return currentAdminProfile.is_super_admin
-      ? PROGRAMS
-      : PROGRAMS.filter((programName) => currentAdminProfile.program_names.includes(programName));
+    return PROGRAMS;
   }
 
   const currentSupervisorProfile = data.supervisorProfiles.find(
@@ -303,6 +301,7 @@ function AdminDashboardHome({
   const programOptions = useMemo(() => programOptionsForData(data), [data]);
   const [programFilter, setProgramFilter] = useState<ProgramName | "all">("all");
   const [showOooForm, setShowOooForm] = useState(false);
+  const [showTimeOffForm, setShowTimeOffForm] = useState(false);
   const [showCodeRedShiftForm, setShowCodeRedShiftForm] = useState(false);
   const [viewedRequestKeys, setViewedRequestKeys] = useState(
     () => new Set(data.requestViews.map((view) => requestViewKey(view.request_kind, view.request_id)))
@@ -336,6 +335,9 @@ function AdminDashboardHome({
   const approvedRequestCount = requestItems.filter((item) => item.request.status === "approved").length;
   const deniedRequestCount = requestItems.filter((item) => item.request.status === "declined").length;
   const canManageAccountTypes = hasSuperAdminAccess(data);
+  const ownRequestPrograms = role === "admin"
+    ? (canManageAccountTypes ? PROGRAMS : data.adminProfiles.find((profile) => profile.user_id === data.currentUser.id)?.program_names ?? [])
+    : data.supervisorProfiles.find((profile) => profile.user_id === data.currentUser.id)?.program_names ?? [];
   const roleLabel = ROLE_LABELS[role];
 
   async function markReviewed(kind: "shift" | "time-off", requestId: string) {
@@ -369,6 +371,9 @@ function AdminDashboardHome({
             </h2>
           </div>
           <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+            <button type="button" onClick={() => setShowTimeOffForm(true)} className="word-button font-semibold">
+              Request time off
+            </button>
             <label className="flex min-h-10 items-center gap-2 rounded-lg border border-harbor-ocean/15 bg-harbor-mist px-3 py-1.5 text-sm text-harbor-midnight/70">
               <ListFilter className="h-4 w-4 text-harbor-ocean" aria-hidden="true" />
               <select
@@ -507,6 +512,18 @@ function AdminDashboardHome({
               </section>
             </div>
           ) : null}
+
+          {showTimeOffForm ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-harbor-midnight/35 px-3 py-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="staff-time-off-title">
+              <section className="w-full max-w-lg rounded-lg border border-white/70 bg-white p-4 shadow-soft sm:p-5">
+                <div className="mb-4 flex items-start justify-between gap-4 border-b border-harbor-ocean/10 pb-4">
+                  <div><p className="label">My time off</p><h2 id="staff-time-off-title" className="mt-1 text-xl font-medium text-harbor-midnight">Request time off</h2></div>
+                  <button type="button" onClick={() => setShowTimeOffForm(false)} className="ghost-button px-1.5" aria-label="Close request time off"><X className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                </div>
+                <TimeOffRequestForm programNames={ownRequestPrograms} />
+              </section>
+            </div>
+          ) : null}
         </div>
 
         <aside className="min-w-0 space-y-5">
@@ -634,6 +651,24 @@ function AdminRequestsWorkspace({
     () => new Map(data.shifts.map((shift) => [shift.id, shift])),
     [data.shifts]
   );
+  const adminProfile = data.adminProfiles.find((profile) => profile.user_id === data.currentUser.id);
+  const supervisorProfile = data.supervisorProfiles.find((profile) => profile.user_id === data.currentUser.id);
+  const canReview = (item: AdminRequestItem) => {
+    const requesterId = item.type === "time-off" ? item.request.user_id : item.request.requestor_id;
+    if (requesterId === data.currentUser.id) return false;
+    const program = item.type === "time-off"
+      ? item.request.program_name
+      : shiftById.get(item.request.shift_id)?.program_name;
+    if (!program) return false;
+    const requesterRole = data.users.find((user) => user.id === requesterId)?.role ?? "employee";
+    if (role === "supervisor") {
+      return requesterRole === "employee" && supervisorProfile?.status === "approved" &&
+        supervisorProfile.program_names.includes(program);
+    }
+    if (role !== "admin" || adminProfile?.status !== "approved") return false;
+    if (requesterRole === "admin") return adminProfile.is_super_admin;
+    return adminProfile.is_super_admin || adminProfile.program_names.includes(program);
+  };
 
   const allRequests = useMemo<AdminRequestItem[]>(() => {
     return [
@@ -796,9 +831,10 @@ function AdminRequestsWorkspace({
                     <td className="whitespace-nowrap px-4 py-4 text-harbor-midnight/70">{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(item.created_at))}</td>
                     <td className="px-4 py-4"><RequestQueueStatus status={item.status} /></td>
                     <td className="px-4 py-4">
-                      {pendingDecision ? (
+                      {pendingDecision && canReview(item) ? (
                         <RequestDecisionControls item={item} role={role} reviewComment={notesByRequest[key] ?? ""} />
-                      ) : item.type === "time-off" && (item.status === "approved" || item.status === "declined") ? (
+                      ) : pendingDecision ? <span className="text-harbor-midnight/50">Assigned reviewer only</span>
+                      : item.type === "time-off" && canReview(item) && (item.status === "approved" || item.status === "declined") ? (
                         <ResendTimeOffDecisionControl requestId={item.request.id} role={role} />
                       ) : <span className="text-harbor-midnight/50">Reviewed</span>}
                       {activeTab === "new" && pendingDecision ? <button type="button" onClick={() => onMarkReviewed(item.type, item.request.id)} className="mt-2 block text-xs font-medium text-harbor-ocean underline">Keep pending</button> : null}
@@ -830,7 +866,7 @@ function AdminRequestsWorkspace({
               <p className="font-semibold text-harbor-midnight">Employee request</p>
               <p className="mt-1 whitespace-pre-wrap">{notesRequest.type === "shift" ? notesRequest.request.note || "No note included." : notesRequest.request.reason}</p>
             </div>
-            {notesRequest.status === "pending_supervisor_approval" ? (
+            {notesRequest.status === "pending_supervisor_approval" && canReview(notesRequest) ? (
               <label className="mt-5 block text-sm font-medium text-harbor-midnight">
                 Comment for employee
                 <textarea className="field mt-2 min-h-32" value={notesByRequest[requestViewKey(notesRequest.type, notesRequest.request.id)] ?? ""} onChange={(event) => setNotesByRequest((current) => ({ ...current, [requestViewKey(notesRequest.type, notesRequest.request.id)]: event.target.value }))} placeholder="Add the comment that will appear in the decision email." />
