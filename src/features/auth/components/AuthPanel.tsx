@@ -164,12 +164,25 @@ export function AuthPanel({
             });
 
       if (result.error) {
+        if (mode === "sign-in" && result.error.code === "email_not_confirmed") {
+          const { error: linkError } = await supabase.auth.signInWithOtp({
+            email: normalizedEmail,
+            options: {
+              shouldCreateUser: false,
+              emailRedirectTo: `${window.location.origin}/auth/callback?next=/auth/setup`
+            }
+          });
+          setMessage(linkError
+            ? "Your email needs confirmation before first sign-in. Open the account setup email already sent to you, or ask an administrator for a new invitation."
+            : "Check your Bright Harbor inbox for a secure sign-in link. Open it to confirm your email, then change your temporary password and finish account setup.");
+          return;
+        }
         setMessage(result.error.message);
         return;
       }
 
       if (mode === "sign-up" && !result.data.session) {
-        setMessage("Check your email to confirm your account. You’ll choose your programs when you first sign in.");
+        setMessage("Check your Bright Harbor inbox to confirm your email. Then sign in and complete your account setup. Admin approval is not needed for these steps.");
         return;
       }
 
@@ -204,7 +217,7 @@ export function AuthPanel({
         <p className="mt-2 text-sm leading-6 text-harbor-midnight/70">
           {configured
             ? mode === "sign-in"
-              ? "Log in with your Bright Harbor account to reach the right dashboard for your role."
+              ? "First time here? Sign in with your Bright Harbor email and temporary password. We’ll guide you through email confirmation and a private password."
               : "Register with your Bright Harbor email. You’ll select your programs when you first sign in."
             : "Demo mode is active because Supabase keys are not configured yet."}
         </p>

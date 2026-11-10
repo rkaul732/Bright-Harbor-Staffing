@@ -1564,7 +1564,7 @@ export async function changeTemporaryPasswordAction(
     return { ok: false, message: "Password changed, but setup could not continue: " + setupMarkerError.message };
   }
 
-  return { ok: true, message: "Password updated. Select all programs you work in." };
+  return { ok: true, message: "Password updated. A confirmation email will be sent to your inbox. Select all programs you work in." };
 }
 
 export async function completeStaffSetupAction(

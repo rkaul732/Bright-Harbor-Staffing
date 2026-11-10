@@ -104,7 +104,7 @@ export function StaffAccountSetupPanel() {
       <div className="panel mx-auto w-full max-w-2xl p-5 sm:p-6">
         <div className="flex gap-3 rounded-lg border border-harbor-sky/20 bg-harbor-mist px-3 py-3 text-sm text-harbor-midnight/70">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-harbor-ocean" aria-hidden="true" />
-          <p>Open the setup link from your invitation email. If the link expired, ask an administrator to send a new setup email.</p>
+          <p>Sign in with your Bright Harbor email to begin setup. If your email is not confirmed yet, we’ll send you a secure link. If an invitation link expired, ask an administrator for a new one.</p>
         </div>
       </div>
     );
@@ -116,7 +116,7 @@ export function StaffAccountSetupPanel() {
         <p className="label">Account setup · Step 1 of 2</p>
         <h1 className="mt-2 text-3xl font-medium text-harbor-midnight">Change your password</h1>
         <p className="mt-2 text-sm leading-6 text-harbor-midnight/70">
-          Choose a private password for {email}. Next, you’ll select every program you work in.
+          Your Bright Harbor email is confirmed. Choose a private password for {email}. You’ll receive a password-change email, then select every program you work in.
         </p>
         <form action={passwordAction} className="mt-6 space-y-4">
           <label className="block">
