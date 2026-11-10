@@ -14,12 +14,16 @@ export function ProfileModerationControls({
   profileId,
   profileRole,
   adminProgramNames = [],
-  adminIsSuperAdmin = false
+  adminIsSuperAdmin = false,
+  approveLabel,
+  suspendLabel = "Suspend"
 }: {
   profileId: string;
   profileRole: AppRole;
   adminProgramNames?: ProgramName[];
   adminIsSuperAdmin?: boolean;
+  approveLabel?: string;
+  suspendLabel?: string;
 }) {
   const [approveState, approveAction] = useActionState(moderateProfileAction, initialState);
   const [suspendState, suspendAction] = useActionState(moderateProfileAction, initialState);
@@ -57,7 +61,7 @@ export function ProfileModerationControls({
 
           <SubmitButton className="w-full">
             <Check className="h-4 w-4" aria-hidden="true" />
-            {showAdminScope ? "Save access" : "Approve"}
+            {approveLabel ?? (showAdminScope ? "Save access" : "Approve")}
           </SubmitButton>
         </form>
         <form action={suspendAction}>
@@ -66,7 +70,7 @@ export function ProfileModerationControls({
           <input type="hidden" name="status" value="suspended" />
           <SubmitButton variant="secondary" className="w-full">
             <PauseCircle className="h-4 w-4" aria-hidden="true" />
-            Suspend
+            {suspendLabel}
           </SubmitButton>
         </form>
       </div>

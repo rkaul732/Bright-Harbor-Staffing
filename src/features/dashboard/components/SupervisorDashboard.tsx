@@ -1020,9 +1020,7 @@ function AdminModeration({ data }: { data: DashboardData }) {
     : [];
   const adminProfilesForReview = canManageAdminScopes
     ? data.adminProfiles.filter(
-        (profile) =>
-          profile.user_id !== data.currentUser.id &&
-          (profile.status !== "pending" || profile.program_names.length > 0)
+        (profile) => profile.user_id !== data.currentUser.id
       )
     : [];
   const pendingProfiles: ProfileModerationItem[] = [

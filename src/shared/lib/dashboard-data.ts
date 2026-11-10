@@ -157,6 +157,10 @@ function scopeDashboardDataForCurrentUser(
     (profile) => profile.user_id === data.currentUser.id
   );
 
+  if (currentAdminProfile?.status === "approved" && currentAdminProfile.is_super_admin) {
+    return data;
+  }
+
   return {
     ...data,
     adminProfiles: currentAdminProfile ? [currentAdminProfile] : []
