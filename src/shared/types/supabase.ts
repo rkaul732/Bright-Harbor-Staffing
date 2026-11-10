@@ -472,6 +472,14 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      current_reviewable_time_off_request_ids: {
+        Args: Record<string, never>;
+        Returns: string[];
+      };
+      current_reviewer_can_decide_time_off: {
+        Args: { requester_id: string; target_program: string };
+        Returns: boolean;
+      };
       request_review_recipients: {
         Args: { target_kind: string; target_program: string; target_requester_id: string };
         Returns: { user_id: string; email: string; full_name: string; role: string }[];

@@ -28,6 +28,7 @@ import { StaffAccountInviteForm } from "@/features/admin/components/StaffAccount
 import { formatLongDate, sortShifts } from "@/shared/lib/dates";
 import { CODE_RED_BLUE_PROGRAM, PROGRAMS, ROLE_LABELS, getProgramLabel, getRelatedProgramNames } from "@/shared/lib/constants";
 import { hasSuperAdminAccess } from "@/shared/lib/access";
+import { timeOffReviewerIds } from "@/shared/lib/time-off-routing";
 import { isNewPendingRequest } from "@/features/dashboard/lib/request-status";
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import type {
@@ -656,9 +657,12 @@ function AdminRequestsWorkspace({
   const canReview = (item: AdminRequestItem) => {
     const requesterId = item.type === "time-off" ? item.request.user_id : item.request.requestor_id;
     if (requesterId === data.currentUser.id) return false;
-    const program = item.type === "time-off"
-      ? item.request.program_name
-      : shiftById.get(item.request.shift_id)?.program_name;
+    if (item.type === "time-off") {
+      return data.isDemo
+        ? timeOffReviewerIds(data, requesterId, item.request.program_name).includes(data.currentUser.id)
+        : data.reviewableTimeOffRequestIds.includes(item.request.id);
+    }
+    const program = shiftById.get(item.request.shift_id)?.program_name;
     if (!program) return false;
     const requesterRole = data.users.find((user) => user.id === requesterId)?.role ?? "employee";
     if (role === "supervisor") {

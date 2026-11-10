@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getDemoDashboardData } from "@/shared/lib/demo-data";
-import { CODE_RED_BLUE_PROGRAM, CODE_RED_BLUE_SUPERVISOR_EMAIL } from "@/shared/lib/constants";
+import { CODE_RED_BLUE_PROGRAM, CODE_RED_BLUE_SUPERVISOR_EMAIL, normalizeAssignedProgramNames } from "@/shared/lib/constants";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
 import type {
@@ -191,6 +191,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
     shiftsResult,
     requestsResult,
     timeOffRequestsResult,
+    reviewableTimeOffResult,
     requestViewsResult,
     messagesResult,
     savedShiftsResult,
@@ -208,6 +209,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
       .from("time_off_requests")
       .select("*")
       .order("start_date", { ascending: true }),
+    supabase.rpc("current_reviewable_time_off_request_ids"),
     supabase.from("request_views").select("*").eq("reviewer_id", user.id),
     supabase.from("messages").select("*").order("created_at", { ascending: false }),
     supabase.from("saved_shifts").select("*").order("created_at", { ascending: false }),
@@ -232,19 +234,20 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
   const supervisorProfiles = ((supervisorProfilesResult.data ?? []) as SupervisorProfile[]).map(
     (profile) => ({
       ...profile,
-      program_names: Array.isArray(profile.program_names) ? profile.program_names : []
+      program_names: normalizeAssignedProgramNames(Array.isArray(profile.program_names) ? profile.program_names : [])
     })
   );
   const adminProfiles = ((adminProfilesResult.data ?? []) as AdminProfile[]).map(
     (profile) => ({
       ...profile,
-      program_names: Array.isArray(profile.program_names) ? profile.program_names : [],
+      program_names: normalizeAssignedProgramNames(Array.isArray(profile.program_names) ? profile.program_names : []),
       is_super_admin: profile.is_super_admin === true
     })
   );
   const shifts = (shiftsResult.data ?? []) as ShiftPost[];
   const requests = (requestsResult.data ?? []) as ShiftRequest[];
   const timeOffRequests = (timeOffRequestsResult.data ?? []) as TimeOffRequest[];
+  const reviewableTimeOffRequestIds = reviewableTimeOffResult.data ?? [];
   const requestViews = (requestViewsResult.data ?? []) as RequestView[];
   const messages = (messagesResult.data ?? []) as Message[];
   const savedShifts = (savedShiftsResult.data ?? []) as SavedShift[];
@@ -281,6 +284,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
     shifts,
     requests,
     timeOffRequests,
+    reviewableTimeOffRequestIds,
     requestViews,
     messages,
     savedShifts,

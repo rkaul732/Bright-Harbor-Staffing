@@ -328,6 +328,7 @@ export type DashboardData = {
   shifts: ShiftPost[];
   requests: ShiftRequest[];
   timeOffRequests: TimeOffRequest[];
+  reviewableTimeOffRequestIds: string[];
   requestViews: RequestView[];
   messages: Message[];
   savedShifts: SavedShift[];

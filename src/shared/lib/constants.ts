@@ -149,7 +149,11 @@ export const KNOWN_PROGRAMS: ProgramName[] = [...PROGRAMS, ...LEGACY_PROGRAMS];
 
 export function normalizeAssignedProgramNames(programNames: readonly string[]): ProgramName[] {
   const expanded = programNames.flatMap((programName) =>
-    programName === "PACT" ? ["PACT I", "PACT II"] : [programName]
+    programName === "PACT"
+      ? ["PACT I", "PACT II"]
+      : programName === "LEAP (Arrive Together, On POINT, Barricaded Subjects)"
+        ? [programName, "Arrive Together", "Barricaded Subjects", "On POINT"]
+        : [programName]
   );
 
   return [...new Set(expanded)].filter((programName): programName is ProgramName =>

@@ -349,7 +349,7 @@ async function scopedProgramAccessError(
 
   const scope = await getAdminScopeForAction(user.id);
 
-  if (scope.isSuperAdmin) {
+  if (scope.isApproved && scope.isSuperAdmin) {
     return null;
   }
 
@@ -2379,26 +2379,15 @@ export async function updateTimeOffRequestStatusAction(
     return { ok: false, message: "You cannot review your own time off request." };
   }
 
-  const { data: requester } = await supabase
-    .from("users")
-    .select("role")
-    .eq("id", requestToReview.user_id)
-    .single();
-  if (requester?.role === "admin" && !(await isSuperAdminForAction(user))) {
-    return { ok: false, message: "An approved super admin must review admin time off." };
-  }
-  if (requester?.role === "supervisor" && user.role !== "admin") {
-    return { ok: false, message: "An assigned admin must review supervisor time off." };
-  }
-
-  const scopeError = await scopedProgramAccessError(
-    user,
-    [requestToReview.program_name as ProgramName],
-    "review time off requests"
+  const { data: isAssignedReviewer, error: reviewerError } = await supabase.rpc(
+    "current_reviewer_can_decide_time_off",
+    { requester_id: requestToReview.user_id, target_program: requestToReview.program_name }
   );
-
-  if (scopeError) {
-    return scopeError;
+  if (reviewerError) {
+    return { ok: false, message: reviewerError.message };
+  }
+  if (!isAssignedReviewer) {
+    return { ok: false, message: "Only the reviewer assigned to this request can decide it." };
   }
 
   const { data: updatedRequests, error } = await supabase
