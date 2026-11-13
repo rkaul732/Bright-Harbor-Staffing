@@ -64,39 +64,58 @@ export default async function ViewAsPage({
     );
   }
 
-  if (!hasSupabaseServiceRoleKey()) {
-    throw new Error("Member previews require the server-side Supabase service role key.");
+  const preliminaryData = createMemberPreviewData(data, member, [], []);
+  let requestViews: RequestView[] = [];
+  let notifications: Notification[] = [];
+  let savedShifts: SavedShift[] = [];
+  let reviewableTimeOffRequestIds: string[] = [];
+  let previewDetailsAvailable = hasSupabaseServiceRoleKey();
+
+  if (previewDetailsAvailable) {
+    try {
+      const admin = createSupabaseAdminClient();
+      const [viewsResult, notificationsResult, savedShiftsResult, recipientResults] = await Promise.all([
+        admin.from("request_views").select("reviewer_id,request_kind,request_id,viewed_at").eq("reviewer_id", member.id),
+        admin.from("notifications").select("*").or(`user_id.eq.${member.id},role.eq.${member.role},role.eq.all`),
+        admin.from("saved_shifts").select("*").eq("user_id", member.id),
+        Promise.all(preliminaryData.timeOffRequests.map((request) =>
+          admin.rpc("request_review_recipients", {
+            target_kind: "time-off",
+            target_program: request.program_name,
+            target_requester_id: request.user_id
+          })
+        ))
+      ]);
+
+      if (viewsResult.error || notificationsResult.error || savedShiftsResult.error || recipientResults.some((result) => result.error)) {
+        console.error("Member preview details could not be loaded", {
+          views: viewsResult.error,
+          notifications: notificationsResult.error,
+          savedShifts: savedShiftsResult.error,
+          recipients: recipientResults.filter((result) => result.error).map((result) => result.error)
+        });
+        previewDetailsAvailable = false;
+      } else {
+        requestViews = (viewsResult.data ?? []) as RequestView[];
+        notifications = (notificationsResult.data ?? []) as Notification[];
+        savedShifts = (savedShiftsResult.data ?? []) as SavedShift[];
+        reviewableTimeOffRequestIds = preliminaryData.timeOffRequests.flatMap((request, index) =>
+          recipientResults[index].data?.some((recipient) => recipient.user_id === member.id) ? [request.id] : []
+        );
+      }
+    } catch (error) {
+      console.error("Member preview details could not be loaded", error);
+      previewDetailsAvailable = false;
+    }
   }
 
-  const preliminaryData = createMemberPreviewData(data, member, [], []);
-  const admin = createSupabaseAdminClient();
-  const [viewsResult, notificationsResult, savedShiftsResult, recipientResults] = await Promise.all([
-    admin.from("request_views").select("reviewer_id,request_kind,request_id,viewed_at").eq("reviewer_id", member.id),
-    admin.from("notifications").select("*").or(`user_id.eq.${member.id},role.eq.${member.role},role.eq.all`),
-    admin.from("saved_shifts").select("*").eq("user_id", member.id),
-    Promise.all(preliminaryData.timeOffRequests.map((request) =>
-      admin.rpc("request_review_recipients", {
-        target_kind: "time-off",
-        target_program: request.program_name,
-        target_requester_id: request.user_id
-      })
-    ))
-  ]);
-  if (viewsResult.error) throw viewsResult.error;
-  if (notificationsResult.error) throw notificationsResult.error;
-  if (savedShiftsResult.error) throw savedShiftsResult.error;
-  const reviewableTimeOffRequestIds = preliminaryData.timeOffRequests.flatMap((request, index) => {
-    const result = recipientResults[index];
-    if (result.error) throw result.error;
-    return result.data?.some((recipient) => recipient.user_id === member.id) ? [request.id] : [];
-  });
   const previewData = createMemberPreviewData(
     data,
     member,
-    (viewsResult.data ?? []) as RequestView[],
+    requestViews,
     reviewableTimeOffRequestIds,
-    (notificationsResult.data ?? []) as Notification[],
-    (savedShiftsResult.data ?? []) as SavedShift[]
+    notifications,
+    savedShifts
   );
   const memberIsSuperAdmin = hasSuperAdminAccess(previewData);
   const screen = previewScreen(member.role, memberIsSuperAdmin, params.screen);
@@ -137,6 +156,12 @@ export default async function ViewAsPage({
           </Link>
         ))}
       </nav>
+
+      {!previewDetailsAvailable ? (
+        <p role="status" className="mx-auto mt-4 max-w-[96rem] px-4 text-sm text-harbor-ocean sm:px-6 lg:px-8">
+          Some personal notifications and request details are temporarily unavailable in this preview.
+        </p>
+      ) : null}
 
       <div inert className="pointer-events-none select-none" aria-label="Read-only member dashboard preview">
         {screen === "employee" ? (
