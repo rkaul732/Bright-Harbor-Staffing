@@ -320,6 +320,62 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
   };
 }
 
+/** Build a member's dashboard from data already loaded for a verified Super Admin. */
+export function createMemberPreviewData(
+  data: DashboardData,
+  member: AppUser,
+  requestViews: RequestView[],
+  reviewableTimeOffRequestIds: string[],
+  notifications: Notification[] = [],
+  savedShifts: SavedShift[] = []
+): DashboardData {
+  const memberPrograms = data.workerProfiles.find((profile) => profile.user_id === member.id)?.program_names ?? [];
+  const scopedNotifications = notifications.filter((item) =>
+    item.user_id === member.id || (item.user_id === null && (item.role === member.role || item.role === "all"))
+  );
+  const memberCollections: DashboardCollections = {
+    ...data,
+    currentUser: member,
+    adminProfiles: member.role === "admin"
+      ? data.adminProfiles
+      : data.adminProfiles.filter((profile) => profile.user_id === member.id),
+    shifts: member.role === "employee"
+      ? data.shifts.filter((shift) => memberPrograms.includes(shift.program_name))
+      : data.shifts,
+    requests: member.role === "employee"
+      ? data.requests.filter((request) => request.requestor_id === member.id)
+      : data.requests,
+    timeOffRequests: member.role === "supervisor"
+      ? data.timeOffRequests.filter((request) =>
+          request.user_id === member.id ||
+          data.users.find((user) => user.id === request.user_id)?.role === "employee"
+        )
+      : data.timeOffRequests,
+    messages: member.role === "employee"
+      ? data.messages.filter((message) => message.sender_id === member.id || message.recipient_id === member.id)
+      : data.messages,
+    savedShifts: savedShifts.filter((shift) => shift.user_id === member.id),
+    notifications: scopedNotifications,
+    requestViews,
+    reviewableTimeOffRequestIds
+  };
+  const scopedData = scopeDashboardDataForCurrentUser({
+    ...memberCollections
+  });
+
+  return {
+    ...scopedData,
+    isDemo: data.isDemo,
+    analytics: calculateAnalytics(
+      scopedData.shifts,
+      scopedData.requests,
+      scopedData.timeOffRequests,
+      scopedData.workerProfiles,
+      scopedData.supervisorProfiles
+    )
+  };
+}
+
 export async function getMonthlyWinners() {
   if (!isSupabaseConfigured()) {
     return getDemoDashboardData("employee").monthlyWinners;

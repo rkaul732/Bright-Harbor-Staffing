@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, LogOut } from "lucide-react";
+import { ChevronDown, LogOut, UsersRound } from "lucide-react";
 import { cn } from "@/shared/lib/cn";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
+import { ViewAsMemberPicker, type PreviewMember } from "@/features/admin/components/ViewAsMemberPicker";
 
 function getInitials(name: string) {
   const initials = name
@@ -35,6 +36,7 @@ export function ProfileMenu({
   canAccessAutomatedMessages = false,
   canManageAccountTypes = false,
   canEditProfile = false,
+  viewAsMembers = [],
   onProfileClick
 }: {
   fullName: string;
@@ -44,10 +46,12 @@ export function ProfileMenu({
   canAccessAutomatedMessages?: boolean;
   canManageAccountTypes?: boolean;
   canEditProfile?: boolean;
+  viewAsMembers?: PreviewMember[];
   onProfileClick?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [employeesOpen, setEmployeesOpen] = useState(false);
+  const [viewAsOpen, setViewAsOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -66,6 +70,7 @@ export function ProfileMenu({
 
       setOpen(false);
       setEmployeesOpen(false);
+      setViewAsOpen(false);
       router.push("/");
       router.refresh();
     } finally {
@@ -103,7 +108,7 @@ export function ProfileMenu({
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 top-12 z-[120] w-64 rounded-lg border border-harbor-ocean/10 bg-white p-2 shadow-soft"
+          className="absolute right-0 top-12 z-[120] w-72 rounded-lg border border-harbor-ocean/10 bg-white p-2 shadow-soft sm:w-80"
         >
           <div className="border-b border-harbor-ocean/10 px-3 pb-3 pt-2">
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-harbor-midnight text-xs font-medium tracking-normal text-white">
@@ -196,6 +201,27 @@ export function ProfileMenu({
                   </Link>
                 ) : null}
               </>
+            ) : null}
+            {canManageAccountTypes && viewAsMembers.length ? (
+              <div>
+                <button
+                  type="button"
+                  className={cn(menuItemClass(pathname.startsWith("/view-as")), "flex items-center justify-between")}
+                  onClick={() => setViewAsOpen((current) => !current)}
+                  aria-expanded={viewAsOpen}
+                >
+                  <span className="flex items-center gap-2"><UsersRound className="h-4 w-4" aria-hidden="true" />View site as</span>
+                  <ChevronDown className={cn("h-3.5 w-3.5 transition", viewAsOpen && "rotate-180")} aria-hidden="true" />
+                </button>
+                {viewAsOpen ? (
+                  <div className="mt-2 border-t border-harbor-ocean/10 px-1 pt-3">
+                    <ViewAsMemberPicker members={viewAsMembers} compact />
+                    <Link href="/view-as" className="mt-2 block px-3 text-xs font-semibold text-harbor-ocean hover:underline" onClick={() => setOpen(false)}>
+                      Open full member list
+                    </Link>
+                  </div>
+                ) : null}
+              </div>
             ) : null}
             <Link
               href="/monthly-winners"

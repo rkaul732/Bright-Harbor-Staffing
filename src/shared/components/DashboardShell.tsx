@@ -16,6 +16,12 @@ export function DashboardShell({
 }) {
   const canAccessReviewTools = hasAdminAccess(data) || hasSupervisorAccess(data);
   const canManageAccountTypes = hasSuperAdminAccess(data);
+  const viewAsMembers = canManageAccountTypes
+    ? data.users
+        .filter((member) => member.id !== data.currentUser.id)
+        .map(({ id, full_name, email, role }) => ({ id, full_name, email, role }))
+        .sort((first, second) => first.full_name.localeCompare(second.full_name))
+    : [];
   const roleNotifications = data.notifications.filter(
     (notification) =>
       notification.user_id === data.currentUser.id ||
@@ -32,6 +38,7 @@ export function DashboardShell({
           canAccessEmployees={canAccessReviewTools}
           canAccessAutomatedMessages={canManageAccountTypes}
           canManageAccountTypes={canManageAccountTypes}
+          viewAsMembers={viewAsMembers}
           canEditProfile={role === "employee" && Boolean(onProfileClick)}
           onProfileClick={onProfileClick}
         />

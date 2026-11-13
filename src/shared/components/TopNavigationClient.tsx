@@ -48,7 +48,7 @@ export function TopNavigationClient({
             Staffing<br />Portal
           </span>
         </Link>
-        {showViewSwitcher ? (
+        {showViewSwitcher && !pathname.startsWith("/view-as") ? (
           <div className="grid w-full max-w-[17rem] shrink-0 grid-cols-2 rounded-xl border border-harbor-ocean/10 bg-harbor-mist p-1 shadow-line sm:w-[17rem]">
             {viewLinks.map((link) => {
               const active = activeView === link.key;
