@@ -571,11 +571,12 @@ async function sendReviewerSubmissionNotifications({
 
     const displayProgramName = getProgramLabel(programName);
     const subject = `${user.full_name} submitted a ${requestKind} request for ${displayProgramName}`;
-    const bodyHtml = `<p>Hello,</p><p><strong>${escapeEmailHtml(user.full_name)}</strong> submitted a ${escapeEmailHtml(requestKind)} request on ${escapeEmailHtml(new Intl.DateTimeFormat("en-US", {
+    const requestDetailsHtml = `<p>Hello,</p><p><strong>${escapeEmailHtml(user.full_name)}</strong> submitted a ${escapeEmailHtml(requestKind)} request on ${escapeEmailHtml(new Intl.DateTimeFormat("en-US", {
       year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
       timeZone: "America/New_York", timeZoneName: "short"
-    }).format(new Date(submittedAt)))}.</p><p><strong>Request Summary</strong><br>${renderRequestSummaryHtml(requestSummary)}</p><p><a href="${appBaseUrl()}${recipients[0].role === "admin" ? "/admin" : "/supervisor"}" style="color:#346990;font-weight:700;">Review the request in the staffing portal</a></p>`;
+    }).format(new Date(submittedAt)))}.</p><p><strong>Request Summary</strong><br>${renderRequestSummaryHtml(requestSummary)}</p>`;
     const results = await Promise.all(recipients.map(async (recipient) => {
+      const bodyHtml = `${requestDetailsHtml}<p><a href="${appBaseUrl()}${recipient.role === "admin" ? "/admin" : "/supervisor"}" style="color:#346990;font-weight:700;">Review the request in the staffing portal</a></p>`;
       const sent = await sendSubmissionEmail({
         to: recipient.email,
         subject,
