@@ -6,8 +6,7 @@ import { PROGRAMS, getProfileProgramNames, getProgramLabel } from "@/shared/lib/
 import { formatShortDate } from "@/shared/lib/dates";
 import { hasSuperAdminAccess } from "@/shared/lib/access";
 import { EmployeeAccountInviteForm } from "@/features/employees/components/EmployeeAccountInviteForm";
-import { EmployeeProfileApprovalControls } from "@/features/employees/components/EmployeeProfileApprovalControls";
-import { ProfileModerationControls } from "@/features/admin/components/ProfileModerationControls";
+import { ProgramChangeApprovalControls } from "@/features/employees/components/EmployeeProfileApprovalControls";
 import { ProgramAssignmentControls } from "@/features/employees/components/ProgramAssignmentControls";
 import type { AdminProfile, AppUser, DashboardData, ProgramName, SupervisorProfile, WorkerProfile } from "@/shared/types/domain";
 
@@ -92,8 +91,14 @@ export function AdminEmployeesDashboard({ data }: { data: DashboardData }) {
     ? PROGRAMS
     : (currentAdminProfile?.program_names ?? currentSupervisorProfile?.program_names ?? []);
   const canEditPrograms = !isSupervisorView;
-  const approvedProfiles = employees.filter((employee) => employee.profile?.status === "approved");
-  const pendingProfiles = employees.filter((employee) => employee.profile?.status === "pending");
+  const activeProfiles = employees.filter((employee) => employee.profile?.status !== "suspended" && employee.profile);
+  const pendingProgramChanges = employees.filter((employee) =>
+    employee.user.role === "employee"
+      ? employee.workerProfile?.status === "pending"
+      : employee.user.role === "supervisor"
+        ? employee.supervisorProfile?.requested_program_names != null
+        : employee.adminProfile?.requested_program_names != null
+  );
   const missingProfiles = employees.filter((employee) => !employee.profile);
 
   return (
@@ -109,8 +114,8 @@ export function AdminEmployeesDashboard({ data }: { data: DashboardData }) {
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-harbor-midnight/62">
               {isSupervisorView
-                ? "Supervisors can see and approve employee profiles in their assigned programs."
-                : "Super admins can see and review every staff account type. Program admin approvals are limited to their assigned programs."}
+                ? "Supervisors can review employee program changes in their assigned programs."
+                : "Accounts stay active while program changes are reviewed. Super admins can review admin and supervisor program changes."}
             </p>
           </div>
           <span className="pill w-fit">{employees.length} staff accounts</span>
@@ -118,8 +123,8 @@ export function AdminEmployeesDashboard({ data }: { data: DashboardData }) {
 
         <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <EmployeeMetric label="Staff accounts" value={employees.length} />
-          <EmployeeMetric label="Approved profiles" value={approvedProfiles.length} />
-          <EmployeeMetric label="Pending profiles" value={pendingProfiles.length} />
+          <EmployeeMetric label="Active profiles" value={activeProfiles.length} />
+          <EmployeeMetric label="Program changes to review" value={pendingProgramChanges.length} />
           <EmployeeMetric label="Profiles needed" value={missingProfiles.length} />
         </div>
       </section>
@@ -249,9 +254,17 @@ function EmployeeRow({
   canManageReviewers: boolean;
   allowedProgramNames: ProgramName[];
 }) {
-  const { user, profile, workerProfile, adminProfile } = employee;
+  const { user, profile, workerProfile, supervisorProfile, adminProfile } = employee;
   const reviewerProfile = user.role === "admin" || user.role === "supervisor";
   const canEditThisPrograms = canEditPrograms && !adminProfile?.is_super_admin;
+  const pendingProgramChange = user.role === "employee"
+    ? workerProfile?.status === "pending"
+    : user.role === "supervisor"
+      ? supervisorProfile?.requested_program_names != null
+      : adminProfile?.requested_program_names != null;
+  const requestedReviewerPrograms = user.role === "supervisor"
+    ? supervisorProfile?.requested_program_names
+    : adminProfile?.requested_program_names;
 
   return (
     <tr className="align-top transition hover:bg-harbor-mist/45">
@@ -269,6 +282,12 @@ function EmployeeRow({
       </td>
       <td className="max-w-[26rem] border-b border-harbor-ocean/10 px-3 py-2.5 text-xs leading-5 text-harbor-midnight/70">
         {programText(employee)}
+        {workerProfile?.status === "pending" ? (
+          <p className="mt-1 text-orange-800">Approved for time off: {listText(workerProfile.approved_program_names.map(getProgramLabel))}</p>
+        ) : null}
+        {requestedReviewerPrograms ? (
+          <p className="mt-1 text-orange-800">Requested: {listText(requestedReviewerPrograms.map(getProgramLabel))}</p>
+        ) : null}
         {canEditThisPrograms ? (
           <ProgramAssignmentControls
             userId={user.id}
@@ -286,7 +305,9 @@ function EmployeeRow({
         {formatLastLogin(user.last_sign_in_at ?? profile?.last_sign_in_at)}
       </td>
       <td className="border-b border-harbor-ocean/10 px-3 py-2.5">
-        {profile ? (
+        {pendingProgramChange ? (
+          <span className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-800">Program change pending</span>
+        ) : profile ? (
           <StatusBadge value={profile.status} />
         ) : (
           <span className="rounded-full border border-harbor-ocean/10 bg-harbor-mist px-2 py-0.5 text-xs font-medium text-harbor-ocean">
@@ -295,33 +316,9 @@ function EmployeeRow({
         )}
       </td>
       <td className="border-b border-harbor-ocean/10 px-3 py-2.5">
-        {reviewerProfile ? (
-          canManageReviewers && profile && profile.status === "pending" ? (
-            <details className="min-w-[17rem] rounded-md border border-harbor-ocean/10 bg-harbor-mist/35 px-2 py-1.5">
-              <summary className="cursor-pointer text-xs font-semibold text-harbor-ocean">Review access</summary>
-              <ProfileModerationControls
-                profileId={profile.id}
-                profileRole={user.role}
-                adminProgramNames={programNamesForRecord(employee)}
-                adminIsSuperAdmin={adminProfile?.is_super_admin}
-                approveLabel="Approve access"
-                suspendLabel="Deny access"
-              />
-            </details>
-          ) : (
-            <span className="text-xs text-harbor-midnight/45">
-              {profile
-                ? profile.status === "pending"
-                  ? "Super admin review"
-                  : profile.status === "suspended"
-                    ? "Access suspended"
-                    : "Approved"
-                : "Awaiting profile"}
-            </span>
-          )
-        ) : (
-          <EmployeeProfileApprovalControls profile={workerProfile} />
-        )}
+        {pendingProgramChange && profile && (!reviewerProfile || canManageReviewers) ? (
+          <ProgramChangeApprovalControls profileId={profile.id} profileRole={user.role} />
+        ) : <span className="text-xs text-harbor-midnight/45">{pendingProgramChange ? "Super admin review" : "No program change"}</span>}
       </td>
     </tr>
   );

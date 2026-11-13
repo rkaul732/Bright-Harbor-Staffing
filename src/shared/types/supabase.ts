@@ -108,11 +108,13 @@ type WorkerProfileRow = {
   status: ProfileStatus;
   program_name: ProgramName;
   program_names: ProgramName[];
+  approved_program_names: ProgramName[];
   availability: Json;
   skills: SkillName[];
   account_information: Json;
   photo_url: string | null;
   created_at: string;
+  updated_at: string;
   last_sign_in_at: string | null;
 };
 
@@ -121,10 +123,12 @@ type SupervisorProfileRow = {
   user_id: string;
   status: ProfileStatus;
   program_names: ProgramName[];
+  requested_program_names: ProgramName[] | null;
   location_name: string | null;
   front_desk_location_name: string | null;
   title: string | null;
   created_at: string;
+  updated_at: string;
   last_sign_in_at: string | null;
 };
 
@@ -133,8 +137,10 @@ type AdminProfileRow = {
   user_id: string;
   status: ProfileStatus;
   program_names: ProgramName[];
+  requested_program_names: ProgramName[] | null;
   is_super_admin: boolean;
   created_at: string;
+  updated_at: string;
   last_sign_in_at: string | null;
 };
 

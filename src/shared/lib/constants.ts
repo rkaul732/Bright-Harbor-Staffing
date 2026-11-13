@@ -266,7 +266,7 @@ export function getProfileProgramNames(profile?: {
   program_name?: ProgramName | null;
   program_names?: ProgramName[] | null;
 }) {
-  const names = profile?.program_names?.length
+  const names = Array.isArray(profile?.program_names)
     ? profile.program_names
     : profile?.program_name
       ? [profile.program_name]

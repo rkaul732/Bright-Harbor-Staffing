@@ -23,7 +23,7 @@ import {
 import { resendTimeOffDecisionEmailAction, updateRequestStatusAction, updateTimeOffRequestStatusAction } from "@/app/actions";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
 import { SubmitButton } from "@/shared/components/SubmitButton";
-import { ProfileModerationControls } from "@/features/admin/components/ProfileModerationControls";
+import { ProgramChangeApprovalControls } from "@/features/employees/components/EmployeeProfileApprovalControls";
 import { StaffAccountInviteForm } from "@/features/admin/components/StaffAccountInviteForm";
 import { formatLongDate, sortShifts } from "@/shared/lib/dates";
 import { CODE_RED_BLUE_PROGRAM, PROGRAMS, ROLE_LABELS, getProgramLabel, getRelatedProgramNames } from "@/shared/lib/constants";
@@ -44,7 +44,7 @@ import type {
 } from "@/shared/types/domain";
 
 function workerProgramNames(profile: WorkerProfile) {
-  return profile.program_names?.length ? profile.program_names : [profile.program_name];
+  return [...new Set([...profile.program_names, ...profile.approved_program_names])];
 }
 
 function requestViewKey(kind: "shift" | "time-off", id: string) {
@@ -536,7 +536,7 @@ function AdminDashboardHome({
               <AdminMiniMetric
                 label="Approved workers"
                 value={
-                  visibleData.workerProfiles.filter((profile) => profile.status === "approved").length
+                  visibleData.workerProfiles.filter((profile) => profile.status !== "suspended").length
                 }
               />
             </div>
@@ -997,7 +997,7 @@ function AdminAnalyticsInset({ data }: { data: DashboardData }) {
       </h2>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <MetricCard
-          label="Approved workers"
+          label="Active workers"
           value={data.analytics.approvedWorkers}
           icon={UsersRound}
         />
@@ -1030,11 +1030,11 @@ function AdminModeration({ data }: { data: DashboardData }) {
   const canManageAdminScopes = currentAdminProfile?.is_super_admin === true;
   const pendingWorkers = data.workerProfiles.filter((profile) => profile.status === "pending");
   const pendingSupervisors = canManageAdminScopes
-    ? data.supervisorProfiles.filter((profile) => profile.status === "pending")
+    ? data.supervisorProfiles.filter((profile) => profile.requested_program_names != null)
     : [];
   const adminProfilesForReview = canManageAdminScopes
     ? data.adminProfiles.filter(
-        (profile) => profile.user_id !== data.currentUser.id
+        (profile) => profile.user_id !== data.currentUser.id && profile.requested_program_names != null
       )
     : [];
   const pendingProfiles: ProfileModerationItem[] = [
@@ -1051,7 +1051,7 @@ function AdminModeration({ data }: { data: DashboardData }) {
         <div>
           <p className="label">Profile moderation</p>
           <h2 className="mt-1 text-lg font-medium text-harbor-midnight">
-            Profile reviews and access
+            Program changes to review
           </h2>
         </div>
         <span className="rounded-full bg-harbor-mist px-2.5 py-1 text-xs font-medium text-harbor-ocean">
@@ -1119,19 +1119,15 @@ function AdminProfileReviewCard({
             {user?.email ?? "No email on file"}
           </span>
         </div>
-        <StatusBadge value={profile.status} />
+        <span className="text-xs font-semibold text-orange-800">Program change pending</span>
       </summary>
 
       <div className="mt-4 space-y-3 border-t border-harbor-ocean/10 pt-4">
         <ProfileDetail label="Role" value="Admin" />
-        <ProfileDetail label="Access" value={scopeLabel} />
+        <ProfileDetail label="Current programs" value={scopeLabel} />
+        <ProfileDetail label="Requested programs" value={(profile.requested_program_names ?? []).map(getProgramLabel).join(", ") || "None"} />
         <ProfileDetail label="Submitted" value={formatLongDate(profile.created_at.slice(0, 10))} />
-        <ProfileModerationControls
-          profileId={profile.id}
-          profileRole="admin"
-          adminProgramNames={profile.program_names}
-          adminIsSuperAdmin={profile.is_super_admin}
-        />
+        <ProgramChangeApprovalControls profileId={profile.id} profileRole="admin" />
       </div>
     </details>
   );
@@ -1144,7 +1140,7 @@ function WorkerProfileReviewCard({
   profile: WorkerProfile;
   user?: DashboardData["users"][number];
 }) {
-  const programs = profile.program_names?.length ? profile.program_names : [profile.program_name];
+  const programs = profile.program_names;
   const preferredContact = profile.account_information?.preferredContact || "Not provided";
 
   return (
@@ -1174,14 +1170,15 @@ function WorkerProfileReviewCard({
             </span>
           </span>
         </div>
-        <StatusBadge value={profile.status} />
+        <span className="text-xs font-semibold text-orange-800">Program change pending</span>
       </summary>
 
       <div className="mt-4 space-y-3 border-t border-harbor-ocean/10 pt-4">
         <ProfileDetail label="Role" value="Employee" />
         <ProfileDetail label="Phone" value={user?.phone || "Not provided"} />
         <ProfileDetail label="Preferred contact" value={preferredContact} />
-        <ProfileDetail label="Programs" value={programs.join(", ")} />
+        <ProfileDetail label="Requested programs" value={programs.map(getProgramLabel).join(", ") || "None"} />
+        <ProfileDetail label="Approved for time off" value={profile.approved_program_names.map(getProgramLabel).join(", ") || "None"} />
         <ProfileDetail
           label="Regular work schedule"
           value={profile.availability.length > 0 ? profile.availability.join(", ") : "Not provided"}
@@ -1191,7 +1188,7 @@ function WorkerProfileReviewCard({
           value={profile.skills.length > 0 ? profile.skills.join(", ") : "Not provided"}
         />
         <ProfileDetail label="Submitted" value={formatLongDate(profile.created_at.slice(0, 10))} />
-        <ProfileModerationControls profileId={profile.id} profileRole="employee" />
+        <ProgramChangeApprovalControls profileId={profile.id} profileRole="employee" />
       </div>
     </details>
   );
@@ -1215,7 +1212,7 @@ function SupervisorProfileReviewCard({
             {user?.email ?? "No email on file"}
           </span>
         </div>
-        <StatusBadge value={profile.status} />
+        <span className="text-xs font-semibold text-orange-800">Program change pending</span>
       </summary>
 
       <div className="mt-4 space-y-3 border-t border-harbor-ocean/10 pt-4">
@@ -1223,24 +1220,21 @@ function SupervisorProfileReviewCard({
         <ProfileDetail label="Phone" value={user?.phone || "Not provided"} />
         <ProfileDetail label="Title" value={profile.title || "Not provided"} />
         <ProfileDetail
-          label="Assigned programs"
+          label="Current programs"
           value={
             profile.program_names.length > 0
               ? [...new Set(profile.program_names.map(getProgramLabel))].join(", ")
               : "No programs assigned"
           }
         />
+        <ProfileDetail label="Requested programs" value={(profile.requested_program_names ?? []).map(getProgramLabel).join(", ") || "None"} />
         <ProfileDetail
           label="Program location profile"
           value={profile.front_desk_location_name || "Not provided"}
         />
         <ProfileDetail label="Location" value={profile.location_name || "Not provided"} />
         <ProfileDetail label="Submitted" value={formatLongDate(profile.created_at.slice(0, 10))} />
-        <ProfileModerationControls
-          profileId={profile.id}
-          profileRole="supervisor"
-          adminProgramNames={profile.program_names}
-        />
+        <ProgramChangeApprovalControls profileId={profile.id} profileRole="supervisor" />
       </div>
     </details>
   );

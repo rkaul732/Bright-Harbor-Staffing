@@ -22,6 +22,12 @@ export function TimeOffRequestForm({
 }) {
   const [state, formAction] = useActionState(submitTimeOffRequestAction, initialState);
 
+  if (programNames.length === 0) {
+    return <p className="rounded-lg border border-harbor-ocean/15 bg-harbor-mist p-4 text-sm text-harbor-midnight/75">
+      Your account is ready to use. You can request time off once your first program assignment is approved.
+    </p>;
+  }
+
   return (
     <form action={formAction} className="space-y-4">
       <label className="block">

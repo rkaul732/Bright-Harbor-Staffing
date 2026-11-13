@@ -41,7 +41,7 @@ function calculateAnalytics(
     pendingTimeOffRequests: timeOffRequests.filter(
       (request) => request.status === "pending_supervisor_approval"
     ).length,
-    approvedWorkers: workerProfiles.filter((profile) => profile.status === "approved")
+    approvedWorkers: workerProfiles.filter((profile) => profile.status !== "suspended")
       .length,
     activeSupervisors: supervisorProfiles.filter(
       (profile) => profile.status === "approved"
@@ -55,7 +55,7 @@ function calculateAnalytics(
 type DashboardCollections = Omit<DashboardData, "analytics" | "isDemo">;
 
 function workerProgramNames(profile: WorkerProfile) {
-  return profile.program_names?.length ? profile.program_names : [profile.program_name];
+  return [...new Set([...profile.program_names, ...profile.approved_program_names])];
 }
 
 function supervisorProgramNames(profile?: SupervisorProfile) {
@@ -234,17 +234,27 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
   }
 
   const users = allUsers.filter((appUser) => !appUser.deleted_at);
-  const workerProfiles = (workerProfilesResult.data ?? []) as WorkerProfile[];
+  const workerProfiles = ((workerProfilesResult.data ?? []) as WorkerProfile[]).map((profile) => ({
+    ...profile,
+    program_names: normalizeAssignedProgramNames(Array.isArray(profile.program_names) ? profile.program_names : []),
+    approved_program_names: normalizeAssignedProgramNames(Array.isArray(profile.approved_program_names) ? profile.approved_program_names : [])
+  }));
   const supervisorProfiles = ((supervisorProfilesResult.data ?? []) as SupervisorProfile[]).map(
     (profile) => ({
       ...profile,
-      program_names: normalizeAssignedProgramNames(Array.isArray(profile.program_names) ? profile.program_names : [])
+      program_names: normalizeAssignedProgramNames(Array.isArray(profile.program_names) ? profile.program_names : []),
+      requested_program_names: Array.isArray(profile.requested_program_names)
+        ? normalizeAssignedProgramNames(profile.requested_program_names)
+        : null
     })
   );
   const adminProfiles = ((adminProfilesResult.data ?? []) as AdminProfile[]).map(
     (profile) => ({
       ...profile,
       program_names: normalizeAssignedProgramNames(Array.isArray(profile.program_names) ? profile.program_names : []),
+      requested_program_names: Array.isArray(profile.requested_program_names)
+        ? normalizeAssignedProgramNames(profile.requested_program_names)
+        : null,
       is_super_admin: profile.is_super_admin === true
     })
   );

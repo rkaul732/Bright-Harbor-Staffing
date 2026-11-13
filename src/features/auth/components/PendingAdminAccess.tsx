@@ -24,12 +24,12 @@ export function PendingAdminAccess({ suspended = false }: { suspended?: boolean 
         </div>
         <p className="label mt-7">Admin account setup</p>
         <h1 className="mt-2 text-3xl font-semibold text-harbor-midnight">
-          {suspended ? "Admin access is unavailable" : "Access is awaiting approval"}
+          {suspended ? "Admin access is unavailable" : "Admin account needs setup"}
         </h1>
         <p className="mt-4 max-w-xl text-sm leading-7 text-harbor-midnight/70">
           {suspended
             ? "Your admin access is currently suspended. Contact a super admin if you believe this needs review."
-            : "Your account and division choices have been submitted. A super admin must approve your program access before you can use the admin dashboard."}
+            : "Your admin profile could not be found. Contact a super admin to assign your account type and programs."}
         </p>
         <button type="button" onClick={signOut} className="secondary-button mt-7">
           <LogOut className="h-4 w-4" aria-hidden="true" /> Sign out

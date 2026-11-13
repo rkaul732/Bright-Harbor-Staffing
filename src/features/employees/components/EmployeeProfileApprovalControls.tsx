@@ -1,63 +1,52 @@
 "use client";
 
 import { useActionState } from "react";
-import { moderateProfileAction } from "@/app/actions";
+import { reviewProgramChangeAction } from "@/app/actions";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
 import { SubmitButton } from "@/shared/components/SubmitButton";
-import type { WorkerProfile } from "@/shared/types/domain";
+import type { AppRole } from "@/shared/types/domain";
 
 const initialState = { ok: false, message: "" };
 
-export function EmployeeProfileApprovalControls({
-  profile
-}: {
-  profile?: WorkerProfile;
+export function ProgramChangeApprovalControls({ profileId, profileRole }: {
+  profileId: string;
+  profileRole: AppRole;
 }) {
   const [approveState, approveAction] = useActionState(
-    moderateProfileAction,
+    reviewProgramChangeAction,
     initialState
   );
-  const [suspendState, suspendAction] = useActionState(
-    moderateProfileAction,
+  const [rejectState, rejectAction] = useActionState(
+    reviewProgramChangeAction,
     initialState
   );
-
-  if (!profile) {
-    return (
-      <span className="text-xs text-harbor-midnight/45">
-        Awaiting profile
-      </span>
-    );
-  }
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-1.5">
         <form action={approveAction}>
-          <input type="hidden" name="profile_id" value={profile.id} />
-          <input type="hidden" name="profile_role" value="employee" />
-          <input type="hidden" name="status" value="approved" />
+          <input type="hidden" name="profile_id" value={profileId} />
+          <input type="hidden" name="profile_role" value={profileRole} />
+          <input type="hidden" name="decision" value="approve" />
           <SubmitButton
             className="min-h-0 px-2 py-1 text-xs"
-            disabled={profile.status === "approved"}
           >
-            Yes
+            Approve programs
           </SubmitButton>
         </form>
-        <form action={suspendAction}>
-          <input type="hidden" name="profile_id" value={profile.id} />
-          <input type="hidden" name="profile_role" value="employee" />
-          <input type="hidden" name="status" value="suspended" />
+        <form action={rejectAction}>
+          <input type="hidden" name="profile_id" value={profileId} />
+          <input type="hidden" name="profile_role" value={profileRole} />
+          <input type="hidden" name="decision" value="reject" />
           <SubmitButton
             variant="secondary"
             className="min-h-0 px-2 py-1 text-xs"
-            disabled={profile.status === "suspended"}
           >
-            No
+            Reject change
           </SubmitButton>
         </form>
       </div>
-      <ActionFeedback state={approveState.message ? approveState : suspendState} />
+      <ActionFeedback state={approveState.message ? approveState : rejectState} />
     </div>
   );
 }

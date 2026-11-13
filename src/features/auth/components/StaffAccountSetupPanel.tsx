@@ -146,10 +146,10 @@ export function StaffAccountSetupPanel() {
         </h1>
         <p className="mt-2 text-sm leading-6 text-harbor-midnight/70">
           {accessPreapproved
-            ? "Your listed programs are preapproved. Confirm them to activate access after changing your password. New programs require review."
+            ? "Your assigned programs are ready after setup. Changes to this list are reviewed before they affect time off access."
             : role === "admin"
-              ? "Choose the divisions you oversee. A super admin will review your access after setup."
-              : "Select every program you work in and confirm your information below. After you submit, administrators will be notified for profile review."}
+              ? "Choose the divisions you oversee. Your invited access is ready after setup; a super admin reviews changes to your program list."
+              : "Select every program you work in. Your account is ready after setup, and new programs need approval before you can request time off for them."}
         </p>
       </div>
 

@@ -83,6 +83,9 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
     (workerProfile) => workerProfile.user_id === data.currentUser.id
   );
   const selectedProgramNames = getProfileProgramNames(profile);
+  const approvedTimeOffProgramNames = profile?.approved_program_names ?? selectedProgramNames;
+  const calendarProgramNames = [...new Set([...selectedProgramNames, ...approvedTimeOffProgramNames])];
+  const pendingProgramChange = profile?.status === "pending";
   const programLabel = selectedProgramNames.length
     ? selectedProgramNames.join(", ")
     : "No programs selected";
@@ -111,11 +114,7 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
   );
   const priorityAvailableShifts = getPriorityAvailableShifts(availableShifts);
   const myTimeOffRequests = [...data.timeOffRequests]
-    .filter(
-      (request) =>
-        request.user_id === data.currentUser.id &&
-        isInSelectedPrograms(request.program_name, selectedProgramNames)
-    )
+    .filter((request) => request.user_id === data.currentUser.id)
     .sort((first, second) => first.start_date.localeCompare(second.start_date));
   const visibleAdSlots = data.adSlots.filter((ad) =>
     isInSelectedPrograms(ad.program_name, selectedProgramNames)
@@ -207,7 +206,7 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
 
       <EmployeeRequestOverview
         requests={myTimeOffRequests}
-        programLabel={programLabel}
+        programLabel={approvedTimeOffProgramNames.length ? approvedTimeOffProgramNames.join(", ") : "awaiting program approval"}
         onRequestTimeOff={() => setActiveModal("time-off")}
       />
 
@@ -217,7 +216,7 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
         <div className="min-w-0">
           <MyCalendarBoard
             events={myCalendarEvents}
-            programNames={selectedProgramNames}
+            programNames={calendarProgramNames}
             availableShifts={canExchangeShifts ? availableShifts : []}
             showShiftTools={canExchangeShifts}
             onRequestTimeOff={() => setActiveModal("time-off")}
@@ -261,7 +260,7 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
         open={activeModal === "time-off"}
         onClose={() => setActiveModal(null)}
       >
-        <TimeOffRequestForm programNames={selectedProgramNames} />
+        <TimeOffRequestForm programNames={approvedTimeOffProgramNames} />
       </EmployeeWidgetModal>
 
       <EmployeeWidgetModal
@@ -271,9 +270,12 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
         onClose={() => setActiveModal(null)}
       >
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <StatusBadge value={profile?.status ?? "pending_supervisor_approval"} />
-          <p className="text-sm text-harbor-midnight/60">Programs: {programLabel}</p>
+          {pendingProgramChange ? <span className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-800">Program change pending</span> : null}
+          <p className="text-sm text-harbor-midnight/60">Selected programs: {programLabel}</p>
         </div>
+        {pendingProgramChange ? (
+          <p className="mb-4 text-sm text-harbor-midnight/70">You can keep using your account. Time off requests use your approved programs until the change is reviewed.</p>
+        ) : null}
         <WorkerProfileForm data={data} />
       </EmployeeWidgetModal>
     </DashboardShell>

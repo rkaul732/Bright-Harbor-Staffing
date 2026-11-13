@@ -16,8 +16,7 @@ export function hasSupervisorAccess(data: DashboardData) {
     data.supervisorProfiles.some(
       (profile) =>
         profile.user_id === data.currentUser.id &&
-        profile.status === "approved" &&
-        profile.program_names.length > 0
+        profile.status === "approved"
     )
   );
 }

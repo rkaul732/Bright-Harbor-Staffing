@@ -132,8 +132,13 @@ export function SupervisorProfileForm({ data }: { data?: DashboardData }) {
 
   return (
     <form action={formAction} className="space-y-4">
+      {profile?.requested_program_names ? (
+        <p className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900">
+          Your program change is pending. Your current program access remains active while it is reviewed.
+        </p>
+      ) : null}
       <ProgramScopePicker
-        defaultSelectedProgramNames={profile?.program_names ?? []}
+        defaultSelectedProgramNames={profile?.requested_program_names ?? profile?.program_names ?? []}
         legend="Assigned programs"
         compact
       />

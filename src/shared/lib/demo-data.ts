@@ -92,6 +92,7 @@ const workerProfiles: WorkerProfile[] = [
     status: "approved",
     program_name: "Beacon/ Anchor",
     program_names: ["Beacon/ Anchor", "Bayside", CODE_RED_BLUE_PROGRAM],
+    approved_program_names: ["Beacon/ Anchor", "Bayside", CODE_RED_BLUE_PROGRAM],
     availability: ["Weeknights", "Saturday mornings"],
     skills: ["Direct care", "Driving"],
     account_information: { preferredContact: "Text" },
@@ -104,6 +105,7 @@ const workerProfiles: WorkerProfile[] = [
     status: "pending",
     program_name: "Outpatient Services",
     program_names: ["Outpatient Services"],
+    approved_program_names: [],
     availability: ["Weekends"],
     skills: ["Case management", "Wraparound service coordination"],
     account_information: { preferredContact: "Email" },
@@ -526,7 +528,7 @@ function getAnalytics(): AnalyticsSummary {
     pendingTimeOffRequests: timeOffRequests.filter(
       (request) => request.status === "pending_supervisor_approval"
     ).length,
-    approvedWorkers: workerProfiles.filter((profile) => profile.status === "approved")
+    approvedWorkers: workerProfiles.filter((profile) => profile.status !== "suspended")
       .length,
     activeSupervisors: supervisorProfiles.filter(
       (profile) => profile.status === "approved"

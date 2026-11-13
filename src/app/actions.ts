@@ -36,7 +36,6 @@ import type {
   AppRole,
   LocationName,
   ProgramName,
-  ProfileStatus,
   RequestStatus,
   ShiftPost,
   SkillName
@@ -150,7 +149,7 @@ async function notifyAdminsInApp({
   await adminClient.from("notifications").insert({
     user_id: null,
     role: "admin",
-    title: "Staff profile ready for review",
+    title: "Program change ready for review",
     body:
       staffName +
       " (" +
@@ -237,11 +236,27 @@ async function getWorkerProgramsForAction(userId: string) {
 
   const programNames = data?.program_names as ProgramName[] | null | undefined;
 
-  if (programNames?.length) {
+  if (Array.isArray(programNames)) {
     return normalizeAssignedProgramNames(programNames);
   }
 
   return data?.program_name ? normalizeAssignedProgramNames([data.program_name]) : [];
+}
+
+async function getWorkerApprovedProgramsForAction(userId: string) {
+  if (!isSupabaseConfigured()) {
+    return ["Beacon/ Anchor", "Bayside"] satisfies ProgramName[];
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("worker_profiles")
+    .select("approved_program_names")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return normalizeProgramNames(data?.approved_program_names);
 }
 
 type ActionUser = Awaited<ReturnType<typeof getUserForAction>>;
@@ -263,6 +278,10 @@ function normalizeProgramNames(value: unknown) {
         typeof programName === "string"
       ))
     : [];
+}
+
+function sameProgramSet(first: ProgramName[], second: ProgramName[]) {
+  return first.length === second.length && first.every((programName) => second.includes(programName));
 }
 
 async function getAdminScopeForAction(userId: string): Promise<AdminScope> {
@@ -838,7 +857,7 @@ export async function updateWorkerProfileAction(
   const supabase = await createSupabaseServerClient();
   const { data: existingProfile, error: existingProfileError } = await supabase
     .from("worker_profiles")
-    .select("account_information")
+    .select("account_information,program_names,approved_program_names")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -847,6 +866,9 @@ export async function updateWorkerProfileAction(
   }
 
   const storedInformation = existingProfile?.account_information;
+  const approvedPrograms = normalizeProgramNames(existingProfile?.approved_program_names);
+  const requestedProgramsChanged = !sameProgramSet(programNames, normalizeProgramNames(existingProfile?.program_names));
+  const needsProgramApproval = !sameProgramSet(programNames, approvedPrograms);
   const accountInformation =
     storedInformation && typeof storedInformation === "object" && !Array.isArray(storedInformation)
       ? storedInformation
@@ -893,7 +915,6 @@ export async function updateWorkerProfileAction(
   const { error } = await supabase.from("worker_profiles").upsert(
     {
       user_id: user.id,
-      status: "pending",
       program_name: programNames[0],
       program_names: programNames,
       availability,
@@ -908,15 +929,19 @@ export async function updateWorkerProfileAction(
     return { ok: false, message: error.message };
   }
 
-  await notifyAdminsInApp({
-    staffName: fullName,
-    staffEmail: user.email,
-    role: "employee",
-    message: "updated employee profile information for review."
-  });
+  if (needsProgramApproval && requestedProgramsChanged) {
+    await notifyAdminsInApp({
+      staffName: fullName,
+      staffEmail: user.email,
+      role: "employee",
+      message: "requested a change to their assigned programs."
+    });
+  }
 
   revalidateDashboards();
-  return { ok: true, message: "Employee profile submitted for approval." };
+  return { ok: true, message: needsProgramApproval
+    ? "Profile saved. Program changes need approval before they affect time off requests."
+    : "Profile saved." };
 }
 
 export async function createStaffAccountAction(
@@ -1035,9 +1060,10 @@ export async function createStaffAccountAction(
     const { error: workerProfileError } = await adminClient.from("worker_profiles").upsert(
       {
         user_id: invitedUser.id,
-        status: "pending",
+        status: "approved",
         program_name: programNames[0],
         program_names: programNames,
+        approved_program_names: programNames,
         account_information: {
           invitedBy: currentUser.id,
           setupRequired: "true"
@@ -1053,7 +1079,7 @@ export async function createStaffAccountAction(
     const { error: supervisorProfileError } = await adminClient.from("supervisor_profiles").upsert(
       {
         user_id: invitedUser.id,
-        status: "pending",
+        status: "approved",
         program_names: programNames
       },
       { onConflict: "user_id" }
@@ -1066,8 +1092,8 @@ export async function createStaffAccountAction(
     const { error: adminProfileError } = await adminClient.from("admin_profiles").upsert(
       {
         user_id: invitedUser.id,
-        status: "pending",
-        program_names: [],
+        status: "approved",
+        program_names: programNames,
         is_super_admin: false
       },
       { onConflict: "user_id" }
@@ -1081,7 +1107,7 @@ export async function createStaffAccountAction(
       const { error: supervisorProfileError } = await adminClient.from("supervisor_profiles").upsert(
         {
           user_id: invitedUser.id,
-          status: "pending",
+          status: "approved",
           program_names: programNames
         },
         { onConflict: "user_id" }
@@ -1182,7 +1208,8 @@ export async function updateAccountTypeAction(
         user_id: parsed.data.user_id,
         status: "approved",
         program_name: primaryProgram,
-        program_names: programNames
+        program_names: programNames,
+        approved_program_names: programNames
       },
       { onConflict: "user_id" }
     );
@@ -1424,7 +1451,7 @@ export async function updateStaffProgramsAction(
   if (targetRole === "supervisor") {
     const { data: updated, error } = await adminClient
       .from("supervisor_profiles")
-      .update({ program_names: programNames })
+      .update({ program_names: programNames, requested_program_names: null })
       .eq("user_id", parsed.data.user_id)
       .select("id")
       .maybeSingle();
@@ -1440,7 +1467,7 @@ export async function updateStaffProgramsAction(
   if (targetRole === "admin") {
     const { data: updated, error } = await adminClient
       .from("admin_profiles")
-      .update({ program_names: programNames })
+      .update({ program_names: programNames, requested_program_names: null })
       .eq("user_id", parsed.data.user_id)
       .select("id")
       .maybeSingle();
@@ -1458,7 +1485,7 @@ export async function updateStaffProgramsAction(
     if (supervisorProfile && supervisorProfile.status !== "suspended") {
       const { error: supervisorError } = await adminClient
         .from("supervisor_profiles")
-        .update({ program_names: programNames })
+        .update({ program_names: programNames, requested_program_names: null })
         .eq("id", supervisorProfile.id);
       if (supervisorError) {
         return { ok: false, message: supervisorError.message };
@@ -1500,7 +1527,9 @@ export async function updateStaffProgramsAction(
     {
       user_id: parsed.data.user_id,
       program_name: primaryProgram,
-      program_names: updatedProgramNames
+      program_names: updatedProgramNames,
+      approved_program_names: updatedProgramNames,
+      status: "approved"
     },
     { onConflict: "user_id" }
   );
@@ -1608,15 +1637,29 @@ export async function completeStaffSetupAction(
   }
 
   const adminClient = createSupabaseAdminClient();
-  const preapprovedBy = z.string().uuid().safeParse(authData.user.app_metadata?.staffing_preapproved_by);
   const preapprovedAdminPrograms = normalizeProgramNames(authData.user.app_metadata?.staffing_preapproved_admin_programs);
   const preapprovedSupervisorPrograms = normalizeProgramNames(authData.user.app_metadata?.staffing_preapproved_supervisor_programs);
   if ((preapprovedAdminPrograms.length > 0 || preapprovedSupervisorPrograms.length > 0) &&
       !authData.user.app_metadata?.staffing_setup_password_changed_at) {
     return { ok: false, message: "Change your temporary password before activating preapproved access." };
   }
-  let reviewerAccessApproved = false;
-  let dualSupervisorAccessApproved = false;
+  let programChangePending = false;
+
+  const { data: existingUser, error: existingUserError } = await adminClient
+    .from("users")
+    .select("id,role")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (existingUserError) return { ok: false, message: existingUserError.message };
+  if (!existingUser) {
+    const { error: createUserError } = await adminClient.from("users").insert({
+      id: user.id,
+      email: user.email,
+      full_name: fullName,
+      role: "employee"
+    });
+    if (createUserError) return { ok: false, message: createUserError.message };
+  }
 
   if (role === "admin") {
     const { data: adminProfile, error: adminProfileError } = await adminClient
@@ -1629,21 +1672,18 @@ export async function completeStaffSetupAction(
       return { ok: false, message: "Your admin invitation is not awaiting setup." };
     }
 
-    const approvedPrograms = preapprovedAdminPrograms.length > 0
-      ? preapprovedAdminPrograms
-      : adminProfile.status === "approved"
-        ? normalizeProgramNames(adminProfile.program_names)
-        : [];
-    reviewerAccessApproved = approvedPrograms.length > 0 && programNames.every((programName) => approvedPrograms.includes(programName));
+    const activePrograms = normalizeProgramNames(adminProfile.program_names).length
+      ? normalizeProgramNames(adminProfile.program_names)
+      : preapprovedAdminPrograms;
+    const adminProgramChangePending = !sameProgramSet(programNames, activePrograms);
+    programChangePending = adminProgramChangePending;
 
     const { error } = await adminClient
       .from("admin_profiles")
       .update({
-        program_names: programNames,
-        is_super_admin: false,
-        status: "pending",
-        approved_by: null,
-        approved_at: null
+        status: "approved",
+        program_names: activePrograms,
+        requested_program_names: adminProgramChangePending ? programNames : null
       })
       .eq("id", adminProfile.id);
 
@@ -1660,20 +1700,17 @@ export async function completeStaffSetupAction(
       return { ok: false, message: supervisorProfileError.message };
     }
     if (supervisorProfile && supervisorProfile.status !== "suspended") {
-      const approvedSupervisorPrograms = preapprovedSupervisorPrograms.length > 0
-        ? preapprovedSupervisorPrograms
-        : supervisorProfile.status === "approved"
-          ? normalizeProgramNames(supervisorProfile.program_names)
-          : [];
-      dualSupervisorAccessApproved = reviewerAccessApproved && approvedSupervisorPrograms.length > 0 &&
-        programNames.every((programName) => approvedSupervisorPrograms.includes(programName));
+      const activeSupervisorPrograms = normalizeProgramNames(supervisorProfile.program_names).length
+        ? normalizeProgramNames(supervisorProfile.program_names)
+        : preapprovedSupervisorPrograms;
+      const supervisorProgramChangePending = !sameProgramSet(programNames, activeSupervisorPrograms);
+      programChangePending ||= supervisorProgramChangePending;
       const { error: supervisorError } = await adminClient
         .from("supervisor_profiles")
         .update({
-          program_names: programNames,
-          status: "pending",
-          approved_by: null,
-          approved_at: null
+          status: "approved",
+          program_names: activeSupervisorPrograms,
+          requested_program_names: supervisorProgramChangePending ? programNames : null
         })
         .eq("id", supervisorProfile.id);
       if (supervisorError) {
@@ -1702,7 +1739,6 @@ export async function completeStaffSetupAction(
     const { error } = await supabase.from("worker_profiles").upsert(
       {
         user_id: user.id,
-        status: "pending",
         program_name: programNames[0],
         program_names: programNames,
         availability,
@@ -1718,34 +1754,32 @@ export async function completeStaffSetupAction(
     if (error) {
       return { ok: false, message: error.message };
     }
+    const { data: savedProfile } = await supabase.from("worker_profiles")
+      .select("status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    programChangePending = savedProfile?.status === "pending";
   } else if (role === "supervisor") {
     const { data: supervisorProfile, error: profileError } = await adminClient
       .from("supervisor_profiles")
-      .select("status,program_names")
+      .select("id,status,program_names")
       .eq("user_id", user.id)
       .maybeSingle();
-    if (profileError || supervisorProfile?.status === "suspended") {
+    if (profileError || !supervisorProfile || supervisorProfile.status === "suspended") {
       return { ok: false, message: profileError?.message ?? "Supervisor access is unavailable." };
     }
-    const approvedPrograms = preapprovedSupervisorPrograms.length > 0
-      ? preapprovedSupervisorPrograms
-      : supervisorProfile?.status === "approved"
-        ? normalizeProgramNames(supervisorProfile.program_names)
-        : [];
-    reviewerAccessApproved = approvedPrograms.length > 0 && programNames.every((programName) => approvedPrograms.includes(programName));
-    const { error } = await adminClient.from("supervisor_profiles").upsert(
-      {
-        user_id: user.id,
-        status: "pending",
-        program_names: programNames,
+    const activePrograms = normalizeProgramNames(supervisorProfile.program_names).length
+      ? normalizeProgramNames(supervisorProfile.program_names)
+      : preapprovedSupervisorPrograms;
+    programChangePending = !sameProgramSet(programNames, activePrograms);
+    const { error } = await adminClient.from("supervisor_profiles").update({
+        status: "approved",
+        program_names: activePrograms,
+        requested_program_names: programChangePending ? programNames : null,
         location_name: asString(formData.get("location_name")) || null,
         front_desk_location_name: asString(formData.get("front_desk_location_name")) || null,
-        title: asString(formData.get("title")) || null,
-        approved_by: null,
-        approved_at: null
-      },
-      { onConflict: "user_id" }
-    );
+        title: asString(formData.get("title")) || null
+      }).eq("id", supervisorProfile.id);
 
     if (error) {
       return { ok: false, message: error.message };
@@ -1763,50 +1797,21 @@ export async function completeStaffSetupAction(
     return { ok: false, message: authError.message };
   }
 
-  if (reviewerAccessApproved) {
-    const { error: approvalError } = await adminClient
-      .from(role === "admin" ? "admin_profiles" : "supervisor_profiles")
-      .update({
-        status: "approved",
-        approved_by: preapprovedBy.data ?? null,
-        approved_at: new Date().toISOString()
-      })
-      .eq("user_id", user.id);
-    if (approvalError) {
-      return { ok: false, message: "Account setup is complete, but reviewer access could not be activated: " + approvalError.message };
-    }
-    if (dualSupervisorAccessApproved) {
-      const { error: supervisorApprovalError } = await adminClient
-        .from("supervisor_profiles")
-        .update({
-          status: "approved",
-          approved_by: preapprovedBy.data ?? null,
-          approved_at: new Date().toISOString()
-        })
-        .eq("user_id", user.id);
-      if (supervisorApprovalError) {
-        return { ok: false, message: "Account setup is complete, but supervisor access could not be activated: " + supervisorApprovalError.message };
-      }
-    }
-  }
-
-  if (!reviewerAccessApproved) {
+  if (programChangePending) {
     await notifyAdminsInApp({
       staffName: fullName,
       staffEmail: user.email,
       role,
-      message: "completed account setup and submitted profile information for review."
+      message: "completed account setup and requested a program change."
     });
   }
 
   revalidateDashboards();
   return {
     ok: true,
-    message: reviewerAccessApproved
-      ? "Account setup complete. Your approved program access is ready."
-      : role === "admin"
-        ? "Account setup complete. A super admin will review your access."
-        : "Account setup complete. Administrators have been notified.",
+    message: programChangePending
+      ? "Account setup complete. Your account is ready; time off access for new programs begins after approval."
+      : "Account setup complete. Your program access is ready.",
     redirectTo: ROLE_DASHBOARD_PATHS[role]
   };
 }
@@ -1815,6 +1820,9 @@ export async function updateSupervisorProfileAction(
   formData: FormData
 ): Promise<ActionState> {
   const user = await getUserForAction("supervisor");
+  if (user.role !== "supervisor") {
+    return { ok: false, message: "Only supervisors can edit this profile." };
+  }
   const programNames = asPrograms(formData);
   const parsed = z
     .object({
@@ -1845,29 +1853,44 @@ export async function updateSupervisorProfileAction(
   }
 
   const adminClient = createSupabaseAdminClient();
-  const { error } = await adminClient.from("supervisor_profiles").upsert(
-    {
-      user_id: user.id,
-      status: "pending",
-      program_names: programNames,
-      ...parsed.data
-    },
-    { onConflict: "user_id" }
+  const { data: existingProfile, error: lookupError } = await adminClient
+    .from("supervisor_profiles")
+    .select("id,status,program_names,requested_program_names")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (lookupError || !existingProfile || existingProfile.status === "suspended") {
+    return { ok: false, message: lookupError?.message ?? "Supervisor profile is unavailable." };
+  }
+
+  const needsProgramApproval = !sameProgramSet(programNames, normalizeProgramNames(existingProfile.program_names));
+  const requestedProgramsChanged = !sameProgramSet(
+    programNames,
+    normalizeProgramNames(existingProfile.requested_program_names ?? existingProfile.program_names)
   );
+  const { error } = await adminClient.from("supervisor_profiles")
+    .update({
+      requested_program_names: needsProgramApproval ? programNames : null,
+      ...parsed.data
+    })
+    .eq("id", existingProfile.id);
 
   if (error) {
     return { ok: false, message: error.message };
   }
 
-  await notifyAdminsInApp({
-    staffName: user.full_name,
-    staffEmail: user.email,
-    role: "supervisor",
-    message: "updated supervisor profile information for review."
-  });
+  if (needsProgramApproval && requestedProgramsChanged) {
+    await notifyAdminsInApp({
+      staffName: user.full_name,
+      staffEmail: user.email,
+      role: "supervisor",
+      message: "requested a change to their assigned programs."
+    });
+  }
 
   revalidateDashboards();
-  return { ok: true, message: "Supervisor profile submitted for approval." };
+  return { ok: true, message: needsProgramApproval
+    ? "Profile saved. Your current program access stays active while the change is reviewed."
+    : "Supervisor profile saved." };
 }
 
 export async function supervisorPostShiftAction(
@@ -2207,7 +2230,7 @@ export async function submitTimeOffRequestAction(
     ? (await getSupervisorScopeForAction(user.id)).programNames
     : user.role === "admin"
       ? (await getAdminScopeForAction(user.id)).programNames
-      : await getWorkerProgramsForAction(user.id);
+      : await getWorkerApprovedProgramsForAction(user.id);
   const canRequestAnyProgram = user.role === "admin" &&
     (await getAdminScopeForAction(user.id)).isSuperAdmin;
 
@@ -2233,11 +2256,11 @@ export async function submitTimeOffRequestAction(
   }
 
   if (programNames.length === 0 && !canRequestAnyProgram) {
-    return { ok: false, message: "Select your assigned program before requesting time off." };
+    return { ok: false, message: "A program assignment must be approved before you can request time off for it." };
   }
 
   if (!canRequestAnyProgram && !programNames.includes(parsed.data.program_name)) {
-    return { ok: false, message: "Choose one of your selected programs." };
+    return { ok: false, message: "Choose a program approved for your time off requests." };
   }
 
   if (!isSupabaseConfigured()) {
@@ -2805,160 +2828,96 @@ export async function saveAutomatedMessageTemplateAction(
   return { ok: true, message: "Automated message saved." };
 }
 
-export async function moderateProfileAction(
+export async function reviewProgramChangeAction(
   _previousState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  const role = asString(formData.get("profile_role")) as AppRole;
+  const profileRole = asString(formData.get("profile_role")) as AppRole;
   const profileId = asString(formData.get("profile_id"));
-  const status = asString(formData.get("status")) as ProfileStatus;
-  const user = await getUserForAction();
+  const decision = asString(formData.get("decision"));
+  const reviewer = await getUserForAction();
 
-  if (!["approved", "suspended", "pending"].includes(status) || !profileId) {
-    return { ok: false, message: "Choose a valid profile status." };
+  if (!profileId || !["employee", "supervisor", "admin"].includes(profileRole) ||
+      !["approve", "reject"].includes(decision)) {
+    return { ok: false, message: "Choose a valid program change." };
   }
 
-  if (!["supervisor", "admin"].includes(user.role)) {
-    return { ok: false, message: "Only supervisors and admins can moderate profiles." };
+  if (profileRole === "employee") {
+    if (reviewer.role !== "admin" && reviewer.role !== "supervisor") {
+      return { ok: false, message: "Only assigned reviewers can review employee programs." };
+    }
+  } else if (!(await isSuperAdminForAction(reviewer))) {
+    return { ok: false, message: "Only super admins can review admin or supervisor programs." };
   }
 
   if (!isSupabaseConfigured()) {
-    return { ok: true, message: `Demo mode: profile marked ${status}.` };
+    return { ok: true, message: `Demo mode: program change ${decision === "approve" ? "approved" : "rejected"}.` };
+  }
+  if (!hasSupabaseServiceRoleKey()) {
+    return { ok: false, message: "Program review is unavailable until the server access key is configured." };
   }
 
-  const supabase = await createSupabaseServerClient();
-
-  if ((role === "admin" || role === "supervisor") && !(await isSuperAdminForAction(user))) {
-    return {
-      ok: false,
-      message: role === "admin"
-        ? "Only super admins can manage admin access."
-        : "Only super admins can moderate supervisor profiles."
-    };
-  }
-
-  if (status === "approved" && (role === "admin" || role === "supervisor")) {
-    if (!hasSupabaseServiceRoleKey()) {
-      return { ok: false, message: "Account setup verification is unavailable until the service role key is configured." };
-    }
-
-    const table = role === "admin" ? "admin_profiles" : "supervisor_profiles";
-    const { data: targetProfile, error: targetProfileError } = await supabase
-      .from(table)
-      .select("user_id")
+  const adminClient = createSupabaseAdminClient();
+  if (profileRole === "employee") {
+    const { data: profile, error: lookupError } = await adminClient.from("worker_profiles")
+      .select("id,status,program_names,approved_program_names,updated_at")
       .eq("id", profileId)
       .maybeSingle();
-
-    if (targetProfileError || !targetProfile) {
-      return { ok: false, message: "Reviewer profile not found." };
+    if (lookupError || !profile) {
+      return { ok: false, message: lookupError?.message ?? "Employee profile not found." };
     }
-
-    const { data: authResult, error: authLookupError } = await createSupabaseAdminClient().auth.admin.getUserById(targetProfile.user_id);
-    if (authLookupError || !authResult.user) {
-      return { ok: false, message: "Could not verify the staff member's account setup." };
+    const requested = normalizeProgramNames(profile.program_names);
+    const approved = normalizeProgramNames(profile.approved_program_names);
+    if (profile.status !== "pending" || sameProgramSet(requested, approved)) {
+      return { ok: false, message: "There is no pending program change for this employee." };
     }
+    const scopeError = await scopedProgramAccessError(
+      reviewer,
+      [...new Set([...requested, ...approved])],
+      "review these program changes"
+    );
+    if (scopeError) return scopeError;
 
-    if (authResult.user.user_metadata?.setup_required && !authResult.user.user_metadata?.setup_completed_at) {
-      return { ok: false, message: "This staff member must finish account setup before reviewer access can be approved." };
+    const { data: saved, error } = await adminClient.from("worker_profiles")
+      .update(decision === "approve"
+        ? { approved_program_names: requested, status: "approved", approved_by: reviewer.id, approved_at: new Date().toISOString() }
+        : { program_names: approved, program_name: approved[0] ?? "Unassigned", status: "approved" })
+      .eq("id", profileId)
+      .eq("updated_at", profile.updated_at)
+      .select("id")
+      .maybeSingle();
+    if (error || !saved) {
+      return { ok: false, message: error?.message ?? "This program change was updated. Refresh and try again." };
     }
-  }
-
-  if (role === "admin") {
-    const adminProgramNames = asPrograms(formData);
-    const isSuperAdmin = formData.get("is_super_admin") === "on";
-
-    if (status === "approved" && !isSuperAdmin && adminProgramNames.length === 0) {
-      return {
-        ok: false,
-        message: "Choose at least one program for this admin or mark them as a super admin."
-      };
+  } else {
+    const table = profileRole === "admin" ? "admin_profiles" : "supervisor_profiles";
+    const { data: profile, error: lookupError } = await adminClient.from(table)
+      .select("id,status,program_names,requested_program_names,updated_at")
+      .eq("id", profileId)
+      .maybeSingle();
+    if (lookupError || !profile) {
+      return { ok: false, message: lookupError?.message ?? "Reviewer profile not found." };
     }
-
-    const { error } = await supabase
-      .from("admin_profiles")
-      .update({
-        status,
-        program_names: adminProgramNames,
-        is_super_admin: isSuperAdmin
-      })
-      .eq("id", profileId);
-
-    if (error) {
-      return { ok: false, message: error.message };
+    if (!profile.requested_program_names || profile.status === "suspended") {
+      return { ok: false, message: "There is no pending program change for this reviewer." };
     }
-
-    revalidateDashboards();
-    return { ok: true, message: "Admin access updated." };
-  }
-
-  if (role === "supervisor") {
-    const supervisorProgramNames = asPrograms(formData);
-
-    if (status === "approved" && supervisorProgramNames.length === 0) {
-      return { ok: false, message: "Choose at least one program for this supervisor." };
+    const requested = normalizeProgramNames(profile.requested_program_names);
+    if (requested.length === 0) {
+      return { ok: false, message: "Choose at least one program before approving this change." };
     }
-
-    const { error } = await supabase
-      .from("supervisor_profiles")
-      .update({ status, program_names: supervisorProgramNames })
-      .eq("id", profileId);
-
-    if (error) {
-      return { ok: false, message: error.message };
+    const { data: saved, error } = await adminClient.from(table)
+      .update(decision === "approve"
+        ? { program_names: requested, requested_program_names: null, status: "approved" }
+        : { requested_program_names: null, status: "approved" })
+      .eq("id", profileId)
+      .eq("updated_at", profile.updated_at)
+      .select("id")
+      .maybeSingle();
+    if (error || !saved) {
+      return { ok: false, message: error?.message ?? "This program change was updated. Refresh and try again." };
     }
-
-    revalidateDashboards();
-    return { ok: true, message: `Profile marked ${status}.` };
-  }
-
-  const { data: profile } = await supabase
-    .from("worker_profiles")
-    .select("program_name,program_names")
-    .eq("id", profileId)
-    .single();
-
-  if (!profile) {
-    return { ok: false, message: "Employee profile not found." };
-  }
-
-  const profilePrograms = normalizeProgramNames(profile.program_names).length
-    ? normalizeProgramNames(profile.program_names)
-    : profile.program_name
-      ? [profile.program_name as ProgramName]
-      : [];
-  const scopeError = await scopedProgramAccessError(
-    user,
-    profilePrograms,
-    "moderate employee profiles"
-  );
-
-  if (scopeError) {
-    return scopeError;
-  }
-
-  const profileClient =
-    user.role === "supervisor"
-      ? hasSupabaseServiceRoleKey()
-        ? createSupabaseAdminClient()
-        : null
-      : supabase;
-
-  if (!profileClient) {
-    return {
-      ok: false,
-      message: "Add SUPABASE_SERVICE_ROLE_KEY in Netlify so supervisors can approve employee profiles."
-    };
-  }
-
-  const { error } = await profileClient
-    .from("worker_profiles")
-    .update({ status })
-    .eq("id", profileId);
-
-  if (error) {
-    return { ok: false, message: error.message };
   }
 
   revalidateDashboards();
-  return { ok: true, message: `Profile marked ${status}.` };
+  return { ok: true, message: `Program change ${decision === "approve" ? "approved" : "rejected"}.` };
 }
