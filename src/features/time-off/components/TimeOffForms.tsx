@@ -8,6 +8,8 @@ import {
   updateTimeOffRequestStatusAction
 } from "@/app/actions";
 import { getProgramLabel } from "@/shared/lib/constants";
+import { formatShortDate } from "@/shared/lib/dates";
+import { hasTeamTimeOffCoordination, overlappingTeamTimeOffDates, teamTimeOffSelectionKey, type TeamTimeOffDate } from "@/shared/lib/team-time-off";
 import { ProgramSelectOptions } from "@/shared/components/ProgramSelectOptions";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
 import { SubmitButton } from "@/shared/components/SubmitButton";
@@ -16,11 +18,28 @@ import type { AppRole, ProgramName, TimeOffRequest } from "@/shared/types/domain
 const initialState = { ok: false, message: "" };
 
 export function TimeOffRequestForm({
-  programNames
+  programNames,
+  teamTimeOffDates = [],
+  teamAvailabilityAvailable = true
 }: {
   programNames: ProgramName[];
+  teamTimeOffDates?: TeamTimeOffDate[];
+  teamAvailabilityAvailable?: boolean;
 }) {
-  const [state, formAction] = useActionState(submitTimeOffRequestAction, initialState);
+  const [state, formAction] = useActionState(
+    submitTimeOffRequestAction,
+    initialState as Awaited<ReturnType<typeof submitTimeOffRequestAction>>
+  );
+  const [programName, setProgramName] = useState<ProgramName | "">(programNames[0] ?? "");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [spokeWithSupervisor, setSpokeWithSupervisor] = useState(false);
+  const selectionKey = teamTimeOffSelectionKey(programName, startDate, endDate);
+  const calendarConflicts = overlappingTeamTimeOffDates(teamTimeOffDates, programName, startDate, endDate);
+  const newlyDetectedConflicts = state.conflictKey === selectionKey ? state.conflictDates ?? [] : [];
+  const conflictDates = [...new Set([...calendarConflicts, ...newlyDetectedConflicts])].sort();
+  const needsTeamCheck = hasTeamTimeOffCoordination(programName);
+  const visibleState = state.conflictKey && state.conflictKey !== selectionKey ? initialState : state;
 
   if (programNames.length === 0) {
     return <p className="rounded-lg border border-harbor-ocean/15 bg-harbor-mist p-4 text-sm text-harbor-midnight/75">
@@ -32,7 +51,16 @@ export function TimeOffRequestForm({
     <form action={formAction} className="space-y-4">
       <label className="block">
         <span className="label">Program</span>
-        <select name="program_name" className="field mt-1.5" required>
+        <select
+          name="program_name"
+          value={programName}
+          onChange={(event) => {
+            setProgramName(event.target.value as ProgramName);
+            setSpokeWithSupervisor(false);
+          }}
+          className="field mt-1.5"
+          required
+        >
           {programNames.map((program) => (
             <option key={program} value={program}>
               {getProgramLabel(program)}
@@ -43,13 +71,58 @@ export function TimeOffRequestForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="label">Start date</span>
-          <input name="start_date" type="date" className="field mt-1.5" required />
+          <input
+            name="start_date"
+            type="date"
+            value={startDate}
+            onChange={(event) => {
+              setStartDate(event.target.value);
+              setSpokeWithSupervisor(false);
+            }}
+            className="field mt-1.5"
+            required
+          />
         </label>
         <label className="block">
           <span className="label">End date</span>
-          <input name="end_date" type="date" className="field mt-1.5" required />
+          <input
+            name="end_date"
+            type="date"
+            value={endDate}
+            onChange={(event) => {
+              setEndDate(event.target.value);
+              setSpokeWithSupervisor(false);
+            }}
+            className="field mt-1.5"
+            required
+          />
         </label>
       </div>
+      {needsTeamCheck && !teamAvailabilityAvailable ? (
+        <p role="status" className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900">
+          Team availability could not load. Your dates will be checked again when you submit.
+        </p>
+      ) : null}
+      {needsTeamCheck && conflictDates.length > 0 ? (
+        <div role="alert" className="rounded-lg border border-orange-300 bg-orange-50 p-3 text-sm text-orange-950">
+          <p className="font-semibold">
+            A teammate is already approved off on {conflictDates.slice(0, 4).map(formatShortDate).join(", ")}
+            {conflictDates.length > 4 ? ` and ${conflictDates.length - 4} more date${conflictDates.length - 4 === 1 ? "" : "s"}` : ""}.
+          </p>
+          <p className="mt-1">Choose alternative dates above, or speak with your supervisor before submitting this request.</p>
+          <label className="mt-3 flex items-start gap-2 font-medium">
+            <input
+              type="checkbox"
+              name="supervisor_contact_confirmed"
+              checked={spokeWithSupervisor}
+              onChange={(event) => setSpokeWithSupervisor(event.target.checked)}
+              className="mt-1"
+              required
+            />
+            <span>I have spoken with my supervisor about these dates.</span>
+          </label>
+        </div>
+      ) : null}
       <label className="block">
         <span className="label">Reason</span>
         <textarea
@@ -63,7 +136,7 @@ export function TimeOffRequestForm({
         <CalendarPlus className="h-4 w-4" aria-hidden="true" />
         Submit time off request
       </SubmitButton>
-      <ActionFeedback state={state} />
+      <ActionFeedback state={visibleState} />
     </form>
   );
 }

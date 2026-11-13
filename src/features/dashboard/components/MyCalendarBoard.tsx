@@ -40,7 +40,7 @@ export type MyCalendarEvent = {
   date: string;
   endDate?: string;
   program_name: ProgramName;
-  kind: "scheduled_shift" | "posted_shift" | "pickup_request" | "time_off";
+  kind: "scheduled_shift" | "posted_shift" | "pickup_request" | "time_off" | "team_time_off";
   status?: RequestStatus;
   shift?: ShiftPost;
   note?: string | null;
@@ -67,6 +67,7 @@ function getKindLabel(kind: MyCalendarEvent["kind"]) {
   if (kind === "scheduled_shift") return "Picked up shift";
   if (kind === "posted_shift") return "Posted shift";
   if (kind === "pickup_request") return "Pickup request";
+  if (kind === "team_time_off") return "Team member off";
   return "Time off";
 }
 
@@ -111,7 +112,13 @@ export function MyCalendarBoard({
   const days = getMonthMatrix(monthDate);
 
   function getEventsForDate(iso: string) {
-    return calendarEvents.filter((event) => getEventDates(event).includes(iso));
+    return calendarEvents
+      .filter((event) => getEventDates(event).includes(iso))
+      .sort((first, second) => {
+        const priority = (event: MyCalendarEvent) =>
+          event.kind === "team_time_off" ? 0 : event.kind === "time_off" ? 1 : 2;
+        return priority(first) - priority(second);
+      });
   }
 
   function getOpenShiftsForDate(iso: string) {
@@ -246,10 +253,10 @@ export function MyCalendarBoard({
                           "block max-w-full truncate rounded-md px-2 py-1 text-[11px] text-harbor-midnight",
                           event.kind === "time_off"
                             ? "bg-harbor-lemon/75"
-                            : event.kind === "pickup_request"
-                              ? "bg-harbor-sky/20"
-                              : event.kind === "posted_shift"
-                                ? "bg-harbor-mist"
+                            : event.kind === "team_time_off"
+                              ? "bg-orange-100 text-orange-900"
+                              : event.kind === "pickup_request"
+                                ? "bg-harbor-sky/20"
                                 : "bg-harbor-mist"
                         )}
                       >
@@ -300,7 +307,10 @@ export function MyCalendarBoard({
               {dayEvents.map((event) => (
                 <article
                   key={event.id}
-                  className="rounded-lg border border-harbor-ocean/10 bg-white p-4 shadow-line"
+                  className={cn(
+                    "rounded-lg border p-4 shadow-line",
+                    event.kind === "team_time_off" ? "border-orange-200 bg-orange-50" : "border-harbor-ocean/10 bg-white"
+                  )}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>

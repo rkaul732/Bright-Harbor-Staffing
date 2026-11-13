@@ -12,6 +12,7 @@ import { hasAdminAccess, hasSuperAdminAccess, hasSupervisorAccess } from "@/shar
 import { createMemberPreviewData, getDashboardData } from "@/shared/lib/dashboard-data";
 import { createSupabaseAdminClient, hasSupabaseServiceRoleKey } from "@/shared/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
+import { getTeamTimeOffDatesForCalendar } from "@/shared/lib/team-time-off.server";
 import type { AppRole, Notification, RequestView, SavedShift } from "@/shared/types/domain";
 
 export const dynamic = "force-dynamic";
@@ -119,6 +120,12 @@ export default async function ViewAsPage({
   );
   const memberIsSuperAdmin = hasSuperAdminAccess(previewData);
   const screen = previewScreen(member.role, memberIsSuperAdmin, params.screen);
+  const previewTeamAvailability = screen === "employee" && member.role === "employee"
+    ? await getTeamTimeOffDatesForCalendar(
+        member.id,
+        data.workerProfiles.find((profile) => profile.user_id === member.id)?.approved_program_names ?? []
+      )
+    : { dates: [], available: true };
   const memberUrl = `/view-as?member=${encodeURIComponent(member.id)}`;
   const availableScreens: { key: PreviewScreen; label: string }[] = [
     ...(member.role === "admin" ? [{ key: "admin" as const, label: "Admin View" }] : []),
@@ -165,7 +172,7 @@ export default async function ViewAsPage({
 
       <div inert className="pointer-events-none select-none" aria-label="Read-only member dashboard preview">
         {screen === "employee" ? (
-          <EmployeeDashboard data={previewData} />
+          <EmployeeDashboard data={previewData} teamTimeOffDates={previewTeamAvailability.dates} teamAvailabilityAvailable={previewTeamAvailability.available} />
         ) : screen === "employees" ? (
           <AdminEmployeesDashboard data={previewData} />
         ) : screen === "reports" ? (

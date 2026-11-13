@@ -28,6 +28,7 @@ import {
   type MyCalendarEvent
 } from "@/features/dashboard/components/MyCalendarBoard";
 import { formatLongDate, parseLocalDate, sortShifts, todayEasternISO, todayISO } from "@/shared/lib/dates";
+import type { TeamTimeOffDate } from "@/shared/lib/team-time-off";
 import type {
   DashboardData,
   ProgramName,
@@ -77,7 +78,15 @@ function getPriorityAvailableShifts(shifts: ShiftPost[]) {
   return sortShifts([...priority.values()]).slice(0, 9);
 }
 
-export function EmployeeDashboard({ data }: { data: DashboardData }) {
+export function EmployeeDashboard({
+  data,
+  teamTimeOffDates = [],
+  teamAvailabilityAvailable = true
+}: {
+  data: DashboardData;
+  teamTimeOffDates?: TeamTimeOffDate[];
+  teamAvailabilityAvailable?: boolean;
+}) {
   const [activeModal, setActiveModal] = useState<EmployeeModalKey | null>(null);
   const profile = data.workerProfiles.find(
     (workerProfile) => workerProfile.user_id === data.currentUser.id
@@ -168,6 +177,14 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
       kind: "time_off" as const,
       status: request.status,
       note: request.reason
+    })),
+    ...teamTimeOffDates.map((item) => ({
+      id: `team-time-off-${item.program_name}-${item.date}`,
+      title: "Team member off",
+      date: item.date,
+      program_name: item.program_name,
+      kind: "team_time_off" as const,
+      note: "A teammate has approved time off. Choose other dates or speak with your supervisor before requesting this date."
     }))
   ];
 
@@ -260,7 +277,11 @@ export function EmployeeDashboard({ data }: { data: DashboardData }) {
         open={activeModal === "time-off"}
         onClose={() => setActiveModal(null)}
       >
-        <TimeOffRequestForm programNames={approvedTimeOffProgramNames} />
+        <TimeOffRequestForm
+          programNames={approvedTimeOffProgramNames}
+          teamTimeOffDates={teamTimeOffDates}
+          teamAvailabilityAvailable={teamAvailabilityAvailable}
+        />
       </EmployeeWidgetModal>
 
       <EmployeeWidgetModal

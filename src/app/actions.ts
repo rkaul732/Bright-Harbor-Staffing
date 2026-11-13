@@ -21,6 +21,8 @@ import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
 import { createSupabaseAdminClient, hasSupabaseServiceRoleKey } from "@/shared/lib/supabase/admin";
 import { getPasswordRequirementMessage, INVITED_ACCOUNT_TEMPORARY_PASSWORD } from "@/shared/lib/password";
 import { formatTimeRange, todayEasternISO } from "@/shared/lib/dates";
+import { hasTeamTimeOffCoordination, teamTimeOffSelectionKey } from "@/shared/lib/team-time-off";
+import { getApprovedTeamTimeOffOverlap } from "@/shared/lib/team-time-off.server";
 import { escapeEmailHtml, sendDecisionEmail, sendSubmissionEmail } from "@/shared/lib/decision-email";
 import {
   createCodeRedShift,
@@ -45,6 +47,8 @@ type ActionState = {
   ok: boolean;
   message: string;
   redirectTo?: string;
+  conflictDates?: string[];
+  conflictKey?: string;
 };
 
 const locationSchema = z.enum(LOCATIONS as [LocationName, ...LocationName[]]);
@@ -2266,6 +2270,30 @@ export async function submitTimeOffRequestAction(
 
   if (!isSupabaseConfigured()) {
     return { ok: true, message: "Demo mode: time off request submitted." };
+  }
+
+  if (hasTeamTimeOffCoordination(parsed.data.program_name)) {
+    let conflictDates: string[];
+    try {
+      conflictDates = await getApprovedTeamTimeOffOverlap(
+        user.id,
+        parsed.data.program_name,
+        parsed.data.start_date,
+        parsed.data.end_date
+      );
+    } catch (error) {
+      console.error("Could not check team time off availability", error);
+      return { ok: false, message: "Team availability could not be checked. Please try again shortly." };
+    }
+
+    if (conflictDates.length > 0 && !asBoolean(formData.get("supervisor_contact_confirmed"))) {
+      return {
+        ok: false,
+        message: "A teammate has approved time off on these dates. Choose different dates or speak with your supervisor before submitting.",
+        conflictDates,
+        conflictKey: teamTimeOffSelectionKey(parsed.data.program_name, parsed.data.start_date, parsed.data.end_date)
+      };
+    }
   }
 
   const supabase = await createSupabaseServerClient();
