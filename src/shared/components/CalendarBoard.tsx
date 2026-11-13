@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ListFilter } from "lucide-react";
-import { LOCATIONS } from "@/shared/lib/constants";
+import { getProgramLabel, LOCATIONS } from "@/shared/lib/constants";
 import {
   addMonths,
   formatLongDate,
@@ -39,17 +39,7 @@ function getTimeOffDates(request: TimeOffRequest) {
   return dates;
 }
 
-function getTimeOffStatusClass(status: TimeOffRequest["status"]) {
-  if (status === "approved") {
-    return "border-harbor-ocean/25 bg-harbor-mist text-harbor-ocean";
-  }
-
-  if (status === "declined" || status === "cancelled") {
-    return "border-harbor-midnight/20 bg-harbor-lemon/55 text-harbor-midnight";
-  }
-
-  return "border-harbor-sky/25 bg-harbor-sky/10 text-harbor-ocean";
-}
+const approvedTimeOffClass = "border-green-200 bg-green-50 text-green-800";
 
 function getShiftStaffingClass(shift: ShiftPost) {
   if (shift.status === "cancelled") {
@@ -109,11 +99,7 @@ export function CalendarBoard({
 
   const timeOffByDate = useMemo(() => {
     const byDate = new Map<string, TimeOffRequest[]>();
-    const visibleRequests = timeOffRequests.filter(
-      (request) =>
-        request.status === "approved" ||
-        request.status === "pending_supervisor_approval"
-    );
+    const visibleRequests = timeOffRequests.filter((request) => request.status === "approved");
 
     visibleRequests.forEach((request) => {
       getTimeOffDates(request).forEach((date) => {
@@ -136,6 +122,7 @@ export function CalendarBoard({
   }, [timeOffRequests]);
 
   const dayShifts = filteredShifts.filter((shift) => shift.shift_date === selectedDate);
+  const dayTimeOff = timeOffByDate.get(selectedDate) ?? [];
   const days = getMonthMatrix(monthDate);
 
   function getShiftsForDate(iso: string) {
@@ -234,6 +221,8 @@ export function CalendarBoard({
           {days.map((day) => {
             const allDateShifts = getShiftsForDate(day.iso);
             const dateShifts = allDateShifts.slice(0, compact ? 1 : 2);
+            const dateTimeOff = timeOffByDate.get(day.iso) ?? [];
+            const visibleTimeOff = dateTimeOff.slice(0, compact ? 1 : 2);
             const staffing = codeRedStaffing ? getCodeRedDayStaffing(allDateShifts, day.iso) : null;
             const staffingLabel = staffing === "unfilled" ? "Unstaffed"
               : staffing === "partial" ? "Partially staffed"
@@ -284,10 +273,25 @@ export function CalendarBoard({
                       {shift.title}
                     </span>
                   ))}
+                  {visibleTimeOff.map((request) => (
+                    <span
+                      key={`time-off-${request.id}`}
+                      title={`${request.employee_name} · ${getProgramLabel(request.program_name)} · Approved time off`}
+                      className={cn("block max-w-full truncate rounded-md border px-2 py-1 text-[11px]", approvedTimeOffClass)}
+                    >
+                      {request.employee_name} · Off
+                    </span>
+                  ))}
                   {dateShifts.length < allDateShifts.length ? (
                     <span className="flex items-center gap-1 text-[11px] font-medium text-harbor-ocean">
                       <ChevronDown className="h-3 w-3" aria-hidden="true" />
                       {allDateShifts.length - dateShifts.length} more
+                    </span>
+                  ) : null}
+                  {visibleTimeOff.length < dateTimeOff.length ? (
+                    <span className="flex items-center gap-1 text-[11px] font-medium text-green-800">
+                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                      {dateTimeOff.length - visibleTimeOff.length} more off
                     </span>
                   ) : null}
                 </div>
@@ -312,7 +316,10 @@ export function CalendarBoard({
               <button
                 key={day.iso}
                 type="button"
-                onClick={() => setSelectedDate(day.iso)}
+                onClick={() => {
+                  setSelectedDate(day.iso);
+                  setMode("day");
+                }}
                 className={cn(
                   "flex aspect-square min-h-0 min-w-0 flex-col items-start justify-start overflow-hidden bg-white text-left transition hover:bg-harbor-mist",
                   compact ? "p-1" : "p-1.5 sm:p-2",
@@ -328,10 +335,10 @@ export function CalendarBoard({
                       key={`${request.id}-${day.iso}`}
                       className={cn(
                         "block max-w-full truncate rounded-md border px-2 py-1 text-[11px]",
-                        getTimeOffStatusClass(request.status)
+                        approvedTimeOffClass
                       )}
                     >
-                      {request.employee_name}
+                      {request.employee_name} · Off
                     </span>
                   ))}
                   {visibleRequests.length < requests.length ? (
@@ -407,6 +414,24 @@ export function CalendarBoard({
               </p>
             </div>
           )}
+
+          {showByNameView ? (
+            <div className="mt-5 border-t border-harbor-ocean/10 pt-4">
+              <h3 className="text-sm font-semibold text-harbor-midnight">Approved time off</h3>
+              {dayTimeOff.length > 0 ? (
+                <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {dayTimeOff.map((request) => (
+                    <li key={request.id} className={cn("rounded-lg border px-3 py-2 text-sm", approvedTimeOffClass)}>
+                      <span className="block font-semibold">{request.employee_name}</span>
+                      <span className="block text-xs">{getProgramLabel(request.program_name)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-harbor-midnight/60">No approved time off for this day.</p>
+              )}
+            </div>
+          ) : null}
 
           <div className="mt-4 text-xs text-harbor-midnight/50">
             Showing {dayShifts.length} shift{dayShifts.length === 1 ? "" : "s"} for{" "}
