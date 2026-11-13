@@ -820,6 +820,8 @@ function AdminRequestsWorkspace({
                 const shift = item.type === "shift" ? shiftById.get(item.request.shift_id) : undefined;
                 const key = requestViewKey(item.type, item.request.id);
                 const pendingDecision = item.status === "pending_supervisor_approval";
+                const canReviseDecision = item.type === "time-off" &&
+                  (item.status === "approved" || item.status === "declined") && canReview(item);
                 return (
                   <tr key={key} className="align-top hover:bg-harbor-mist/40">
                     <td className="px-4 py-4 font-medium text-harbor-midnight">
@@ -838,8 +840,15 @@ function AdminRequestsWorkspace({
                       {pendingDecision && canReview(item) ? (
                         <RequestDecisionControls item={item} role={role} reviewComment={notesByRequest[key] ?? ""} />
                       ) : pendingDecision ? <span className="text-harbor-midnight/50">Assigned reviewer only</span>
-                      : item.type === "time-off" && canReview(item) && (item.status === "approved" || item.status === "declined") ? (
-                        <ResendTimeOffDecisionControl requestId={item.request.id} role={role} />
+                      : canReviseDecision && item.type === "time-off" ? (
+                        <div className="space-y-3">
+                          <RequestDecisionControls
+                            item={item}
+                            role={role}
+                            reviewComment={notesByRequest[key] ?? item.request.review_comment ?? ""}
+                          />
+                          <ResendTimeOffDecisionControl requestId={item.request.id} role={role} />
+                        </div>
                       ) : <span className="text-harbor-midnight/50">Reviewed</span>}
                       {activeTab === "new" && pendingDecision ? <button type="button" onClick={() => onMarkReviewed(item.type, item.request.id)} className="mt-2 block text-xs font-medium text-harbor-ocean underline">Keep pending</button> : null}
                     </td>
@@ -870,10 +879,12 @@ function AdminRequestsWorkspace({
               <p className="font-semibold text-harbor-midnight">Employee request</p>
               <p className="mt-1 whitespace-pre-wrap">{notesRequest.type === "shift" ? notesRequest.request.note || "No note included." : notesRequest.request.reason}</p>
             </div>
-            {notesRequest.status === "pending_supervisor_approval" && canReview(notesRequest) ? (
+            {(notesRequest.status === "pending_supervisor_approval" ||
+              (notesRequest.type === "time-off" && (notesRequest.status === "approved" || notesRequest.status === "declined"))) &&
+              canReview(notesRequest) ? (
               <label className="mt-5 block text-sm font-medium text-harbor-midnight">
                 Comment for employee
-                <textarea className="field mt-2 min-h-32" value={notesByRequest[requestViewKey(notesRequest.type, notesRequest.request.id)] ?? ""} onChange={(event) => setNotesByRequest((current) => ({ ...current, [requestViewKey(notesRequest.type, notesRequest.request.id)]: event.target.value }))} placeholder="Add the comment that will appear in the decision email." />
+                <textarea className="field mt-2 min-h-32" value={notesByRequest[requestViewKey(notesRequest.type, notesRequest.request.id)] ?? notesRequest.request.review_comment ?? ""} onChange={(event) => setNotesByRequest((current) => ({ ...current, [requestViewKey(notesRequest.type, notesRequest.request.id)]: event.target.value }))} placeholder="Add the comment that will appear in the decision email." />
               </label>
             ) : <div className="mt-5 text-sm text-harbor-midnight"><p className="font-semibold">Decision comment</p><p className="mt-2 whitespace-pre-wrap">{notesRequest.request.review_comment || "No comment was added."}</p></div>}
             <div className="mt-5 flex justify-end"><button type="button" onClick={() => setNotesRequest(null)} className="primary-button">Done</button></div>
@@ -937,6 +948,9 @@ function RequestDecisionControls({
   const [denyState, denyAction] = useActionState(action, { ok: false, message: "" });
   return (
     <div className="min-w-36">
+      {item.status !== "pending_supervisor_approval" ? (
+        <p className="mb-2 text-xs font-semibold text-harbor-ocean">Change decision</p>
+      ) : null}
       <div className="flex flex-wrap gap-1.5">
         <form action={approveAction}>
           <input type="hidden" name="request_id" value={item.request.id} />
@@ -944,7 +958,7 @@ function RequestDecisionControls({
           <input type="hidden" name="role" value={role} />
           <input type="hidden" name="status" value="approved" />
           <input type="hidden" name="review_comment" value={reviewComment} />
-          <SubmitButton className="!bg-green-700 !px-2.5 !py-1.5 !text-xs hover:!bg-green-800">Approve</SubmitButton>
+          <SubmitButton disabled={item.status === "approved"} className="!bg-green-700 !px-2.5 !py-1.5 !text-xs hover:!bg-green-800">Approve</SubmitButton>
         </form>
         <form action={denyAction}>
           <input type="hidden" name="request_id" value={item.request.id} />
@@ -952,7 +966,7 @@ function RequestDecisionControls({
           <input type="hidden" name="role" value={role} />
           <input type="hidden" name="status" value="declined" />
           <input type="hidden" name="review_comment" value={reviewComment} />
-          <SubmitButton className="!bg-red-700 !px-2.5 !py-1.5 !text-xs hover:!bg-red-800">Deny</SubmitButton>
+          <SubmitButton disabled={item.status === "declined"} className="!bg-red-700 !px-2.5 !py-1.5 !text-xs hover:!bg-red-800">Deny</SubmitButton>
         </form>
       </div>
       <ActionFeedback state={approveState.message ? approveState : denyState} />

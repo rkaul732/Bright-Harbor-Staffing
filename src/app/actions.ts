@@ -2367,7 +2367,7 @@ export async function updateTimeOffRequestStatusAction(
   const supabase = await createSupabaseServerClient();
   const { data: requestToReview } = await supabase
     .from("time_off_requests")
-    .select("id,user_id,employee_name,program_name,start_date,end_date,reason")
+    .select("id,user_id,employee_name,program_name,start_date,end_date,reason,status")
     .eq("id", requestId)
     .single();
 
@@ -2390,23 +2390,44 @@ export async function updateTimeOffRequestStatusAction(
     return { ok: false, message: "Only the reviewer assigned to this request can decide it." };
   }
 
+  const revisingDecision = requestToReview.status !== "pending_supervisor_approval";
+  if (revisingDecision) {
+    if (requestToReview.status !== "approved" && requestToReview.status !== "declined") {
+      return { ok: false, message: "This request cannot be revised." };
+    }
+    if (status === "cancelled") {
+      return { ok: false, message: "A completed decision can only be changed to approved or denied." };
+    }
+    if (status === requestToReview.status) {
+      return { ok: false, message: "This request already has that decision." };
+    }
+    const { data: reviewableIds, error: reviewableError } = await supabase.rpc(
+      "current_reviewable_time_off_request_ids"
+    );
+    if (reviewableError || !reviewableIds?.includes(requestId)) {
+      return { ok: false, message: "You are not assigned to revise this completed request." };
+    }
+  }
+
+  const reviewedAt = new Date().toISOString();
+
   const { data: updatedRequests, error } = await supabase
     .from("time_off_requests")
     .update({
       status: status as "approved" | "declined" | "cancelled",
       reviewed_by: user.id,
-      reviewed_at: new Date().toISOString(),
+      reviewed_at: reviewedAt,
       review_comment: reviewComment || null
     })
     .eq("id", requestId)
-    .eq("status", "pending_supervisor_approval")
+    .eq("status", requestToReview.status)
     .select("id");
 
   if (error) {
     return { ok: false, message: error.message };
   }
   if (!updatedRequests?.length) {
-    return { ok: false, message: "This request has already been reviewed. Refresh the queue." };
+    return { ok: false, message: "This request changed while you were reviewing it. Refresh the queue." };
   }
 
   const emailMessage =
@@ -2416,14 +2437,15 @@ export async function updateTimeOffRequestStatusAction(
           request: requestToReview,
           status,
           reviewComment,
-          reviewerName: user.full_name
+          reviewerName: user.full_name,
+          idempotencyKey: `time-off-decision/${requestId}/${reviewedAt}`
         })
       : null;
 
   revalidateDashboards();
   return {
     ok: !emailMessage?.toLowerCase().includes("email failed") && !emailMessage?.includes("not sent"),
-    message: `Time off request ${status}.${emailMessage ? " " + emailMessage : ""}`
+    message: `Time off request ${revisingDecision ? "decision changed to " : ""}${status}.${emailMessage ? " " + emailMessage : ""}`
   };
 }
 
