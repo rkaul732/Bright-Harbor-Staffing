@@ -47,12 +47,14 @@ export function AuthPanel({
   nextPath,
   initialMode = "sign-in",
   confirmationComplete = false,
-  confirmationError = false
+  confirmationError = false,
+  passwordUpdated = false
 }: {
   nextPath?: string;
   initialMode?: AuthMode;
   confirmationComplete?: boolean;
   confirmationError?: boolean;
+  passwordUpdated?: boolean;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<AuthMode>(initialMode);
@@ -64,9 +66,11 @@ export function AuthPanel({
   const [message, setMessage] = useState<string | null>(
     confirmationError
       ? "We could not confirm your email from that link. Request a new confirmation link or contact an administrator."
-      : confirmationComplete
-        ? "Your Bright Harbor email is confirmed. Sign in with the password you created to finish setting up your account."
-        : null
+      : passwordUpdated
+        ? "Your new password is saved. Sign in with it to select your programs and finish account setup."
+        : confirmationComplete
+          ? "Your Bright Harbor email is confirmed. Sign in with the password you created to finish setting up your account."
+          : null
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);

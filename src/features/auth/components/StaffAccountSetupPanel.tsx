@@ -23,6 +23,7 @@ export function StaffAccountSetupPanel() {
   const [loading, setLoading] = useState(configured);
   const [sessionReady, setSessionReady] = useState(!configured);
   const [passwordChanged, setPasswordChanged] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
   const [role, setRole] = useState<AppRole>("employee");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -85,6 +86,27 @@ export function StaffAccountSetupPanel() {
   }, [configured]);
 
   useEffect(() => {
+    if (!configured || !passwordState.ok) {
+      return;
+    }
+
+    let active = true;
+    createSupabaseBrowserClient().auth.signOut({ scope: "local" }).then(({ error }) => {
+      if (!active) {
+        return;
+      }
+      if (error) {
+        setSignOutError("Your password was saved, but sign-out failed. Go to sign-in and use your new password.");
+        return;
+      }
+      router.replace("/auth?mode=sign-in&password_updated=1&next=/auth/setup");
+      router.refresh();
+    });
+
+    return () => { active = false; };
+  }, [configured, passwordState.ok, router]);
+
+  useEffect(() => {
     if (state.ok && state.redirectTo) {
       router.push(state.redirectTo);
       router.refresh();
@@ -106,6 +128,19 @@ export function StaffAccountSetupPanel() {
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-harbor-ocean" aria-hidden="true" />
           <p>Sign in with your Bright Harbor email to begin setup. If your email is not confirmed yet, we’ll send you a secure link. If an invitation link expired, ask an administrator for a new one.</p>
         </div>
+      </div>
+    );
+  }
+
+  if (configured && passwordState.ok) {
+    return (
+      <div className="panel mx-auto w-full max-w-md p-5 sm:p-6">
+        <p className="label">Account setup</p>
+        <h1 className="mt-2 text-3xl font-medium text-harbor-midnight">Password saved</h1>
+        <p className="mt-2 text-sm leading-6 text-harbor-midnight/70">
+          {signOutError ?? "Taking you to sign-in. Use your new password to continue with your programs."}
+        </p>
+        {signOutError ? <a href="/auth?mode=sign-in&password_updated=1&next=/auth/setup" className="primary-button mt-5">Sign in</a> : null}
       </div>
     );
   }

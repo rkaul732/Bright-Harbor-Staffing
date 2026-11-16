@@ -3,7 +3,7 @@ import { AuthPanel } from "@/features/auth/components/AuthPanel";
 export default async function AuthPage({
   searchParams
 }: {
-  searchParams: Promise<{ next?: string; mode?: string; confirmed?: string; confirmation_error?: string }>;
+  searchParams: Promise<{ next?: string; mode?: string; confirmed?: string; confirmation_error?: string; password_updated?: string }>;
 }) {
   const params = await searchParams;
 
@@ -24,6 +24,7 @@ export default async function AuthPage({
         initialMode={params.mode === "sign-up" ? "sign-up" : "sign-in"}
         confirmationComplete={params.confirmed === "1"}
         confirmationError={params.confirmation_error === "1"}
+        passwordUpdated={params.password_updated === "1"}
       />
     </main>
   );
