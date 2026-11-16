@@ -187,8 +187,8 @@ export function AuthPanel({
             }
           });
           setMessage(linkError
-            ? "Your email needs confirmation before first sign-in. Open the account setup email already sent to you, or ask an administrator for a new invitation."
-            : "Check your Bright Harbor inbox for a secure sign-in link. Open it to confirm your email, then change your temporary password and finish account setup.");
+            ? "We could not send a secure sign-in link. Open your original account setup email or ask an administrator for a new link."
+            : "Check your Bright Harbor inbox for a secure sign-in link. Open it to continue setup. After you change your temporary password, you’ll receive a password-change notice and sign in again.");
           return;
         }
         setMessage(result.error.message);
@@ -204,7 +204,7 @@ export function AuthPanel({
           }
           setMessage("Your account is confirmed. Sign in with the password you created to finish setting up your account.");
         } else {
-          setMessage("Check your Bright Harbor email to confirm your account. After confirming, sign in with the password you created. If Bright Harbor already created your account, a new confirmation email may not be sent; sign in with your existing temporary password or use Forgot password instead.");
+          setMessage("If Bright Harbor already created your account, do not wait for a new confirmation email. Sign in with your temporary password, or use Forgot password. If you are creating a new account, check your Bright Harbor inbox for its confirmation link, then sign in with the password you created.");
         }
         setMode("sign-in");
         setPassword("");
@@ -242,11 +242,25 @@ export function AuthPanel({
         <p className="mt-2 text-sm leading-6 text-harbor-midnight/70">
           {configured
             ? mode === "sign-in"
-              ? "First time here? Sign in with your Bright Harbor email and temporary password. We’ll guide you through email confirmation and a private password."
-              : "Register with your Bright Harbor email. You’ll select your programs when you first sign in."
+              ? "First time with an account Bright Harbor created for you? Sign in with your temporary password. After you choose a private password, you’ll receive a password-change email."
+              : "Create an account only if Bright Harbor has not already created one for you. New accounts receive an email confirmation link."
             : "Demo mode is active because Supabase keys are not configured yet."}
         </p>
       </div>
+
+      {mode === "sign-up" && configured ? (
+        <div className="mt-6 rounded-xl border border-harbor-sky/20 bg-harbor-mist/70 px-4 py-3 text-sm text-harbor-midnight/75">
+          <p className="font-semibold text-harbor-midnight">Already have a Bright Harbor account?</p>
+          <p className="mt-1 leading-6">Use Sign in, even if this is your first visit. Signing up again will not set a new password for your existing account.</p>
+          <button
+            type="button"
+            onClick={() => { setMode("sign-in"); setMessage(null); setPassword(""); }}
+            className="word-button mt-2 w-fit px-0 py-1 text-sm"
+          >
+            Sign in with my existing account
+          </button>
+        </div>
+      ) : null}
 
       <form onSubmit={handleSubmit} className="mt-7 space-y-5">
         {mode === "sign-up" ? (

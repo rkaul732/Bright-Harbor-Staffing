@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, KeyRound } from "lucide-react";
+import { changeTemporaryPasswordAction } from "@/app/actions";
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import {
@@ -113,16 +114,28 @@ export function ResetPasswordPanel() {
         return;
       }
 
-      const { error } = await supabase.auth.updateUser({ password });
-
-      if (error) {
-        setMessage(error.message);
-        return;
+      if (data.user.user_metadata?.setup_required && !data.user.user_metadata?.setup_completed_at) {
+        const formData = new FormData();
+        formData.set("password", password);
+        formData.set("confirm_password", confirmPassword);
+        const result = await changeTemporaryPasswordAction({ ok: false, message: "" }, formData);
+        if (!result.ok) {
+          setMessage(result.message);
+          return;
+        }
+      } else {
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) {
+          setMessage(error.message);
+          return;
+        }
       }
 
       await supabase.auth.signOut();
       setSuccess(true);
-      setMessage("Password updated. You can sign in with your new password.");
+      setMessage("Password updated. Check your inbox for the password-change notice, then sign in with your new password.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update your password. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
