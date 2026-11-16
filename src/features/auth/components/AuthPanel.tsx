@@ -182,7 +182,7 @@ export function AuthPanel({
       }
 
       if (mode === "sign-up" && !result.data.session) {
-        setMessage("Check your Bright Harbor inbox to confirm your email. Then sign in and complete your account setup. Admin approval is not needed for these steps.");
+        setMessage("If this is a new account, check your Bright Harbor inbox for a confirmation link. If Bright Harbor already created your account, a new confirmation email may not be sent and the password entered here does not replace your existing password. Choose Sign in with your temporary password, or use Forgot password to set a new one.");
         return;
       }
 
