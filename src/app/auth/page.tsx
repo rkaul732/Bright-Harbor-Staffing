@@ -3,7 +3,7 @@ import { AuthPanel } from "@/features/auth/components/AuthPanel";
 export default async function AuthPage({
   searchParams
 }: {
-  searchParams: Promise<{ next?: string; mode?: string }>;
+  searchParams: Promise<{ next?: string; mode?: string; confirmed?: string; confirmation_error?: string }>;
 }) {
   const params = await searchParams;
 
@@ -19,7 +19,12 @@ export default async function AuthPage({
         </div>
         <p className="relative border-t border-white/20 pt-5 text-xs font-medium tracking-wide text-white/60">For Bright Harbor employees and administrators</p>
       </section>
-      <AuthPanel nextPath={params.next} initialMode={params.mode === "sign-up" ? "sign-up" : "sign-in"} />
+      <AuthPanel
+        nextPath={params.next}
+        initialMode={params.mode === "sign-up" ? "sign-up" : "sign-in"}
+        confirmationComplete={params.confirmed === "1"}
+        confirmationError={params.confirmation_error === "1"}
+      />
     </main>
   );
 }

@@ -45,10 +45,14 @@ async function dashboardPathForSignedInUser(
 
 export function AuthPanel({
   nextPath,
-  initialMode = "sign-in"
+  initialMode = "sign-in",
+  confirmationComplete = false,
+  confirmationError = false
 }: {
   nextPath?: string;
   initialMode?: AuthMode;
+  confirmationComplete?: boolean;
+  confirmationError?: boolean;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<AuthMode>(initialMode);
@@ -57,7 +61,13 @@ export function AuthPanel({
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [availability, setAvailability] = useState<string[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(
+    confirmationError
+      ? "We could not confirm your email from that link. Request a new confirmation link or contact an administrator."
+      : confirmationComplete
+        ? "Your Bright Harbor email is confirmed. Sign in with the password you created to finish setting up your account."
+        : null
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
 
@@ -159,7 +169,7 @@ export function AuthPanel({
                   signup_password_set_at: new Date().toISOString(),
                   availability
                 },
-                emailRedirectTo: `${window.location.origin}/auth/callback?next=/auth/setup`
+                emailRedirectTo: `${window.location.origin}/auth/callback?next=/auth/setup&flow=signup`
               }
             });
 
@@ -181,8 +191,19 @@ export function AuthPanel({
         return;
       }
 
-      if (mode === "sign-up" && !result.data.session) {
-        setMessage("If this is a new account, check your Bright Harbor inbox for a confirmation link. If Bright Harbor already created your account, a new confirmation email may not be sent and the password entered here does not replace your existing password. Choose Sign in with your temporary password, or use Forgot password to set a new one.");
+      if (mode === "sign-up") {
+        if (result.data.session) {
+          const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+          if (signOutError) {
+            setMessage("Your account was created, but sign-in setup could not finish. Please refresh this page and sign in with your new password.");
+            return;
+          }
+          setMessage("Your account is confirmed. Sign in with the password you created to finish setting up your account.");
+        } else {
+          setMessage("Check your Bright Harbor email to confirm your account. After confirming, sign in with the password you created. If Bright Harbor already created your account, a new confirmation email may not be sent; sign in with your existing temporary password or use Forgot password instead.");
+        }
+        setMode("sign-in");
+        setPassword("");
         return;
       }
 
