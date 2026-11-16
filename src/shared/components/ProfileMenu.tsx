@@ -71,7 +71,7 @@ export function ProfileMenu({
       setOpen(false);
       setEmployeesOpen(false);
       setViewAsOpen(false);
-      router.push("/");
+      router.replace("/auth");
       router.refresh();
     } finally {
       setIsSigningOut(false);

@@ -1,5 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowRight, CalendarDays, ClipboardCheck, UsersRound } from "lucide-react";
+import { ROLE_DASHBOARD_PATHS } from "@/shared/lib/constants";
+import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
+import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
 
 const features = [
   { icon: CalendarDays, title: "Time off, clearly tracked", description: "Submit requests and follow each decision from your own dashboard." },
@@ -7,7 +13,29 @@ const features = [
   { icon: ClipboardCheck, title: "A simpler review flow", description: "Managers can review requests and coordinate staffing with confidence." }
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  if (isSupabaseConfigured()) {
+    const supabase = await createSupabaseServerClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      if (user.user_metadata?.setup_required && !user.user_metadata?.setup_completed_at) {
+        redirect("/auth/setup");
+      }
+
+      const { data: appUser } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      const role = appUser?.role;
+
+      redirect(role === "admin" || role === "supervisor"
+        ? ROLE_DASHBOARD_PATHS[role]
+        : ROLE_DASHBOARD_PATHS.employee);
+    }
+  }
+
   return (
     <main className="mx-auto w-full max-w-[96rem] px-4 pb-10 pt-6 sm:px-6 sm:pt-8 lg:px-8 lg:pb-16">
       <section className="relative isolate overflow-hidden rounded-[2rem] bg-harbor-midnight text-white shadow-lift">
