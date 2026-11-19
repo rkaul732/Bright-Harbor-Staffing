@@ -174,10 +174,10 @@ export function TimeOffRequestForm({
             <h2 id="ocean-conflict-title" className="mt-2 text-xl font-semibold text-harbor-midnight">Special approval required</h2>
             {conflictDates.length > 0 ? <p className="mt-3 text-sm text-harbor-midnight/80">Someone else already has approved time off on {conflictDates.slice(0, 4).map(formatShortDate).join(", ")}{conflictDates.length > 4 ? ` and ${conflictDates.length - 4} more date${conflictDates.length === 5 ? "" : "s"}` : ""}.</p> : null}
             {blackoutDates.length > 0 || lateBlackoutDates.length > 0 ? <p className="mt-3 text-sm text-harbor-midnight/80">One or more requested days are Ocean Academy blackout dates.</p> : null}
-            <p className="mt-3 text-sm text-harbor-midnight/80">You may choose alternative dates. If you continue, an admin must give special approval before this time off is approved.</p>
+            <p className="mt-3 text-sm text-harbor-midnight/80">You may choose alternative dates. If you continue, an Ocean Academy supervisor must give special approval before this time off is approved.</p>
             <label className="mt-5 flex items-start gap-3 rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm font-medium text-orange-950">
               <input type="checkbox" checked={specialApprovalConfirmed} onChange={(event) => setSpecialApprovalConfirmed(event.target.checked)} className="mt-0.5" />
-              <span>I understand someone else may already be off or these dates are blacked out, and this request requires special admin approval.</span>
+              <span>I understand someone else may already be off or these dates are blacked out, and this request requires special supervisor approval.</span>
             </label>
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" onClick={() => { setShowConflictModal(false); setDismissedConflictKey(selectionKey); }} className="word-button">Choose other dates</button>

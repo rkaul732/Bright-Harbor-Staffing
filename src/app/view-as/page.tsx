@@ -65,7 +65,6 @@ export default async function ViewAsPage({
     );
   }
 
-  const preliminaryData = createMemberPreviewData(data, member, [], []);
   let requestViews: RequestView[] = [];
   let notifications: Notification[] = [];
   let savedShifts: SavedShift[] = [];
@@ -79,7 +78,7 @@ export default async function ViewAsPage({
         admin.from("request_views").select("reviewer_id,request_kind,request_id,viewed_at").eq("reviewer_id", member.id),
         admin.from("notifications").select("*").or(`user_id.eq.${member.id},role.eq.${member.role},role.eq.all`),
         admin.from("saved_shifts").select("*").eq("user_id", member.id),
-        Promise.all(preliminaryData.timeOffRequests.map((request) =>
+        Promise.all(data.timeOffRequests.map((request) =>
           admin.rpc("request_review_recipients", {
             target_kind: "time-off",
             target_program: request.program_name,
@@ -100,7 +99,7 @@ export default async function ViewAsPage({
         requestViews = (viewsResult.data ?? []) as RequestView[];
         notifications = (notificationsResult.data ?? []) as Notification[];
         savedShifts = (savedShiftsResult.data ?? []) as SavedShift[];
-        reviewableTimeOffRequestIds = preliminaryData.timeOffRequests.flatMap((request, index) =>
+        reviewableTimeOffRequestIds = data.timeOffRequests.flatMap((request, index) =>
           recipientResults[index].data?.some((recipient) => recipient.user_id === member.id) ? [request.id] : []
         );
       }

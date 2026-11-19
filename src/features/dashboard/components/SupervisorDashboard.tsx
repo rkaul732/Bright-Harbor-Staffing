@@ -52,12 +52,46 @@ function requestViewKey(kind: "shift" | "time-off", id: string) {
   return `${kind}:${id}`;
 }
 
+function hasAssignedSupervisor(data: DashboardData, programName: ProgramName) {
+  return data.supervisorProfiles.some((profile) =>
+    profile.status === "approved" &&
+    profile.program_names.includes(programName) &&
+    data.users.some((member) => member.id === profile.user_id && member.role === "supervisor")
+  );
+}
+
+function isReviewQueueRequest(
+  data: DashboardData,
+  role: AppRole,
+  item: { type: "shift"; request: ShiftRequest } | { type: "time-off"; request: TimeOffRequest }
+) {
+  const requesterId = item.type === "shift"
+    ? item.request.requestor_id
+    : item.request.user_id;
+  if (requesterId === data.currentUser.id) return false;
+  if (role !== "admin") return true;
+  const requesterRole = data.users.find((user) => user.id === requesterId)?.role;
+  if (requesterRole === "employee") {
+    if (item.request.status !== "pending_supervisor_approval") return false;
+    const programName = item.type === "shift"
+      ? data.shifts.find((shift) => shift.id === item.request.shift_id)?.program_name
+      : item.request.program_name;
+    if (!programName || hasAssignedSupervisor(data, programName)) return false;
+    return item.type === "shift" || data.isDemo ||
+      data.reviewableTimeOffRequestIds.includes(item.request.id);
+  }
+  return requesterRole === "supervisor" ||
+    (requesterRole === "admin" && hasSuperAdminAccess(data));
+}
+
 function programOptionsForData(data: DashboardData) {
   const currentAdminProfile = data.adminProfiles.find(
     (profile) => profile.user_id === data.currentUser.id
   );
   if (data.currentUser.role === "admin" && currentAdminProfile) {
-    return PROGRAMS;
+    if (currentAdminProfile.is_super_admin) return PROGRAMS;
+    const assigned = new Set(currentAdminProfile.program_names.flatMap(getRelatedProgramNames));
+    return PROGRAMS.filter((programName) => assigned.has(programName));
   }
 
   const currentSupervisorProfile = data.supervisorProfiles.find(
@@ -324,13 +358,13 @@ function AdminDashboardHome({
   const visibleOpenShifts = visibleAllShifts.filter((shift) => shift.status === "open");
   const visibleCoveredShifts = visibleAllShifts.filter((shift) => shift.status === "covered");
   const requestItems = [
-    ...visibleData.requests.map((request) => ({ kind: "shift" as const, request })),
-    ...visibleData.timeOffRequests.map((request) => ({ kind: "time-off" as const, request }))
-  ];
+    ...visibleData.requests.map((request) => ({ type: "shift" as const, request })),
+    ...visibleData.timeOffRequests.map((request) => ({ type: "time-off" as const, request }))
+  ].filter((item) => isReviewQueueRequest(visibleData, role, item));
   const isNew = (item: (typeof requestItems)[number]) => isNewPendingRequest(
     item.request,
     data.currentUser,
-    viewedRequestKeys.has(requestViewKey(item.kind, item.request.id))
+    viewedRequestKeys.has(requestViewKey(item.type, item.request.id))
   );
   const newRequestCount = requestItems.filter(isNew).length;
   const pendingRequestCount = requestItems.filter(
@@ -661,6 +695,9 @@ function AdminRequestsWorkspace({
   const [activeTab, setActiveTab] = useState<AdminRequestTab>(
     [...data.requests.map((request) => ({ kind: "shift" as const, request })),
       ...data.timeOffRequests.map((request) => ({ kind: "time-off" as const, request }))]
+      .filter((item) => item.kind === "shift"
+        ? isReviewQueueRequest(data, role, { type: "shift", request: item.request })
+        : isReviewQueueRequest(data, role, { type: "time-off", request: item.request }))
       .some((item) => isNewPendingRequest(
         item.request,
         data.currentUser,
@@ -697,6 +734,7 @@ function AdminRequestsWorkspace({
     }
     if (role !== "admin" || adminProfile?.status !== "approved") return false;
     if (requesterRole === "admin") return adminProfile.is_super_admin;
+    if (requesterRole === "employee" && hasAssignedSupervisor(data, program)) return false;
     return adminProfile.is_super_admin || adminProfile.program_names.includes(program);
   };
 
@@ -714,8 +752,9 @@ function AdminRequestsWorkspace({
         status: request.status,
         request
       }))
-    ].sort((first, second) => second.created_at.localeCompare(first.created_at));
-  }, [data.requests, data.timeOffRequests]);
+    ].filter((item) => isReviewQueueRequest(data, role, item))
+      .sort((first, second) => second.created_at.localeCompare(first.created_at));
+  }, [data, role]);
 
   const isNew = (item: AdminRequestItem) => isNewPendingRequest(
     item,

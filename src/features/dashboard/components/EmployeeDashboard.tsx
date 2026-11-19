@@ -185,7 +185,7 @@ export function EmployeeDashboard({
       program_name: item.program_name,
       kind: "team_time_off" as const,
       note: item.program_name === "Ocean Academy"
-        ? "A teammate has approved time off. Requesting this date requires special admin approval."
+        ? "A teammate has approved time off. Requesting this date requires special supervisor approval."
         : "A teammate has approved time off. Choose other dates or speak with your supervisor before requesting this date."
     })),
     ...data.oceanAcademyBlackouts.map((blackout) => ({
@@ -195,7 +195,7 @@ export function EmployeeDashboard({
       endDate: blackout.end_date,
       program_name: "Ocean Academy" as const,
       kind: "blackout" as const,
-      note: blackout.note || "Time off on this date requires special admin approval."
+      note: blackout.note || "Time off on this date requires special supervisor approval."
     }))
   ];
 

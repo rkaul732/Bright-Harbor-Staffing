@@ -581,22 +581,17 @@ async function sendReviewerSubmissionNotifications({
 
     const displayProgramName = getProgramLabel(programName);
     const subject = `${specialApprovalRequested ? "Special approval: " : ""}${user.full_name} submitted a ${requestKind} request for ${displayProgramName}`;
-    const requestDetailsHtml = `<p>Hello,</p>${specialApprovalRequested ? "<p><strong>Special admin approval required:</strong> This Ocean Academy request overlaps approved time off or a blackout date.</p>" : ""}<p><strong>${escapeEmailHtml(user.full_name)}</strong> submitted a ${escapeEmailHtml(requestKind)} request on ${escapeEmailHtml(new Intl.DateTimeFormat("en-US", {
+    const requestDetailsHtml = `<p>Hello,</p>${specialApprovalRequested ? "<p><strong>Special approval required:</strong> This Ocean Academy request overlaps approved time off or a blackout date.</p>" : ""}<p><strong>${escapeEmailHtml(user.full_name)}</strong> submitted a ${escapeEmailHtml(requestKind)} request on ${escapeEmailHtml(new Intl.DateTimeFormat("en-US", {
       year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
       timeZone: "America/New_York", timeZoneName: "short"
     }).format(new Date(submittedAt)))}.</p><p><strong>Request Summary</strong><br>${renderRequestSummaryHtml(requestSummary)}</p>`;
     const results = await Promise.all(eligibleRecipients.map(async (recipient) => {
-      const reviewLinkText = specialApprovalRequested && recipient.role === "supervisor"
-        ? "View the request in the staffing portal"
-        : "Review the request in the staffing portal";
-      const bodyHtml = `${requestDetailsHtml}<p><a href="${appBaseUrl()}${recipient.role === "admin" ? "/admin" : "/supervisor"}" style="color:#346990;font-weight:700;">${reviewLinkText}</a></p>`;
+      const bodyHtml = `${requestDetailsHtml}<p><a href="${appBaseUrl()}${recipient.role === "admin" ? "/admin" : "/supervisor"}" style="color:#346990;font-weight:700;">Review the request in the staffing portal</a></p>`;
       const sent = await sendSubmissionEmail({
         to: recipient.email,
         subject,
         bodyHtml,
-        heading: specialApprovalRequested && recipient.role === "supervisor"
-          ? "Ocean Academy Request Notice"
-          : "New Request to Review",
+        heading: "New Request to Review",
         preheader: `${user.full_name} submitted a ${requestKind} request for ${displayProgramName}.`,
         idempotencyKey: `reviewer-submitted/${requestKind === "time off" ? "time-off" : "shift"}/${requestId}/${recipient.user_id}`
       });
@@ -2323,7 +2318,7 @@ export async function submitTimeOffRequestAction(
     if ((conflictDates.length > 0 || blackoutDates.length > 0) && !asBoolean(formData.get("special_approval_requested"))) {
       return {
         ok: false,
-        message: "Special admin approval is required for these dates. Confirm the notice to continue.",
+        message: "Special approval is required for these dates. Confirm the notice to continue.",
         conflictDates,
         blackoutDates,
         conflictKey: teamTimeOffSelectionKey(parsed.data.program_name, parsed.data.start_date, parsed.data.end_date)
@@ -2519,13 +2514,6 @@ export async function updateTimeOffRequestStatusAction(
   if (!isAssignedReviewer) {
     return { ok: false, message: "Only the reviewer assigned to this request can decide it." };
   }
-  if (requestToReview.special_approval_requested) {
-    const scope = user.role === "admin" ? await getAdminScopeForAction(user.id) : null;
-    if (!scope?.isApproved || (!scope.isSuperAdmin && !scope.programNames.includes("Ocean Academy"))) {
-      return { ok: false, message: "Ocean Academy special approval requires an assigned admin." };
-    }
-  }
-
   const revisingDecision = requestToReview.status !== "pending_supervisor_approval";
   if (revisingDecision) {
     if (requestToReview.status !== "approved" && requestToReview.status !== "declined") {
@@ -2674,6 +2662,19 @@ export async function updateRequestStatusAction(
 
   if (!shift) {
     return { ok: false, message: "Shift not found." };
+  }
+
+  if (!requestToReview) {
+    return { ok: false, message: "Request not found." };
+  }
+
+  const { data: isAssignedReviewer, error: reviewerError } = await supabase.rpc(
+    "current_reviewer_can_decide_shift",
+    { requester_id: requestToReview.requestor_id, target_program: shift.program_name }
+  );
+  if (reviewerError) return { ok: false, message: reviewerError.message };
+  if (!isAssignedReviewer) {
+    return { ok: false, message: "Only the reviewer assigned to this request can decide it." };
   }
 
   const scopeError = await scopedProgramAccessError(

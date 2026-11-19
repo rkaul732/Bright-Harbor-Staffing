@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getDemoDashboardData } from "@/shared/lib/demo-data";
-import { CODE_RED_BLUE_PROGRAM, CODE_RED_BLUE_SUPERVISOR_EMAIL, normalizeAssignedProgramNames } from "@/shared/lib/constants";
+import { CODE_RED_BLUE_PROGRAM, CODE_RED_BLUE_SUPERVISOR_EMAIL, getRelatedProgramNames, normalizeAssignedProgramNames } from "@/shared/lib/constants";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
 import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
 import type {
@@ -163,9 +163,26 @@ function scopeDashboardDataForCurrentUser(
     return data;
   }
 
+  const assignedPrograms = new Set(
+    normalizeAssignedProgramNames(currentAdminProfile?.program_names ?? []).flatMap(getRelatedProgramNames)
+  );
+
   return {
     ...data,
-    adminProfiles: currentAdminProfile ? [currentAdminProfile] : []
+    adminProfiles: currentAdminProfile ? [currentAdminProfile] : [],
+    timeOffRequests: data.timeOffRequests.filter((request) => {
+      if (request.user_id === data.currentUser.id) return true;
+      if (!assignedPrograms.has(request.program_name)) return false;
+      const requesterRole = data.users.find((member) => member.id === request.user_id)?.role;
+      return requesterRole === "supervisor" ||
+        (requesterRole === "employee" && (
+          request.status === "approved" || data.reviewableTimeOffRequestIds.includes(request.id)
+        ));
+    }),
+    requests: data.requests.filter((request) => {
+      const shift = data.shifts.find((item) => item.id === request.shift_id);
+      return Boolean(shift && assignedPrograms.has(shift.program_name));
+    })
   };
 }
 

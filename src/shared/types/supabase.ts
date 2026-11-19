@@ -502,6 +502,10 @@ export type Database = {
         Args: { requester_id: string; target_program: string };
         Returns: boolean;
       };
+      current_reviewer_can_decide_shift: {
+        Args: { requester_id: string; target_program: string };
+        Returns: boolean;
+      };
       current_reviewer_can_decide_ocean_special: {
         Args: { requester_id: string };
         Returns: boolean;
