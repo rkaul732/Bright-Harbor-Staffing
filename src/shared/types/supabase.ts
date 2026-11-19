@@ -510,6 +510,10 @@ export type Database = {
         Args: { target_requester_id: string };
         Returns: { user_id: string; email: string; full_name: string; role: string }[];
       };
+      ocean_academy_special_notification_recipients: {
+        Args: { target_requester_id: string };
+        Returns: { user_id: string; email: string; full_name: string; role: string }[];
+      };
       request_review_recipients: {
         Args: { target_kind: string; target_program: string; target_requester_id: string };
         Returns: { user_id: string; email: string; full_name: string; role: string }[];

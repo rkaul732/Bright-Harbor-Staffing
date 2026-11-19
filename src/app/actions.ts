@@ -567,7 +567,7 @@ async function sendReviewerSubmissionNotifications({
   try {
     const emailClient = createSupabaseAdminClient();
     const { data: recipients, error } = specialApprovalRequested
-      ? await emailClient.rpc("ocean_academy_special_reviewers", { target_requester_id: user.id })
+      ? await emailClient.rpc("ocean_academy_special_notification_recipients", { target_requester_id: user.id })
       : await emailClient.rpc("request_review_recipients", {
           target_kind: requestKind === "time off" ? "time-off" : "shift",
           target_program: programName,
@@ -586,12 +586,17 @@ async function sendReviewerSubmissionNotifications({
       timeZone: "America/New_York", timeZoneName: "short"
     }).format(new Date(submittedAt)))}.</p><p><strong>Request Summary</strong><br>${renderRequestSummaryHtml(requestSummary)}</p>`;
     const results = await Promise.all(eligibleRecipients.map(async (recipient) => {
-      const bodyHtml = `${requestDetailsHtml}<p><a href="${appBaseUrl()}${recipient.role === "admin" ? "/admin" : "/supervisor"}" style="color:#346990;font-weight:700;">Review the request in the staffing portal</a></p>`;
+      const reviewLinkText = specialApprovalRequested && recipient.role === "supervisor"
+        ? "View the request in the staffing portal"
+        : "Review the request in the staffing portal";
+      const bodyHtml = `${requestDetailsHtml}<p><a href="${appBaseUrl()}${recipient.role === "admin" ? "/admin" : "/supervisor"}" style="color:#346990;font-weight:700;">${reviewLinkText}</a></p>`;
       const sent = await sendSubmissionEmail({
         to: recipient.email,
         subject,
         bodyHtml,
-        heading: "New Request to Review",
+        heading: specialApprovalRequested && recipient.role === "supervisor"
+          ? "Ocean Academy Request Notice"
+          : "New Request to Review",
         preheader: `${user.full_name} submitted a ${requestKind} request for ${displayProgramName}.`,
         idempotencyKey: `reviewer-submitted/${requestKind === "time off" ? "time-off" : "shift"}/${requestId}/${recipient.user_id}`
       });
