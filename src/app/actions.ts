@@ -21,7 +21,7 @@ import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
 import { createSupabaseAdminClient, hasSupabaseServiceRoleKey } from "@/shared/lib/supabase/admin";
 import { getPasswordRequirementMessage, INVITED_ACCOUNT_TEMPORARY_PASSWORD } from "@/shared/lib/password";
 import { formatTimeRange, todayEasternISO } from "@/shared/lib/dates";
-import { hasTeamTimeOffCoordination, teamTimeOffSelectionKey } from "@/shared/lib/team-time-off";
+import { datesInRange, hasTeamTimeOffCoordination, teamTimeOffSelectionKey } from "@/shared/lib/team-time-off";
 import { getApprovedTeamTimeOffOverlap } from "@/shared/lib/team-time-off.server";
 import { escapeEmailHtml, sendDecisionEmail, sendSubmissionEmail } from "@/shared/lib/decision-email";
 import {
@@ -48,6 +48,7 @@ type ActionState = {
   message: string;
   redirectTo?: string;
   conflictDates?: string[];
+  blackoutDates?: string[];
   conflictKey?: string;
 };
 
@@ -548,7 +549,8 @@ async function sendReviewerSubmissionNotifications({
   requestKind,
   programName,
   submittedAt,
-  requestSummary
+  requestSummary,
+  specialApprovalRequested = false
 }: {
   user: ActionUser;
   requestId: string;
@@ -556,6 +558,7 @@ async function sendReviewerSubmissionNotifications({
   programName: ProgramName;
   submittedAt: string;
   requestSummary: string;
+  specialApprovalRequested?: boolean;
 }) {
   if (!hasSupabaseServiceRoleKey()) {
     return "Reviewer emails could not be sent because the server email configuration is incomplete.";
@@ -563,23 +566,26 @@ async function sendReviewerSubmissionNotifications({
 
   try {
     const emailClient = createSupabaseAdminClient();
-    const { data: recipients, error } = await emailClient.rpc("request_review_recipients", {
-      target_kind: requestKind === "time off" ? "time-off" : "shift",
-      target_program: programName,
-      target_requester_id: user.id
-    });
+    const { data: recipients, error } = specialApprovalRequested
+      ? await emailClient.rpc("ocean_academy_special_reviewers", { target_requester_id: user.id })
+      : await emailClient.rpc("request_review_recipients", {
+          target_kind: requestKind === "time off" ? "time-off" : "shift",
+          target_program: programName,
+          target_requester_id: user.id
+        });
     if (error) throw error;
-    if (!recipients?.length) {
+    const eligibleRecipients = recipients ?? [];
+    if (!eligibleRecipients.length) {
       return "No approved reviewer is assigned to receive an email for this program.";
     }
 
     const displayProgramName = getProgramLabel(programName);
-    const subject = `${user.full_name} submitted a ${requestKind} request for ${displayProgramName}`;
-    const requestDetailsHtml = `<p>Hello,</p><p><strong>${escapeEmailHtml(user.full_name)}</strong> submitted a ${escapeEmailHtml(requestKind)} request on ${escapeEmailHtml(new Intl.DateTimeFormat("en-US", {
+    const subject = `${specialApprovalRequested ? "Special approval: " : ""}${user.full_name} submitted a ${requestKind} request for ${displayProgramName}`;
+    const requestDetailsHtml = `<p>Hello,</p>${specialApprovalRequested ? "<p><strong>Special admin approval required:</strong> This Ocean Academy request overlaps approved time off or a blackout date.</p>" : ""}<p><strong>${escapeEmailHtml(user.full_name)}</strong> submitted a ${escapeEmailHtml(requestKind)} request on ${escapeEmailHtml(new Intl.DateTimeFormat("en-US", {
       year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
       timeZone: "America/New_York", timeZoneName: "short"
     }).format(new Date(submittedAt)))}.</p><p><strong>Request Summary</strong><br>${renderRequestSummaryHtml(requestSummary)}</p>`;
-    const results = await Promise.all(recipients.map(async (recipient) => {
+    const results = await Promise.all(eligibleRecipients.map(async (recipient) => {
       const bodyHtml = `${requestDetailsHtml}<p><a href="${appBaseUrl()}${recipient.role === "admin" ? "/admin" : "/supervisor"}" style="color:#346990;font-weight:700;">Review the request in the staffing portal</a></p>`;
       const sent = await sendSubmissionEmail({
         to: recipient.email,
@@ -613,7 +619,7 @@ async function sendReviewerSubmissionNotifications({
     const unlogged = results.filter((result) => result.deliveryError);
     return unlogged.length
       ? `Reviewer emails were accepted by Resend, but ${unlogged.length} delivery record${unlogged.length === 1 ? "" : "s"} could not be saved.`
-      : `Resend accepted the email notification for ${recipients.length} assigned reviewer${recipients.length === 1 ? "" : "s"}.`;
+      : `Resend accepted the email notification for ${eligibleRecipients.length} assigned reviewer${eligibleRecipients.length === 1 ? "" : "s"}.`;
   } catch (error) {
     return `Reviewer emails could not be sent: ${error instanceof Error ? error.message : "email service unavailable."}`;
   }
@@ -2272,8 +2278,9 @@ export async function submitTimeOffRequestAction(
     return { ok: true, message: "Demo mode: time off request submitted." };
   }
 
+  let conflictDates: string[] = [];
+  let blackoutDates: string[] = [];
   if (hasTeamTimeOffCoordination(parsed.data.program_name)) {
-    let conflictDates: string[];
     try {
       conflictDates = await getApprovedTeamTimeOffOverlap(
         user.id,
@@ -2286,7 +2293,7 @@ export async function submitTimeOffRequestAction(
       return { ok: false, message: "Team availability could not be checked. Please try again shortly." };
     }
 
-    if (conflictDates.length > 0 && !asBoolean(formData.get("supervisor_contact_confirmed"))) {
+    if (parsed.data.program_name !== "Ocean Academy" && conflictDates.length > 0 && !asBoolean(formData.get("supervisor_contact_confirmed"))) {
       return {
         ok: false,
         message: "A teammate has approved time off on these dates. Choose different dates or speak with your supervisor before submitting.",
@@ -2297,12 +2304,36 @@ export async function submitTimeOffRequestAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  if (parsed.data.program_name === "Ocean Academy") {
+    const { data: blackoutRows, error: blackoutError } = await supabase.from("ocean_academy_blackouts")
+      .select("start_date,end_date")
+      .lte("start_date", parsed.data.end_date)
+      .gte("end_date", parsed.data.start_date);
+    if (blackoutError) {
+      return { ok: false, message: "Ocean Academy blackout dates could not be checked. Please try again shortly." };
+    }
+    blackoutDates = [...new Set((blackoutRows ?? []).flatMap((item) =>
+      datesInRange(item.start_date, item.end_date).filter((date) => date >= parsed.data.start_date && date <= parsed.data.end_date)
+    ))].sort();
+    if ((conflictDates.length > 0 || blackoutDates.length > 0) && !asBoolean(formData.get("special_approval_requested"))) {
+      return {
+        ok: false,
+        message: "Special admin approval is required for these dates. Confirm the notice to continue.",
+        conflictDates,
+        blackoutDates,
+        conflictKey: teamTimeOffSelectionKey(parsed.data.program_name, parsed.data.start_date, parsed.data.end_date)
+      };
+    }
+  }
+  const specialApprovalRequested = parsed.data.program_name === "Ocean Academy" &&
+    (conflictDates.length > 0 || blackoutDates.length > 0);
   const { data: submittedRequest, error } = await supabase.from("time_off_requests").insert({
     user_id: user.id,
     employee_name: user.full_name,
     ...parsed.data,
+    special_approval_requested: specialApprovalRequested,
     status: "pending_supervisor_approval"
-  }).select("id,created_at").single();
+  }).select("id,created_at,special_approval_requested").single();
 
   if (error) {
     return { ok: false, message: error.message };
@@ -2314,7 +2345,8 @@ export async function submitTimeOffRequestAction(
     requestKind: "time off",
     programName: parsed.data.program_name,
     submittedAt: submittedRequest.created_at,
-    requestSummary: `Program: ${getProgramLabel(parsed.data.program_name)}\nDates: ${formatDateForEmail(parsed.data.start_date)} - ${formatDateForEmail(parsed.data.end_date)}\nReason: ${parsed.data.reason}`
+    requestSummary: `Program: ${getProgramLabel(parsed.data.program_name)}\nDates: ${formatDateForEmail(parsed.data.start_date)} - ${formatDateForEmail(parsed.data.end_date)}\nReason: ${parsed.data.reason}`,
+    specialApprovalRequested: submittedRequest.special_approval_requested
   } as const;
   const [confirmation, reviewerNotice] = await Promise.all([
     sendRequestSubmissionConfirmation(submissionEmail),
@@ -2322,7 +2354,11 @@ export async function submitTimeOffRequestAction(
   ]);
 
   revalidateDashboards();
-  return { ok: true, message: `Time off request saved. ${confirmation} ${reviewerNotice}` };
+  return {
+    ok: true,
+    message: `Time off request saved. ${confirmation} ${reviewerNotice}`,
+    conflictKey: teamTimeOffSelectionKey(parsed.data.program_name, parsed.data.start_date, parsed.data.end_date)
+  };
 }
 
 export async function adminAddOutOfOfficeAction(
@@ -2391,6 +2427,41 @@ export async function adminAddOutOfOfficeAction(
   return { ok: true, message: "OOO added to the team schedule." };
 }
 
+export async function addOceanAcademyBlackoutAction(
+  _previousState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const user = await getUserForAction("supervisor");
+  if (user.role !== "admin" && user.role !== "supervisor") {
+    return { ok: false, message: "Only Ocean Academy admins and supervisors can add blackout dates." };
+  }
+  const parsed = z.object({
+    start_date: dateSchema,
+    end_date: dateSchema,
+    note: z.string().max(500).optional()
+  }).refine((value) => value.end_date >= value.start_date, {
+    message: "End date must be on or after the start date."
+  }).safeParse({
+    start_date: asString(formData.get("start_date")),
+    end_date: asString(formData.get("end_date")),
+    note: asString(formData.get("note"))
+  });
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the dates." };
+  const scopeError = await scopedProgramAccessError(user, ["Ocean Academy"], "add Ocean Academy blackout dates");
+  if (scopeError) return scopeError;
+  if (!isSupabaseConfigured()) return { ok: true, message: "Demo mode: Ocean Academy blackout added." };
+
+  const { error } = await (await createSupabaseServerClient()).from("ocean_academy_blackouts").insert({
+    start_date: parsed.data.start_date,
+    end_date: parsed.data.end_date,
+    note: parsed.data.note || null,
+    created_by: user.id
+  });
+  if (error) return { ok: false, message: error.message };
+  revalidateDashboards();
+  return { ok: true, message: "Ocean Academy blackout added to the calendar." };
+}
+
 export async function updateTimeOffRequestStatusAction(
   _previousState: ActionState,
   formData: FormData
@@ -2419,7 +2490,7 @@ export async function updateTimeOffRequestStatusAction(
   const supabase = await createSupabaseServerClient();
   const { data: requestToReview } = await supabase
     .from("time_off_requests")
-    .select("id,user_id,employee_name,program_name,start_date,end_date,reason,status")
+    .select("id,user_id,employee_name,program_name,start_date,end_date,reason,status,special_approval_requested")
     .eq("id", requestId)
     .single();
 
@@ -2431,15 +2502,23 @@ export async function updateTimeOffRequestStatusAction(
     return { ok: false, message: "You cannot review your own time off request." };
   }
 
-  const { data: isAssignedReviewer, error: reviewerError } = await supabase.rpc(
-    "current_reviewer_can_decide_time_off",
-    { requester_id: requestToReview.user_id, target_program: requestToReview.program_name }
-  );
+  const { data: isAssignedReviewer, error: reviewerError } = requestToReview.special_approval_requested
+    ? await supabase.rpc("current_reviewer_can_decide_ocean_special", { requester_id: requestToReview.user_id })
+    : await supabase.rpc("current_reviewer_can_decide_time_off", {
+        requester_id: requestToReview.user_id,
+        target_program: requestToReview.program_name
+      });
   if (reviewerError) {
     return { ok: false, message: reviewerError.message };
   }
   if (!isAssignedReviewer) {
     return { ok: false, message: "Only the reviewer assigned to this request can decide it." };
+  }
+  if (requestToReview.special_approval_requested) {
+    const scope = user.role === "admin" ? await getAdminScopeForAction(user.id) : null;
+    if (!scope?.isApproved || (!scope.isSuperAdmin && !scope.programNames.includes("Ocean Academy"))) {
+      return { ok: false, message: "Ocean Academy special approval requires an assigned admin." };
+    }
   }
 
   const revisingDecision = requestToReview.status !== "pending_supervisor_approval";

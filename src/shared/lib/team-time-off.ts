@@ -1,6 +1,6 @@
 import type { ProgramName } from "@/shared/types/domain";
 
-export const TEAM_TIME_OFF_PROGRAMS = ["Access", "Integrated System of Care (ISC)"] as const satisfies readonly ProgramName[];
+export const TEAM_TIME_OFF_PROGRAMS = ["Access", "Integrated System of Care (ISC)", "Ocean Academy"] as const satisfies readonly ProgramName[];
 
 export type TeamTimeOffDate = {
   program_name: ProgramName;

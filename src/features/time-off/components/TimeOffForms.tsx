@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { CalendarPlus, Check, X } from "lucide-react";
 import {
   adminAddOutOfOfficeAction,
+  addOceanAcademyBlackoutAction,
   submitTimeOffRequestAction,
   updateTimeOffRequestStatusAction
 } from "@/app/actions";
@@ -13,17 +14,19 @@ import { hasTeamTimeOffCoordination, overlappingTeamTimeOffDates, teamTimeOffSel
 import { ProgramSelectOptions } from "@/shared/components/ProgramSelectOptions";
 import { ActionFeedback } from "@/shared/components/ActionFeedback";
 import { SubmitButton } from "@/shared/components/SubmitButton";
-import type { AppRole, ProgramName, TimeOffRequest } from "@/shared/types/domain";
+import type { AppRole, OceanAcademyBlackout, ProgramName, TimeOffRequest } from "@/shared/types/domain";
 
 const initialState = { ok: false, message: "" };
 
 export function TimeOffRequestForm({
   programNames,
   teamTimeOffDates = [],
+  blackouts = [],
   teamAvailabilityAvailable = true
 }: {
   programNames: ProgramName[];
   teamTimeOffDates?: TeamTimeOffDate[];
+  blackouts?: OceanAcademyBlackout[];
   teamAvailabilityAvailable?: boolean;
 }) {
   const [state, formAction] = useActionState(
@@ -34,12 +37,24 @@ export function TimeOffRequestForm({
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [spokeWithSupervisor, setSpokeWithSupervisor] = useState(false);
+  const [specialApprovalConfirmed, setSpecialApprovalConfirmed] = useState(false);
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [dismissedConflictKey, setDismissedConflictKey] = useState<string | null>(null);
   const selectionKey = teamTimeOffSelectionKey(programName, startDate, endDate);
   const calendarConflicts = overlappingTeamTimeOffDates(teamTimeOffDates, programName, startDate, endDate);
   const newlyDetectedConflicts = state.conflictKey === selectionKey ? state.conflictDates ?? [] : [];
   const conflictDates = [...new Set([...calendarConflicts, ...newlyDetectedConflicts])].sort();
+  const blackoutDates = programName === "Ocean Academy"
+    ? blackouts.filter((item) => item.start_date <= endDate && item.end_date >= startDate)
+    : [];
+  const lateBlackoutDates = state.conflictKey === selectionKey ? state.blackoutDates ?? [] : [];
+  const hasOceanConflict = programName === "Ocean Academy" && (conflictDates.length > 0 || blackoutDates.length > 0 || lateBlackoutDates.length > 0);
   const needsTeamCheck = hasTeamTimeOffCoordination(programName);
   const visibleState = state.conflictKey && state.conflictKey !== selectionKey ? initialState : state;
+  const lateConflictOpen = !state.ok && state.conflictKey === selectionKey && hasOceanConflict &&
+    dismissedConflictKey !== selectionKey;
+  const conflictModalOpen = !(state.ok && state.conflictKey === selectionKey) &&
+    (showConflictModal || lateConflictOpen);
 
   if (programNames.length === 0) {
     return <p className="rounded-lg border border-harbor-ocean/15 bg-harbor-mist p-4 text-sm text-harbor-midnight/75">
@@ -48,7 +63,13 @@ export function TimeOffRequestForm({
   }
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="space-y-4" onSubmit={(event) => {
+      if (hasOceanConflict && !specialApprovalConfirmed) {
+        event.preventDefault();
+        setShowConflictModal(true);
+      }
+    }}>
+      <input type="hidden" name="special_approval_requested" value={hasOceanConflict && specialApprovalConfirmed ? "true" : "false"} />
       <label className="block">
         <span className="label">Program</span>
         <select
@@ -57,6 +78,9 @@ export function TimeOffRequestForm({
           onChange={(event) => {
             setProgramName(event.target.value as ProgramName);
             setSpokeWithSupervisor(false);
+            setSpecialApprovalConfirmed(false);
+            setShowConflictModal(false);
+            setDismissedConflictKey(null);
           }}
           className="field mt-1.5"
           required
@@ -78,6 +102,9 @@ export function TimeOffRequestForm({
             onChange={(event) => {
               setStartDate(event.target.value);
               setSpokeWithSupervisor(false);
+              setSpecialApprovalConfirmed(false);
+              setShowConflictModal(false);
+              setDismissedConflictKey(null);
             }}
             className="field mt-1.5"
             required
@@ -92,6 +119,9 @@ export function TimeOffRequestForm({
             onChange={(event) => {
               setEndDate(event.target.value);
               setSpokeWithSupervisor(false);
+              setSpecialApprovalConfirmed(false);
+              setShowConflictModal(false);
+              setDismissedConflictKey(null);
             }}
             className="field mt-1.5"
             required
@@ -103,7 +133,7 @@ export function TimeOffRequestForm({
           Team availability could not load. Your dates will be checked again when you submit.
         </p>
       ) : null}
-      {needsTeamCheck && conflictDates.length > 0 ? (
+      {needsTeamCheck && programName !== "Ocean Academy" && conflictDates.length > 0 ? (
         <div role="alert" className="rounded-lg border border-orange-300 bg-orange-50 p-3 text-sm text-orange-950">
           <p className="font-semibold">
             A teammate is already approved off on {conflictDates.slice(0, 4).map(formatShortDate).join(", ")}
@@ -137,8 +167,40 @@ export function TimeOffRequestForm({
         Submit time off request
       </SubmitButton>
       <ActionFeedback state={visibleState} />
+      {conflictModalOpen && hasOceanConflict ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-harbor-midnight/60 p-4" role="presentation">
+          <div role="dialog" aria-modal="true" aria-labelledby="ocean-conflict-title" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+            <p className="label text-orange-700">Ocean Academy</p>
+            <h2 id="ocean-conflict-title" className="mt-2 text-xl font-semibold text-harbor-midnight">Special approval required</h2>
+            {conflictDates.length > 0 ? <p className="mt-3 text-sm text-harbor-midnight/80">Someone else already has approved time off on {conflictDates.slice(0, 4).map(formatShortDate).join(", ")}{conflictDates.length > 4 ? ` and ${conflictDates.length - 4} more date${conflictDates.length === 5 ? "" : "s"}` : ""}.</p> : null}
+            {blackoutDates.length > 0 || lateBlackoutDates.length > 0 ? <p className="mt-3 text-sm text-harbor-midnight/80">One or more requested days are Ocean Academy blackout dates.</p> : null}
+            <p className="mt-3 text-sm text-harbor-midnight/80">You may choose alternative dates. If you continue, an admin must give special approval before this time off is approved.</p>
+            <label className="mt-5 flex items-start gap-3 rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm font-medium text-orange-950">
+              <input type="checkbox" checked={specialApprovalConfirmed} onChange={(event) => setSpecialApprovalConfirmed(event.target.checked)} className="mt-0.5" />
+              <span>I understand someone else may already be off or these dates are blacked out, and this request requires special admin approval.</span>
+            </label>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => { setShowConflictModal(false); setDismissedConflictKey(selectionKey); }} className="word-button">Choose other dates</button>
+              <button type="submit" disabled={!specialApprovalConfirmed} className="primary-button disabled:opacity-50">Submit for special approval</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </form>
   );
+}
+
+export function OceanAcademyBlackoutForm() {
+  const [state, formAction] = useActionState(addOceanAcademyBlackoutAction, initialState);
+  return <form action={formAction} className="space-y-4">
+    <div className="grid gap-3 sm:grid-cols-2">
+      <label className="block"><span className="label">Start date</span><input name="start_date" type="date" className="field mt-1.5" required /></label>
+      <label className="block"><span className="label">End date</span><input name="end_date" type="date" className="field mt-1.5" required /></label>
+    </div>
+    <label className="block"><span className="label">Note</span><textarea name="note" className="field mt-1.5 min-h-20" placeholder="Reason for blackout (optional)" /></label>
+    <SubmitButton><CalendarPlus className="h-4 w-4" aria-hidden="true" />Add blackout dates</SubmitButton>
+    <ActionFeedback state={state} />
+  </form>;
 }
 
 export function AdminOutOfOfficeForm() {

@@ -552,6 +552,7 @@ export function getDemoDashboardData(role: AppRole): DashboardData {
     timeOffRequests: role === "employee"
       ? timeOffRequests.filter((request) => request.user_id === currentUser.id)
       : timeOffRequests,
+    oceanAcademyBlackouts: [],
     reviewableTimeOffRequestIds: [],
     requestViews: [],
     messages,

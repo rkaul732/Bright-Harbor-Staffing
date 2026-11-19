@@ -13,6 +13,7 @@ import type {
   Message,
   MonthlyWinner,
   Notification,
+  OceanAcademyBlackout,
   ProgramName,
   RequestView,
   SavedShift,
@@ -107,6 +108,7 @@ function filterCollectionsByProgram(
     shifts,
     requests,
     timeOffRequests,
+    oceanAcademyBlackouts: programNames.includes("Ocean Academy") ? data.oceanAcademyBlackouts : [],
     messages,
     savedShifts: data.savedShifts.filter(
       (savedShift) =>
@@ -195,6 +197,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
     shiftsResult,
     requestsResult,
     timeOffRequestsResult,
+    blackoutsResult,
     reviewableTimeOffResult,
     requestViewsResult,
     messagesResult,
@@ -213,6 +216,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
       .from("time_off_requests")
       .select("*")
       .order("start_date", { ascending: true }),
+    supabase.from("ocean_academy_blackouts").select("*").order("start_date", { ascending: true }),
     supabase.rpc("current_reviewable_time_off_request_ids"),
     supabase.from("request_views").select("*").eq("reviewer_id", user.id),
     supabase.from("messages").select("*").order("created_at", { ascending: false }),
@@ -261,6 +265,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
   const shifts = (shiftsResult.data ?? []) as ShiftPost[];
   const requests = (requestsResult.data ?? []) as ShiftRequest[];
   const timeOffRequests = (timeOffRequestsResult.data ?? []) as TimeOffRequest[];
+  const oceanAcademyBlackouts = (blackoutsResult.data ?? []) as OceanAcademyBlackout[];
   const reviewableTimeOffRequestIds = reviewableTimeOffResult.data ?? [];
   const requestViews = (requestViewsResult.data ?? []) as RequestView[];
   const messages = (messagesResult.data ?? []) as Message[];
@@ -298,6 +303,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
     shifts,
     requests,
     timeOffRequests,
+    oceanAcademyBlackouts,
     reviewableTimeOffRequestIds,
     requestViews,
     messages,

@@ -199,10 +199,22 @@ type TimeOffRequestRow = {
   start_date: string;
   end_date: string;
   reason: string;
+  special_approval_requested: boolean;
+  date_conflict: boolean;
+  blackout_conflict: boolean;
   status: RequestStatus;
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_comment: string | null;
+  created_at: string;
+};
+
+type OceanAcademyBlackoutRow = {
+  id: string;
+  start_date: string;
+  end_date: string;
+  note: string | null;
+  created_by: string;
   created_at: string;
 };
 
@@ -391,6 +403,10 @@ export type Database = {
           reason: string;
         }
       >;
+      ocean_academy_blackouts: Table<
+        OceanAcademyBlackoutRow,
+        Pick<OceanAcademyBlackoutRow, "start_date" | "end_date" | "created_by"> & Partial<OceanAcademyBlackoutRow>
+      >;
       request_views: Table<
         RequestViewRow,
         Pick<RequestViewRow, "reviewer_id" | "request_kind" | "request_id"> & Partial<RequestViewRow>
@@ -485,6 +501,14 @@ export type Database = {
       current_reviewer_can_decide_time_off: {
         Args: { requester_id: string; target_program: string };
         Returns: boolean;
+      };
+      current_reviewer_can_decide_ocean_special: {
+        Args: { requester_id: string };
+        Returns: boolean;
+      };
+      ocean_academy_special_reviewers: {
+        Args: { target_requester_id: string };
+        Returns: { user_id: string; email: string; full_name: string; role: string }[];
       };
       request_review_recipients: {
         Args: { target_kind: string; target_program: string; target_requester_id: string };

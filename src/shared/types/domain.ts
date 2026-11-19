@@ -189,10 +189,22 @@ export type TimeOffRequest = {
   start_date: string;
   end_date: string;
   reason: string;
+  special_approval_requested?: boolean;
+  date_conflict?: boolean;
+  blackout_conflict?: boolean;
   status: RequestStatus;
   reviewed_by?: string | null;
   reviewed_at?: string | null;
   review_comment?: string | null;
+  created_at: string;
+};
+
+export type OceanAcademyBlackout = {
+  id: string;
+  start_date: string;
+  end_date: string;
+  note: string | null;
+  created_by: string;
   created_at: string;
 };
 
@@ -331,6 +343,7 @@ export type DashboardData = {
   shifts: ShiftPost[];
   requests: ShiftRequest[];
   timeOffRequests: TimeOffRequest[];
+  oceanAcademyBlackouts: OceanAcademyBlackout[];
   reviewableTimeOffRequestIds: string[];
   requestViews: RequestView[];
   messages: Message[];

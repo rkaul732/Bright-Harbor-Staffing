@@ -184,7 +184,18 @@ export function EmployeeDashboard({
       date: item.date,
       program_name: item.program_name,
       kind: "team_time_off" as const,
-      note: "A teammate has approved time off. Choose other dates or speak with your supervisor before requesting this date."
+      note: item.program_name === "Ocean Academy"
+        ? "A teammate has approved time off. Requesting this date requires special admin approval."
+        : "A teammate has approved time off. Choose other dates or speak with your supervisor before requesting this date."
+    })),
+    ...data.oceanAcademyBlackouts.map((blackout) => ({
+      id: `blackout-${blackout.id}`,
+      title: "Ocean Academy blackout",
+      date: blackout.start_date,
+      endDate: blackout.end_date,
+      program_name: "Ocean Academy" as const,
+      kind: "blackout" as const,
+      note: blackout.note || "Time off on this date requires special admin approval."
     }))
   ];
 
@@ -280,6 +291,7 @@ export function EmployeeDashboard({
         <TimeOffRequestForm
           programNames={approvedTimeOffProgramNames}
           teamTimeOffDates={teamTimeOffDates}
+          blackouts={data.oceanAcademyBlackouts}
           teamAvailabilityAvailable={teamAvailabilityAvailable}
         />
       </EmployeeWidgetModal>

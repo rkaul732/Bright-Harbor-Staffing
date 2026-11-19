@@ -17,9 +17,11 @@ import { cn } from "@/shared/lib/cn";
 import { ShiftCard } from "@/shared/components/ShiftCard";
 import { StatusBadge } from "@/shared/components/StatusBadge";
 import { getCodeRedDayStaffing } from "@/shared/lib/shift-templates";
+import { datesInRange } from "@/shared/lib/team-time-off";
 import type {
   CalendarMode,
   LocationName,
+  OceanAcademyBlackout,
   ShiftPost,
   TimeOffRequest
 } from "@/shared/types/domain";
@@ -69,6 +71,7 @@ export function CalendarBoard({
   emptyLabel = "No shifts for this date.",
   actions,
   timeOffRequests = [],
+  blackouts = [],
   showByNameView = false,
   initialMode = "month",
   headerAction,
@@ -80,6 +83,7 @@ export function CalendarBoard({
   emptyLabel?: string;
   actions?: (shift: ShiftPost) => React.ReactNode;
   timeOffRequests?: TimeOffRequest[];
+  blackouts?: OceanAcademyBlackout[];
   showByNameView?: boolean;
   initialMode?: CalendarViewMode;
   headerAction?: React.ReactNode;
@@ -123,6 +127,14 @@ export function CalendarBoard({
 
   const dayShifts = filteredShifts.filter((shift) => shift.shift_date === selectedDate);
   const dayTimeOff = timeOffByDate.get(selectedDate) ?? [];
+  const blackoutByDate = useMemo(() => {
+    const byDate = new Map<string, OceanAcademyBlackout[]>();
+    blackouts.forEach((blackout) => datesInRange(blackout.start_date, blackout.end_date).forEach((date) => {
+      byDate.set(date, [...(byDate.get(date) ?? []), blackout]);
+    }));
+    return byDate;
+  }, [blackouts]);
+  const dayBlackouts = blackoutByDate.get(selectedDate) ?? [];
   const days = getMonthMatrix(monthDate);
 
   function getShiftsForDate(iso: string) {
@@ -222,6 +234,7 @@ export function CalendarBoard({
             const allDateShifts = getShiftsForDate(day.iso);
             const dateShifts = allDateShifts.slice(0, compact ? 1 : 2);
             const dateTimeOff = timeOffByDate.get(day.iso) ?? [];
+            const dateBlackouts = blackoutByDate.get(day.iso) ?? [];
             const visibleTimeOff = dateTimeOff.slice(0, compact ? 1 : 2);
             const staffing = codeRedStaffing ? getCodeRedDayStaffing(allDateShifts, day.iso) : null;
             const staffingLabel = staffing === "unfilled" ? "Unstaffed"
@@ -262,6 +275,7 @@ export function CalendarBoard({
                   ) : null}
                 </div>
                 <div className={cn("w-full min-w-0 space-y-1 overflow-hidden", compact ? "mt-1" : "mt-2")}>
+                  {dateBlackouts.length > 0 ? <span className="block max-w-full truncate rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-900" title={dateBlackouts.map((item) => item.note || "Ocean Academy blackout").join("; ")}>Ocean Academy · Blackout</span> : null}
                   {dateShifts.map((shift) => (
                     <span
                       key={shift.id}
@@ -310,6 +324,7 @@ export function CalendarBoard({
           {renderWeekdayHeaders()}
           {days.map((day) => {
             const requests = timeOffByDate.get(day.iso) ?? [];
+            const dateBlackouts = blackoutByDate.get(day.iso) ?? [];
             const visibleRequests = requests.slice(0, compact ? 2 : 3);
 
             return (
@@ -330,6 +345,7 @@ export function CalendarBoard({
               >
                 <span className="self-start text-xs font-medium leading-none">{day.date.getDate()}</span>
                 <div className={cn("w-full min-w-0 space-y-1 overflow-hidden", compact ? "mt-1" : "mt-2")}>
+                  {dateBlackouts.length > 0 ? <span className="block max-w-full truncate rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-900">Ocean Academy · Blackout</span> : null}
                   {visibleRequests.map((request) => (
                     <span
                       key={`${request.id}-${day.iso}`}
@@ -398,6 +414,8 @@ export function CalendarBoard({
               </span>
             ) : null}
           </div>
+
+          {dayBlackouts.length > 0 ? <div className="mb-4 space-y-2">{dayBlackouts.map((blackout) => <p key={blackout.id} className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-900">Ocean Academy blackout{blackout.note ? ` · ${blackout.note}` : ""}</p>)}</div> : null}
 
           {dayShifts.length > 0 ? (
             <div className="grid gap-3 lg:grid-cols-2">

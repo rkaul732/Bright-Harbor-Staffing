@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
-import { CalendarCheck, CalendarClock, CalendarPlus, CalendarX, ClipboardList, ListFilter, UsersRound, X } from "lucide-react";
+import { CalendarCheck, CalendarClock, CalendarPlus, CalendarX, ClipboardList, Flag, ListFilter, UsersRound, X } from "lucide-react";
 import { DashboardShell } from "@/shared/components/DashboardShell";
 import { ProgramSelectOptions } from "@/shared/components/ProgramSelectOptions";
 import { MetricCard } from "@/shared/components/MetricCard";
@@ -15,7 +15,7 @@ import { StatusBadge } from "@/shared/components/StatusBadge";
 import { SupervisorProfileForm } from "@/features/profiles/components/ProfileForms";
 import { SupervisorShiftPostForm } from "@/features/shifts/components/ShiftPostForms";
 import { CodeRedShiftCreationForm } from "@/features/shifts/components/CodeRedShiftCreationForm";
-import { AdminOutOfOfficeForm, TimeOffRequestForm } from "@/features/time-off/components/TimeOffForms";
+import { AdminOutOfOfficeForm, OceanAcademyBlackoutForm, TimeOffRequestForm } from "@/features/time-off/components/TimeOffForms";
 import {
   CancelShiftForm,
   RescheduleShiftForm
@@ -29,6 +29,7 @@ import { formatLongDate, sortShifts } from "@/shared/lib/dates";
 import { CODE_RED_BLUE_PROGRAM, PROGRAMS, ROLE_LABELS, getProgramLabel, getRelatedProgramNames } from "@/shared/lib/constants";
 import { hasSuperAdminAccess } from "@/shared/lib/access";
 import { timeOffReviewerIds } from "@/shared/lib/time-off-routing";
+import { datesInRange } from "@/shared/lib/team-time-off";
 import { isNewPendingRequest } from "@/features/dashboard/lib/request-status";
 import { createSupabaseBrowserClient } from "@/shared/lib/supabase/browser";
 import type {
@@ -124,6 +125,7 @@ function filterDashboardDataByProgram(
     shifts,
     requests,
     timeOffRequests,
+    oceanAcademyBlackouts: relatedPrograms.has("Ocean Academy") ? data.oceanAcademyBlackouts : [],
     workerProfiles,
     adSlots: data.adSlots.filter((adSlot) => relatedPrograms.has(adSlot.program_name as ProgramName))
   };
@@ -302,6 +304,7 @@ function AdminDashboardHome({
   const programOptions = useMemo(() => programOptionsForData(data), [data]);
   const [programFilter, setProgramFilter] = useState<ProgramName | "all">("all");
   const [showOooForm, setShowOooForm] = useState(false);
+  const [showBlackoutForm, setShowBlackoutForm] = useState(false);
   const [showTimeOffForm, setShowTimeOffForm] = useState(false);
   const [showCodeRedShiftForm, setShowCodeRedShiftForm] = useState(false);
   const [viewedRequestKeys, setViewedRequestKeys] = useState(
@@ -339,6 +342,9 @@ function AdminDashboardHome({
   const ownRequestPrograms = role === "admin"
     ? (canManageAccountTypes ? PROGRAMS : data.adminProfiles.find((profile) => profile.user_id === data.currentUser.id)?.program_names ?? [])
     : data.supervisorProfiles.find((profile) => profile.user_id === data.currentUser.id)?.program_names ?? [];
+  const canAddOceanAcademyBlackout = role === "admin"
+    ? canManageAccountTypes || data.adminProfiles.some((profile) => profile.user_id === data.currentUser.id && profile.status === "approved" && profile.program_names.includes("Ocean Academy"))
+    : data.supervisorProfiles.some((profile) => profile.user_id === data.currentUser.id && profile.status === "approved" && profile.program_names.includes("Ocean Academy"));
   const roleLabel = ROLE_LABELS[role];
 
   async function markReviewed(kind: "shift" | "time-off", requestId: string) {
@@ -441,24 +447,28 @@ function AdminDashboardHome({
             />
           ) : null}
 
-          {!codeRedSupervisor || otherVisibleShifts.length > 0 ? (
+          {!codeRedSupervisor || otherVisibleShifts.length > 0 || canAddOceanAcademyBlackout || visibleData.oceanAcademyBlackouts.length > 0 ? (
             <CalendarBoard
               title="Team Schedule"
               shifts={codeRedSupervisor ? otherVisibleShifts : visibleAllShifts}
               timeOffRequests={visibleData.timeOffRequests}
+              blackouts={visibleData.oceanAcademyBlackouts}
               showByNameView
               initialMode="by-name"
               emptyLabel="No staffing shifts for this date."
               compact
-              headerAction={role === "admin" ? (
-                <button
+              headerAction={role === "admin" || canAddOceanAcademyBlackout ? (
+                <div className="flex flex-wrap items-center gap-2">
+                {role === "admin" ? <button
                   type="button"
                   onClick={() => setShowOooForm(true)}
                   className="word-button font-semibold"
                 >
                   <CalendarPlus className="h-4 w-4" aria-hidden="true" />
                   Add OOO
-                </button>
+                </button> : null}
+                {canAddOceanAcademyBlackout ? <button type="button" onClick={() => setShowBlackoutForm(true)} className="word-button font-semibold"><CalendarPlus className="h-4 w-4" aria-hidden="true" />Add Blackout</button> : null}
+                </div>
               ) : null}
             />
           ) : null}
@@ -514,6 +524,18 @@ function AdminDashboardHome({
             </div>
           ) : null}
 
+          {showBlackoutForm ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-harbor-midnight/35 px-3 py-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="ocean-blackout-title">
+              <section className="w-full max-w-lg rounded-lg border border-white/70 bg-white p-4 shadow-soft sm:p-5">
+                <div className="mb-4 flex items-start justify-between gap-4 border-b border-harbor-ocean/10 pb-4">
+                  <div><p className="label">Ocean Academy</p><h2 id="ocean-blackout-title" className="mt-1 text-xl font-medium text-harbor-midnight">Add Blackout</h2></div>
+                  <button type="button" onClick={() => setShowBlackoutForm(false)} className="ghost-button px-1.5" aria-label="Close Add Blackout"><X className="h-3.5 w-3.5" aria-hidden="true" /></button>
+                </div>
+                <OceanAcademyBlackoutForm />
+              </section>
+            </div>
+          ) : null}
+
           {showTimeOffForm ? (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-harbor-midnight/35 px-3 py-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="staff-time-off-title">
               <section className="w-full max-w-lg rounded-lg border border-white/70 bg-white p-4 shadow-soft sm:p-5">
@@ -521,7 +543,11 @@ function AdminDashboardHome({
                   <div><p className="label">My time off</p><h2 id="staff-time-off-title" className="mt-1 text-xl font-medium text-harbor-midnight">Request time off</h2></div>
                   <button type="button" onClick={() => setShowTimeOffForm(false)} className="ghost-button px-1.5" aria-label="Close request time off"><X className="h-3.5 w-3.5" aria-hidden="true" /></button>
                 </div>
-                <TimeOffRequestForm programNames={ownRequestPrograms} />
+                <TimeOffRequestForm
+                  programNames={ownRequestPrograms}
+                  blackouts={data.oceanAcademyBlackouts}
+                  teamTimeOffDates={data.timeOffRequests.filter((request) => request.status === "approved" && request.user_id !== data.currentUser.id && request.program_name === "Ocean Academy").flatMap((request) => datesInRange(request.start_date, request.end_date).map((date) => ({ program_name: request.program_name, date })))}
+                />
               </section>
             </div>
           ) : null}
@@ -825,7 +851,11 @@ function AdminRequestsWorkspace({
                 return (
                   <tr key={key} className="align-top hover:bg-harbor-mist/40">
                     <td className="px-4 py-4 font-medium text-harbor-midnight">
-                      {item.type === "shift" ? item.request.requestor_name : item.request.employee_name}
+                      <span className="inline-flex items-center gap-2">
+                        {item.type === "shift" ? item.request.requestor_name : item.request.employee_name}
+                        {role === "admin" && item.type === "time-off" && item.request.date_conflict ? <span title="Date Conflict" aria-label="Date Conflict" className="inline-flex rounded-md bg-orange-100 p-1 text-orange-700"><Flag className="h-4 w-4" aria-hidden="true" /></span> : null}
+                        {role === "admin" && item.type === "time-off" && item.request.blackout_conflict ? <span title="Blackout Date" aria-label="Blackout Date" className="inline-flex rounded-md bg-red-100 p-1 text-red-700"><CalendarX className="h-4 w-4" aria-hidden="true" /></span> : null}
+                      </span>
                     </td>
                     <td className="px-4 py-4 text-harbor-midnight/80">{item.type === "shift" ? "Shift coverage" : "Time off"}</td>
                     <td className="px-4 py-4 text-harbor-midnight/80">{getProgramLabel(item.type === "shift" ? shift?.program_name ?? "" : item.request.program_name)}</td>
