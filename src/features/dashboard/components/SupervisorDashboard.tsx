@@ -65,6 +65,7 @@ function isReviewQueueRequest(
   role: AppRole,
   item: { type: "shift"; request: ShiftRequest } | { type: "time-off"; request: TimeOffRequest }
 ) {
+  if (role === "admin" && hasSuperAdminAccess(data)) return true;
   const requesterId = item.type === "shift"
     ? item.request.requestor_id
     : item.request.user_id;
@@ -422,7 +423,7 @@ function AdminDashboardHome({
                 onChange={(event) => setProgramFilter(event.target.value as ProgramName | "all")}
                 className="bg-transparent text-sm outline-none"
               >
-                <option value="all">All assigned programs</option>
+                <option value="all">{canManageAccountTypes ? "All programs" : "All assigned programs"}</option>
                 <ProgramSelectOptions allowedProgramNames={programOptions} />
               </select>
             </label>

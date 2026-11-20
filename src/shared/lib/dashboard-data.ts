@@ -55,6 +55,28 @@ function calculateAnalytics(
 
 type DashboardCollections = Omit<DashboardData, "analytics" | "isDemo">;
 
+async function loadEveryRequestRow(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  table: "requests" | "time_off_requests",
+  orderBy: "created_at" | "start_date"
+) {
+  const pageSize = 500;
+  const rows: unknown[] = [];
+
+  for (let start = 0; ; start += pageSize) {
+    const result = await supabase
+      .from(table)
+      .select("*")
+      .order(orderBy, { ascending: table === "time_off_requests" })
+      .order("id", { ascending: true })
+      .range(start, start + pageSize - 1);
+
+    if (result.error) return { data: null, error: result.error };
+    rows.push(...(result.data ?? []));
+    if ((result.data?.length ?? 0) < pageSize) return { data: rows, error: null };
+  }
+}
+
 function workerProgramNames(profile: WorkerProfile) {
   return [...new Set([...profile.program_names, ...profile.approved_program_names])];
 }
@@ -228,11 +250,8 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
     supabase.from("supervisor_profiles").select("*").order("created_at", { ascending: false }),
     supabase.from("admin_profiles").select("*").order("created_at", { ascending: false }),
     supabase.from("shift_posts").select("*").order("shift_date", { ascending: true }),
-    supabase.from("requests").select("*").order("created_at", { ascending: false }),
-    supabase
-      .from("time_off_requests")
-      .select("*")
-      .order("start_date", { ascending: true }),
+    loadEveryRequestRow(supabase, "requests", "created_at"),
+    loadEveryRequestRow(supabase, "time_off_requests", "start_date"),
     supabase.from("ocean_academy_blackouts").select("*").order("start_date", { ascending: true }),
     supabase.rpc("current_reviewable_time_off_request_ids"),
     supabase.from("request_views").select("*").eq("reviewer_id", user.id),
