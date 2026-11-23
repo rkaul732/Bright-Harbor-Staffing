@@ -131,6 +131,15 @@ export function ProfileMenu({
                 My Profile
               </button>
             ) : null}
+            {canAccessAdmin ? (
+              <Link
+                href="/my-team"
+                className={menuItemClass(pathname.startsWith("/my-team"))}
+                onClick={() => setOpen(false)}
+              >
+                My Team
+              </Link>
+            ) : null}
             {canAccessEmployees ? (
               <div>
                 <button
