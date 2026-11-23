@@ -48,6 +48,7 @@ const divisionChoices: { name: string; choices: ProgramChoice[] }[] = [
     name: "Adult Clinical Services",
     choices: [
       { label: "Access", programNames: ["Access"] },
+      { label: "Bright Horizons", programNames: ["Bright Horizons"] },
       { label: "IFSS", programNames: ["Intensive Family Support Services"] },
       { label: "ISC", programNames: ["Integrated System of Care (ISC)"] },
       {
@@ -59,6 +60,7 @@ const divisionChoices: { name: string; choices: ProgramChoice[] }[] = [
           { label: "On POINT", programNames: ["On POINT"] }
         ]
       },
+      { label: "Nursing & Medical", programNames: ["Nursing & Medical"] },
       { label: "Nursing Case Management", programNames: ["Nursing Case Management"] },
       { label: "Oasis", programNames: ["Oasis"] },
       { label: "Outpatient (Adult)", programNames: ["Outpatient Services"] },
