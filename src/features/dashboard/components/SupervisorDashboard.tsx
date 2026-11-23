@@ -712,6 +712,8 @@ function AdminRequestsWorkspace({
   const [notesRequest, setNotesRequest] = useState<AdminRequestItem | null>(null);
   const [notesByRequest, setNotesByRequest] = useState<Record<string, string>>({});
   const roleLabel = ROLE_LABELS[role];
+  const isSuperAdmin = hasSuperAdminAccess(data);
+  const reviewerById = new Map(data.users.map((user) => [user.id, user.full_name]));
   const shiftById = useMemo(
     () => new Map(data.shifts.map((shift) => [shift.id, shift])),
     [data.shifts]
@@ -877,7 +879,7 @@ function AdminRequestsWorkspace({
             <thead className="bg-harbor-mist text-xs font-semibold uppercase tracking-wide text-harbor-ocean">
               <tr>
                 {[
-                  "Employee", "Request", "Program", "Date / shift", "Submitted", "Status", "Decision", "Notes"
+                  "Employee", "Request", "Program", "Date / shift", "Submitted", "Status", isSuperAdmin ? "Approved By" : "Decision", "Notes"
                 ].map((heading) => <th key={heading} scope="col" className="px-4 py-3">{heading}</th>)}
               </tr>
             </thead>
@@ -907,6 +909,13 @@ function AdminRequestsWorkspace({
                     <td className="whitespace-nowrap px-4 py-4 text-harbor-midnight/70">{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(item.created_at))}</td>
                     <td className="px-4 py-4"><RequestQueueStatus status={item.status} /></td>
                     <td className="px-4 py-4">
+                      {isSuperAdmin && item.status === "approved" ? (
+                        <span className="mb-2 block font-medium text-harbor-midnight">
+                          {item.request.reviewed_by
+                            ? reviewerById.get(item.request.reviewed_by) ?? "Former staff member"
+                            : "Not recorded"}
+                        </span>
+                      ) : null}
                       {pendingDecision && canReview(item) ? (
                         <RequestDecisionControls item={item} role={role} reviewComment={notesByRequest[key] ?? ""} />
                       ) : pendingDecision ? <span className="text-harbor-midnight/50">Assigned reviewer only</span>
@@ -919,7 +928,8 @@ function AdminRequestsWorkspace({
                           />
                           <ResendTimeOffDecisionControl requestId={item.request.id} role={role} />
                         </div>
-                      ) : <span className="text-harbor-midnight/50">Reviewed</span>}
+                      ) : isSuperAdmin && item.status === "approved" ? null
+                        : <span className="text-harbor-midnight/50">{isSuperAdmin ? "Not approved" : "Reviewed"}</span>}
                       {activeTab === "new" && pendingDecision ? <button type="button" onClick={() => onMarkReviewed(item.type, item.request.id)} className="mt-2 block text-xs font-medium text-harbor-ocean underline">Keep pending</button> : null}
                     </td>
                     <td className="px-4 py-4">
