@@ -2,13 +2,16 @@ import { redirect } from "next/navigation";
 import { getDemoDashboardData } from "@/shared/lib/demo-data";
 import { CODE_RED_BLUE_PROGRAM, CODE_RED_BLUE_SUPERVISOR_EMAIL, getRelatedProgramNames, normalizeAssignedProgramNames } from "@/shared/lib/constants";
 import { isSupabaseConfigured } from "@/shared/lib/supabase/env";
+import { createSupabaseAdminClient } from "@/shared/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/shared/lib/supabase/server";
+import { toCalendarTimeOffEntry } from "@/shared/lib/time-off-calendar";
 import type {
   AdSlot,
   AdminProfile,
   AnalyticsSummary,
   AppRole,
   AppUser,
+  CalendarTimeOffEntry,
   DashboardData,
   Message,
   MonthlyWinner,
@@ -54,6 +57,45 @@ function calculateAnalytics(
 }
 
 type DashboardCollections = Omit<DashboardData, "analytics" | "isDemo">;
+
+async function loadApprovedSupervisorCalendarTimeOff(): Promise<CalendarTimeOffEntry[]> {
+  const admin = createSupabaseAdminClient();
+  const pageSize = 500;
+  const supervisorIds = new Set<string>();
+
+  for (let start = 0; ; start += pageSize) {
+    const { data, error } = await admin.from("users")
+      .select("id")
+      .eq("role", "supervisor")
+      .order("id", { ascending: true })
+      .range(start, start + pageSize - 1);
+
+    if (error) throw new Error("Could not load supervisor calendar users.");
+    data?.forEach((user) => supervisorIds.add(user.id));
+    if ((data?.length ?? 0) < pageSize) break;
+  }
+
+  if (supervisorIds.size === 0) return [];
+
+  const approvedTimeOff: CalendarTimeOffEntry[] = [];
+
+  for (let start = 0; ; start += pageSize) {
+    const { data, error } = await admin.from("time_off_requests")
+      .select("id,user_id,employee_name,program_name,start_date,end_date,status")
+      .eq("status", "approved")
+      .order("start_date", { ascending: true })
+      .order("id", { ascending: true })
+      .range(start, start + pageSize - 1);
+
+    if (error) throw new Error("Could not load approved supervisor time off.");
+    approvedTimeOff.push(...(data ?? [])
+      .filter((request) => supervisorIds.has(request.user_id))
+      .map(toCalendarTimeOffEntry));
+    if ((data?.length ?? 0) < pageSize) break;
+  }
+
+  return approvedTimeOff;
+}
 
 async function loadEveryRequestRow(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
@@ -330,6 +372,10 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
         last_sign_in_at: user.last_sign_in_at ?? user.created_at
       } satisfies AppUser);
 
+  const supervisorCalendarTimeOff = storedCurrentUser?.role === "supervisor"
+    ? await loadApprovedSupervisorCalendarTimeOff()
+    : [];
+
   const scopedData = scopeDashboardDataForCurrentUser({
     currentUser,
     users,
@@ -339,6 +385,7 @@ export async function getDashboardData(role: AppRole): Promise<DashboardData> {
     shifts,
     requests,
     timeOffRequests,
+    supervisorCalendarTimeOff,
     oceanAcademyBlackouts,
     reviewableTimeOffRequestIds,
     requestViews,
@@ -393,6 +440,12 @@ export function createMemberPreviewData(
           data.users.find((user) => user.id === request.user_id)?.role === "employee"
         )
       : data.timeOffRequests,
+    supervisorCalendarTimeOff: member.role === "supervisor"
+      ? data.timeOffRequests.filter((request) =>
+          request.status === "approved" &&
+          data.users.some((user) => user.id === request.user_id && user.role === "supervisor")
+        ).map(toCalendarTimeOffEntry)
+      : [],
     messages: member.role === "employee"
       ? data.messages.filter((message) => message.sender_id === member.id || message.recipient_id === member.id)
       : data.messages,

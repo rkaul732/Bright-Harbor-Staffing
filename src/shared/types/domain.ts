@@ -201,6 +201,11 @@ export type TimeOffRequest = {
   created_at: string;
 };
 
+export type CalendarTimeOffEntry = Pick<
+  TimeOffRequest,
+  "id" | "employee_name" | "program_name" | "start_date" | "end_date" | "status"
+> & { isSupervisor?: boolean };
+
 export type OceanAcademyBlackout = {
   id: string;
   start_date: string;
@@ -345,6 +350,7 @@ export type DashboardData = {
   shifts: ShiftPost[];
   requests: ShiftRequest[];
   timeOffRequests: TimeOffRequest[];
+  supervisorCalendarTimeOff: CalendarTimeOffEntry[];
   oceanAcademyBlackouts: OceanAcademyBlackout[];
   reviewableTimeOffRequestIds: string[];
   requestViews: RequestView[];

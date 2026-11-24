@@ -351,6 +351,12 @@ function AdminDashboardHome({
     () => filterDashboardDataByProgram(data, programFilter),
     [data, programFilter]
   );
+  const calendarTimeOffRequests = [
+    ...new Map([
+      ...visibleData.timeOffRequests.filter((request) => request.status === "approved"),
+      ...data.supervisorCalendarTimeOff
+    ].map((request) => [request.id, request] as const)).values()
+  ];
   const visibleAllShifts = sortShifts(visibleData.shifts);
   const codeRedSupervisor = role === "supervisor" && data.supervisorProfiles.some(
     (profile) => profile.user_id === data.currentUser.id && profile.status === "approved" && profile.program_names.includes(CODE_RED_BLUE_PROGRAM)
@@ -494,11 +500,11 @@ function AdminDashboardHome({
             />
           ) : null}
 
-          {!codeRedSupervisor || otherVisibleShifts.length > 0 || canAddOceanAcademyBlackout || visibleData.oceanAcademyBlackouts.length > 0 ? (
+          {!codeRedSupervisor || role === "supervisor" || otherVisibleShifts.length > 0 || canAddOceanAcademyBlackout || visibleData.oceanAcademyBlackouts.length > 0 ? (
             <CalendarBoard
               title="Team Schedule"
               shifts={codeRedSupervisor ? otherVisibleShifts : visibleAllShifts}
-              timeOffRequests={visibleData.timeOffRequests}
+              timeOffRequests={calendarTimeOffRequests}
               blackouts={visibleData.oceanAcademyBlackouts}
               showByNameView
               initialMode="by-name"

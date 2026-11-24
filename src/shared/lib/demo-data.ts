@@ -6,6 +6,7 @@ import {
   FIXED_STANDARD_PAY_RATE
 } from "@/shared/lib/constants";
 import { toISODate } from "@/shared/lib/dates";
+import { toCalendarTimeOffEntry } from "@/shared/lib/time-off-calendar";
 import type {
   AdSlot,
   AdminProfile,
@@ -425,6 +426,19 @@ const timeOffRequests: TimeOffRequest[] = [
     reviewed_by: null,
     reviewed_at: null,
     created_at: dateFromToday(-1)
+  },
+  {
+    id: "time-off-supervisor-1",
+    user_id: "user-supervisor-1",
+    employee_name: "B. Pataky",
+    program_name: "Beacon/ Anchor",
+    start_date: dateFromToday(7),
+    end_date: dateFromToday(8),
+    reason: "Personal time",
+    status: "approved",
+    reviewed_by: "user-admin-1",
+    reviewed_at: dateFromToday(-3),
+    created_at: dateFromToday(-5)
   }
 ];
 
@@ -552,6 +566,12 @@ export function getDemoDashboardData(role: AppRole): DashboardData {
     timeOffRequests: role === "employee"
       ? timeOffRequests.filter((request) => request.user_id === currentUser.id)
       : timeOffRequests,
+    supervisorCalendarTimeOff: role === "supervisor"
+      ? timeOffRequests.filter((request) =>
+          request.status === "approved" &&
+          users.some((user) => user.id === request.user_id && user.role === "supervisor")
+        ).map(toCalendarTimeOffEntry)
+      : [],
     oceanAcademyBlackouts: [],
     reviewableTimeOffRequestIds: [],
     requestViews: [],

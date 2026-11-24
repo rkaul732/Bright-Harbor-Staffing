@@ -20,15 +20,15 @@ import { getCodeRedDayStaffing } from "@/shared/lib/shift-templates";
 import { datesInRange } from "@/shared/lib/team-time-off";
 import type {
   CalendarMode,
+  CalendarTimeOffEntry,
   LocationName,
   OceanAcademyBlackout,
-  ShiftPost,
-  TimeOffRequest
+  ShiftPost
 } from "@/shared/types/domain";
 
 type CalendarViewMode = CalendarMode | "by-name";
 
-function getTimeOffDates(request: TimeOffRequest) {
+function getTimeOffDates(request: CalendarTimeOffEntry) {
   const dates: string[] = [];
   const cursor = parseLocalDate(request.start_date);
   const end = parseLocalDate(request.end_date);
@@ -83,7 +83,7 @@ export function CalendarBoard({
   shifts: ShiftPost[];
   emptyLabel?: string;
   actions?: (shift: ShiftPost) => React.ReactNode;
-  timeOffRequests?: TimeOffRequest[];
+  timeOffRequests?: CalendarTimeOffEntry[];
   blackouts?: OceanAcademyBlackout[];
   showByNameView?: boolean;
   initialMode?: CalendarViewMode;
@@ -104,7 +104,7 @@ export function CalendarBoard({
   }, [location, shifts]);
 
   const timeOffByDate = useMemo(() => {
-    const byDate = new Map<string, TimeOffRequest[]>();
+    const byDate = new Map<string, CalendarTimeOffEntry[]>();
     const visibleRequests = timeOffRequests.filter((request) => request.status === "approved");
 
     visibleRequests.forEach((request) => {
@@ -292,10 +292,10 @@ export function CalendarBoard({
                   {visibleTimeOff.map((request) => (
                     <span
                       key={`time-off-${request.id}`}
-                      title={`${request.employee_name} · ${getProgramLabel(request.program_name)} · Approved time off`}
+                      title={`${request.employee_name} · ${getProgramLabel(request.program_name)} · Approved ${request.isSupervisor ? "supervisor " : ""}time off`}
                       className={cn("block max-w-full truncate rounded-md border px-2 py-1 text-[11px]", approvedTimeOffClass)}
                     >
-                      {request.employee_name} · Off
+                      {request.employee_name} · {request.isSupervisor ? "Supervisor off" : "Off"}
                     </span>
                   ))}
                   {dateShifts.length < allDateShifts.length ? (
@@ -356,7 +356,7 @@ export function CalendarBoard({
                         approvedTimeOffClass
                       )}
                     >
-                      {request.employee_name} · Off
+                      {request.employee_name} · {request.isSupervisor ? "Supervisor off" : "Off"}
                     </span>
                   ))}
                   {visibleRequests.length < requests.length ? (
@@ -454,6 +454,7 @@ export function CalendarBoard({
                     <li key={request.id} className={cn("rounded-lg border px-3 py-2 text-sm", approvedTimeOffClass)}>
                       <span className="block font-semibold">{request.employee_name}</span>
                       <span className="block text-xs">{getProgramLabel(request.program_name)}</span>
+                      {request.isSupervisor ? <span className="block text-xs">Supervisor</span> : null}
                     </li>
                   ))}
                 </ul>
