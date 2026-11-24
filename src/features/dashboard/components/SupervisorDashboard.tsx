@@ -341,6 +341,7 @@ function AdminDashboardHome({
   const [showOooForm, setShowOooForm] = useState(false);
   const [showBlackoutForm, setShowBlackoutForm] = useState(false);
   const [showTimeOffForm, setShowTimeOffForm] = useState(false);
+  const [timeOffStartDate, setTimeOffStartDate] = useState("");
   const [showCodeRedShiftForm, setShowCodeRedShiftForm] = useState(false);
   const [viewedRequestKeys, setViewedRequestKeys] = useState(
     () => new Set(data.requestViews.map((view) => requestViewKey(view.request_kind, view.request_id)))
@@ -413,7 +414,14 @@ function AdminDashboardHome({
             </h2>
           </div>
           <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-            <button type="button" onClick={() => setShowTimeOffForm(true)} className="word-button font-semibold">
+            <button
+              type="button"
+              onClick={() => {
+                setTimeOffStartDate("");
+                setShowTimeOffForm(true);
+              }}
+              className="word-button font-semibold"
+            >
               Request time off
             </button>
             <label className="flex min-h-10 items-center gap-2 rounded-lg border border-harbor-ocean/15 bg-harbor-mist px-3 py-1.5 text-sm text-harbor-midnight/70">
@@ -469,6 +477,10 @@ function AdminDashboardHome({
               emptyLabel="No Code Red/Code Blue shifts have been added for this date."
               codeRedStaffing
               compact
+              onRequestTimeOff={(date) => {
+                setTimeOffStartDate(date);
+                setShowTimeOffForm(true);
+              }}
               headerAction={(
                 <button
                   type="button"
@@ -492,6 +504,10 @@ function AdminDashboardHome({
               initialMode="by-name"
               emptyLabel="No staffing shifts for this date."
               compact
+              onRequestTimeOff={role === "supervisor" ? (date) => {
+                setTimeOffStartDate(date);
+                setShowTimeOffForm(true);
+              } : undefined}
               headerAction={role === "admin" || canAddOceanAcademyBlackout ? (
                 <div className="flex flex-wrap items-center gap-2">
                 {role === "admin" ? <button
@@ -580,6 +596,7 @@ function AdminDashboardHome({
                 </div>
                 <TimeOffRequestForm
                   programNames={ownRequestPrograms}
+                  initialStartDate={timeOffStartDate}
                   blackouts={data.oceanAcademyBlackouts}
                   teamTimeOffDates={data.timeOffRequests.filter((request) => request.status === "approved" && request.user_id !== data.currentUser.id && request.program_name === "Ocean Academy").flatMap((request) => datesInRange(request.start_date, request.end_date).map((date) => ({ program_name: request.program_name, date })))}
                 />

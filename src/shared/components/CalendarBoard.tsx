@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ListFilter } from "lucide-react";
+import { CalendarDays, CalendarPlus, ChevronDown, ChevronLeft, ChevronRight, ListFilter } from "lucide-react";
 import { getProgramLabel, LOCATIONS } from "@/shared/lib/constants";
 import {
   addMonths,
@@ -75,6 +75,7 @@ export function CalendarBoard({
   showByNameView = false,
   initialMode = "month",
   headerAction,
+  onRequestTimeOff,
   compact = false,
   codeRedStaffing = false
 }: {
@@ -87,6 +88,7 @@ export function CalendarBoard({
   showByNameView?: boolean;
   initialMode?: CalendarViewMode;
   headerAction?: React.ReactNode;
+  onRequestTimeOff?: (startDate: string) => void;
   compact?: boolean;
   codeRedStaffing?: boolean;
 }) {
@@ -403,9 +405,19 @@ export function CalendarBoard({
             />
           </label>
 
-          <div className="mb-4 flex items-center gap-2 text-harbor-ocean">
+          <div className="mb-4 flex flex-wrap items-center gap-2 text-harbor-ocean">
             <CalendarDays className="h-4 w-4" aria-hidden="true" />
             <p className="text-sm">{formatLongDate(selectedDate)}</p>
+            {onRequestTimeOff ? (
+              <button
+                type="button"
+                onClick={() => onRequestTimeOff(selectedDate)}
+                className="word-button ml-auto"
+              >
+                <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+                Request time off
+              </button>
+            ) : null}
             {codeRedStaffing ? (
               <span className="ml-auto text-xs font-semibold text-harbor-midnight/70">
                 {getCodeRedDayStaffing(dayShifts, selectedDate) === "unfilled" ? "Unstaffed"
