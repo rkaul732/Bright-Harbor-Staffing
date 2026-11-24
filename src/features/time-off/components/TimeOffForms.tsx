@@ -20,11 +20,13 @@ const initialState = { ok: false, message: "" };
 
 export function TimeOffRequestForm({
   programNames,
+  initialStartDate = "",
   teamTimeOffDates = [],
   blackouts = [],
   teamAvailabilityAvailable = true
 }: {
   programNames: ProgramName[];
+  initialStartDate?: string;
   teamTimeOffDates?: TeamTimeOffDate[];
   blackouts?: OceanAcademyBlackout[];
   teamAvailabilityAvailable?: boolean;
@@ -34,18 +36,20 @@ export function TimeOffRequestForm({
     initialState as Awaited<ReturnType<typeof submitTimeOffRequestAction>>
   );
   const [programName, setProgramName] = useState<ProgramName | "">(programNames[0] ?? "");
-  const [startDate, setStartDate] = useState("");
+  const [startDate, setStartDate] = useState(initialStartDate);
+  const [multipleDays, setMultipleDays] = useState(false);
   const [endDate, setEndDate] = useState("");
+  const selectedEndDate = multipleDays ? endDate : startDate;
   const [spokeWithSupervisor, setSpokeWithSupervisor] = useState(false);
   const [specialApprovalConfirmed, setSpecialApprovalConfirmed] = useState(false);
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [dismissedConflictKey, setDismissedConflictKey] = useState<string | null>(null);
-  const selectionKey = teamTimeOffSelectionKey(programName, startDate, endDate);
-  const calendarConflicts = overlappingTeamTimeOffDates(teamTimeOffDates, programName, startDate, endDate);
+  const selectionKey = teamTimeOffSelectionKey(programName, startDate, selectedEndDate);
+  const calendarConflicts = overlappingTeamTimeOffDates(teamTimeOffDates, programName, startDate, selectedEndDate);
   const newlyDetectedConflicts = state.conflictKey === selectionKey ? state.conflictDates ?? [] : [];
   const conflictDates = [...new Set([...calendarConflicts, ...newlyDetectedConflicts])].sort();
   const blackoutDates = programName === "Ocean Academy"
-    ? blackouts.filter((item) => item.start_date <= endDate && item.end_date >= startDate)
+    ? blackouts.filter((item) => item.start_date <= selectedEndDate && item.end_date >= startDate)
     : [];
   const lateBlackoutDates = state.conflictKey === selectionKey ? state.blackoutDates ?? [] : [];
   const hasOceanConflict = programName === "Ocean Academy" && (conflictDates.length > 0 || blackoutDates.length > 0 || lateBlackoutDates.length > 0);
@@ -92,7 +96,7 @@ export function TimeOffRequestForm({
           ))}
         </select>
       </label>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={multipleDays ? "grid gap-3 sm:grid-cols-2" : ""}>
         <label className="block">
           <span className="label">Start date</span>
           <input
@@ -100,7 +104,9 @@ export function TimeOffRequestForm({
             type="date"
             value={startDate}
             onChange={(event) => {
-              setStartDate(event.target.value);
+              const nextDate = event.target.value;
+              setStartDate(nextDate);
+              if (multipleDays && endDate && endDate < nextDate) setEndDate("");
               setSpokeWithSupervisor(false);
               setSpecialApprovalConfirmed(false);
               setShowConflictModal(false);
@@ -110,24 +116,43 @@ export function TimeOffRequestForm({
             required
           />
         </label>
-        <label className="block">
-          <span className="label">End date</span>
-          <input
-            name="end_date"
-            type="date"
-            value={endDate}
-            onChange={(event) => {
-              setEndDate(event.target.value);
-              setSpokeWithSupervisor(false);
-              setSpecialApprovalConfirmed(false);
-              setShowConflictModal(false);
-              setDismissedConflictKey(null);
-            }}
-            className="field mt-1.5"
-            required
-          />
-        </label>
+        {multipleDays ? (
+          <label className="block">
+            <span className="label">End date</span>
+            <input
+              name="end_date"
+              type="date"
+              min={startDate || undefined}
+              value={endDate}
+              onChange={(event) => {
+                setEndDate(event.target.value);
+                setSpokeWithSupervisor(false);
+                setSpecialApprovalConfirmed(false);
+                setShowConflictModal(false);
+                setDismissedConflictKey(null);
+              }}
+              className="field mt-1.5"
+              required
+            />
+          </label>
+        ) : <input type="hidden" name="end_date" value={startDate} />}
       </div>
+      <label className="flex w-fit items-center gap-2 text-sm font-medium text-harbor-midnight">
+        <input
+          type="checkbox"
+          checked={multipleDays}
+          onChange={(event) => {
+            setMultipleDays(event.target.checked);
+            setEndDate("");
+            setSpokeWithSupervisor(false);
+            setSpecialApprovalConfirmed(false);
+            setShowConflictModal(false);
+            setDismissedConflictKey(null);
+          }}
+          className="h-4 w-4 accent-harbor-ocean"
+        />
+        Multiple days
+      </label>
       {needsTeamCheck && !teamAvailabilityAvailable ? (
         <p role="status" className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900">
           Team availability could not load. Your dates will be checked again when you submit.

@@ -88,6 +88,7 @@ export function EmployeeDashboard({
   teamAvailabilityAvailable?: boolean;
 }) {
   const [activeModal, setActiveModal] = useState<EmployeeModalKey | null>(null);
+  const [timeOffStartDate, setTimeOffStartDate] = useState("");
   const profile = data.workerProfiles.find(
     (workerProfile) => workerProfile.user_id === data.currentUser.id
   );
@@ -235,7 +236,10 @@ export function EmployeeDashboard({
       <EmployeeRequestOverview
         requests={myTimeOffRequests}
         programLabel={approvedTimeOffProgramNames.length ? approvedTimeOffProgramNames.join(", ") : "awaiting program approval"}
-        onRequestTimeOff={() => setActiveModal("time-off")}
+        onRequestTimeOff={() => {
+          setTimeOffStartDate("");
+          setActiveModal("time-off");
+        }}
       />
 
       <div
@@ -247,7 +251,10 @@ export function EmployeeDashboard({
             programNames={calendarProgramNames}
             availableShifts={canExchangeShifts ? availableShifts : []}
             showShiftTools={canExchangeShifts}
-            onRequestTimeOff={() => setActiveModal("time-off")}
+            onRequestTimeOff={(date) => {
+              setTimeOffStartDate(date);
+              setActiveModal("time-off");
+            }}
             onPostShift={() => setActiveModal("post-shift")}
           />
         </div>
@@ -290,6 +297,7 @@ export function EmployeeDashboard({
       >
         <TimeOffRequestForm
           programNames={approvedTimeOffProgramNames}
+          initialStartDate={timeOffStartDate}
           teamTimeOffDates={teamTimeOffDates}
           blackouts={data.oceanAcademyBlackouts}
           teamAvailabilityAvailable={teamAvailabilityAvailable}
