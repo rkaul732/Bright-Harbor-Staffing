@@ -56,12 +56,14 @@ export function RescindTimeOffRequestControl({ requestId }: { requestId: string 
 export function TimeOffRequestForm({
   programNames,
   initialStartDate = "",
+  initialProgramName,
   teamTimeOffDates = [],
   blackouts = [],
   teamAvailabilityAvailable = true
 }: {
   programNames: ProgramName[];
   initialStartDate?: string;
+  initialProgramName?: ProgramName;
   teamTimeOffDates?: TeamTimeOffDate[];
   blackouts?: OceanAcademyBlackout[];
   teamAvailabilityAvailable?: boolean;
@@ -70,7 +72,11 @@ export function TimeOffRequestForm({
     submitTimeOffRequestAction,
     initialState as Awaited<ReturnType<typeof submitTimeOffRequestAction>>
   );
-  const [programName, setProgramName] = useState<ProgramName | "">(programNames[0] ?? "");
+  const [programName, setProgramName] = useState<ProgramName | "">(() =>
+    initialProgramName && programNames.includes(initialProgramName)
+      ? initialProgramName
+      : programNames.length === 1 ? programNames[0] : ""
+  );
   const [startDate, setStartDate] = useState(initialStartDate);
   const [multipleDays, setMultipleDays] = useState(false);
   const [endDate, setEndDate] = useState("");
@@ -124,6 +130,7 @@ export function TimeOffRequestForm({
           className="field mt-1.5"
           required
         >
+          {programNames.length > 1 ? <option value="" disabled>Select a program</option> : null}
           {programNames.map((program) => (
             <option key={program} value={program}>
               {getProgramLabel(program)}
@@ -196,7 +203,7 @@ export function TimeOffRequestForm({
       {needsTeamCheck && programName !== "Ocean Academy" && conflictDates.length > 0 ? (
         <div role="alert" className="rounded-lg border border-orange-300 bg-orange-50 p-3 text-sm text-orange-950">
           <p className="font-semibold">
-            A teammate is already approved off on {conflictDates.slice(0, 4).map(formatShortDate).join(", ")}
+            A teammate in {getProgramLabel(programName as ProgramName)} is already approved off on {conflictDates.slice(0, 4).map(formatShortDate).join(", ")}
             {conflictDates.length > 4 ? ` and ${conflictDates.length - 4} more date${conflictDates.length - 4 === 1 ? "" : "s"}` : ""}.
           </p>
           <p className="mt-1">Choose alternative dates above, or speak with your supervisor before submitting this request.</p>
@@ -232,7 +239,7 @@ export function TimeOffRequestForm({
           <div role="dialog" aria-modal="true" aria-labelledby="ocean-conflict-title" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
             <p className="label text-orange-700">Ocean Academy</p>
             <h2 id="ocean-conflict-title" className="mt-2 text-xl font-semibold text-harbor-midnight">Special approval required</h2>
-            {conflictDates.length > 0 ? <p className="mt-3 text-sm text-harbor-midnight/80">Someone else already has approved time off on {conflictDates.slice(0, 4).map(formatShortDate).join(", ")}{conflictDates.length > 4 ? ` and ${conflictDates.length - 4} more date${conflictDates.length === 5 ? "" : "s"}` : ""}.</p> : null}
+            {conflictDates.length > 0 ? <p className="mt-3 text-sm text-harbor-midnight/80">Someone else in Ocean Academy already has approved time off on {conflictDates.slice(0, 4).map(formatShortDate).join(", ")}{conflictDates.length > 4 ? ` and ${conflictDates.length - 4} more date${conflictDates.length === 5 ? "" : "s"}` : ""}.</p> : null}
             {blackoutDates.length > 0 || lateBlackoutDates.length > 0 ? <p className="mt-3 text-sm text-harbor-midnight/80">One or more requested days are Ocean Academy blackout dates.</p> : null}
             <p className="mt-3 text-sm text-harbor-midnight/80">You may choose alternative dates. If you continue, an Ocean Academy supervisor must give special approval before this time off is approved.</p>
             <label className="mt-5 flex items-start gap-3 rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm font-medium text-orange-950">

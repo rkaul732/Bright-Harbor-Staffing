@@ -89,6 +89,7 @@ export function EmployeeDashboard({
 }) {
   const [activeModal, setActiveModal] = useState<EmployeeModalKey | null>(null);
   const [timeOffStartDate, setTimeOffStartDate] = useState("");
+  const [timeOffProgramName, setTimeOffProgramName] = useState<ProgramName | undefined>();
   const profile = data.workerProfiles.find(
     (workerProfile) => workerProfile.user_id === data.currentUser.id
   );
@@ -184,10 +185,7 @@ export function EmployeeDashboard({
       title: "Team member off",
       date: item.date,
       program_name: item.program_name,
-      kind: "team_time_off" as const,
-      note: item.program_name === "Ocean Academy"
-        ? "A teammate has approved time off. Requesting this date requires special supervisor approval."
-        : "A teammate has approved time off. Choose other dates or speak with your supervisor before requesting this date."
+      kind: "team_time_off" as const
     })),
     ...data.oceanAcademyBlackouts.map((blackout) => ({
       id: `blackout-${blackout.id}`,
@@ -245,6 +243,7 @@ export function EmployeeDashboard({
         programLabel={approvedTimeOffProgramNames.length ? approvedTimeOffProgramNames.join(", ") : "awaiting program approval"}
         onRequestTimeOff={() => {
           setTimeOffStartDate("");
+          setTimeOffProgramName(undefined);
           setActiveModal("time-off");
         }}
       />
@@ -258,8 +257,9 @@ export function EmployeeDashboard({
             programNames={calendarProgramNames}
             availableShifts={canExchangeShifts ? availableShifts : []}
             showShiftTools={canExchangeShifts}
-            onRequestTimeOff={(date) => {
+            onRequestTimeOff={(date, programName) => {
               setTimeOffStartDate(date);
+              setTimeOffProgramName(programName);
               setActiveModal("time-off");
             }}
             onPostShift={() => setActiveModal("post-shift")}
@@ -305,6 +305,7 @@ export function EmployeeDashboard({
         <TimeOffRequestForm
           programNames={approvedTimeOffProgramNames}
           initialStartDate={timeOffStartDate}
+          initialProgramName={timeOffProgramName}
           teamTimeOffDates={teamTimeOffDates}
           blackouts={data.oceanAcademyBlackouts}
           teamAvailabilityAvailable={teamAvailabilityAvailable}

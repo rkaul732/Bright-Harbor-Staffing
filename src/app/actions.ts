@@ -2296,7 +2296,7 @@ export async function submitTimeOffRequestAction(
     if (parsed.data.program_name !== "Ocean Academy" && conflictDates.length > 0 && !asBoolean(formData.get("supervisor_contact_confirmed"))) {
       return {
         ok: false,
-        message: "A teammate has approved time off on these dates. Choose different dates or speak with your supervisor before submitting.",
+        message: `A teammate in ${getProgramLabel(parsed.data.program_name)} has approved time off on these dates. Choose different dates or speak with your supervisor before submitting.`,
         conflictDates,
         conflictKey: teamTimeOffSelectionKey(parsed.data.program_name, parsed.data.start_date, parsed.data.end_date)
       };

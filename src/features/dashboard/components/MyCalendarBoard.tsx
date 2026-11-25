@@ -88,7 +88,7 @@ export function MyCalendarBoard({
   programNames: ProgramName[];
   availableShifts?: ShiftPost[];
   showShiftTools?: boolean;
-  onRequestTimeOff?: (startDate: string) => void;
+  onRequestTimeOff?: (startDate: string, programName?: ProgramName) => void;
   onPostShift?: () => void;
 }) {
   const [mode, setMode] = useState<CalendarMode>("month");
@@ -141,7 +141,7 @@ export function MyCalendarBoard({
           </div>
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
             {onRequestTimeOff ? (
-              <button type="button" onClick={() => onRequestTimeOff(selectedDate)} className="word-button">
+              <button type="button" onClick={() => onRequestTimeOff(selectedDate, program === "all" ? undefined : program)} className="word-button">
                 Request Time Off
               </button>
             ) : null}
