@@ -5,6 +5,7 @@ import { CalendarPlus, Check, X } from "lucide-react";
 import {
   adminAddOutOfOfficeAction,
   addOceanAcademyBlackoutAction,
+  rescindPendingTimeOffRequestAction,
   submitTimeOffRequestAction,
   updateTimeOffRequestStatusAction
 } from "@/app/actions";
@@ -17,6 +18,40 @@ import { SubmitButton } from "@/shared/components/SubmitButton";
 import type { AppRole, OceanAcademyBlackout, ProgramName, TimeOffRequest } from "@/shared/types/domain";
 
 const initialState = { ok: false, message: "" };
+
+export function RescindTimeOffRequestControl({ requestId }: { requestId: string }) {
+  const [confirming, setConfirming] = useState(false);
+  const [state, action] = useActionState(rescindPendingTimeOffRequestAction, initialState);
+
+  return (
+    <div className="mt-3">
+      {!confirming && !state.ok ? (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className="word-button text-red-700"
+        >
+          Rescind request
+        </button>
+      ) : null}
+      {confirming && !state.ok ? (
+        <form action={action} className="rounded-lg border border-red-200 bg-red-50 p-3">
+          <input type="hidden" name="request_id" value={requestId} />
+          <p className="text-sm text-red-900">Rescind this pending time off request?</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <SubmitButton variant="secondary" className="!px-3 !py-1.5 !text-sm">
+              Confirm rescind
+            </SubmitButton>
+            <button type="button" onClick={() => setConfirming(false)} className="word-button">
+              Keep request
+            </button>
+          </div>
+        </form>
+      ) : null}
+      <ActionFeedback state={state} />
+    </div>
+  );
+}
 
 export function TimeOffRequestForm({
   programNames,

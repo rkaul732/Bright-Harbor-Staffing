@@ -15,7 +15,7 @@ import { StatusBadge } from "@/shared/components/StatusBadge";
 import { SupervisorProfileForm } from "@/features/profiles/components/ProfileForms";
 import { SupervisorShiftPostForm } from "@/features/shifts/components/ShiftPostForms";
 import { CodeRedShiftCreationForm } from "@/features/shifts/components/CodeRedShiftCreationForm";
-import { AdminOutOfOfficeForm, OceanAcademyBlackoutForm, TimeOffRequestForm } from "@/features/time-off/components/TimeOffForms";
+import { AdminOutOfOfficeForm, OceanAcademyBlackoutForm, RescindTimeOffRequestControl, TimeOffRequestForm } from "@/features/time-off/components/TimeOffForms";
 import {
   CancelShiftForm,
   RescheduleShiftForm
@@ -384,6 +384,11 @@ function AdminDashboardHome({
   const ownRequestPrograms = role === "admin"
     ? (canManageAccountTypes ? PROGRAMS : data.adminProfiles.find((profile) => profile.user_id === data.currentUser.id)?.program_names ?? [])
     : data.supervisorProfiles.find((profile) => profile.user_id === data.currentUser.id)?.program_names ?? [];
+  const ownPendingTimeOff = data.timeOffRequests
+    .filter((request) =>
+      request.user_id === data.currentUser.id && request.status === "pending_supervisor_approval"
+    )
+    .sort((first, second) => second.created_at.localeCompare(first.created_at));
   const canAddOceanAcademyBlackout = role === "admin"
     ? canManageAccountTypes || data.adminProfiles.some((profile) => profile.user_id === data.currentUser.id && profile.status === "approved" && profile.program_names.includes("Ocean Academy"))
     : data.supervisorProfiles.some((profile) => profile.user_id === data.currentUser.id && profile.status === "approved" && profile.program_names.includes("Ocean Academy"));
@@ -464,6 +469,25 @@ function AdminDashboardHome({
           <AdminSnapshotCard label="Denied" value={deniedRequestCount} />
         </div>
       </section>
+
+      {ownPendingTimeOff.length > 0 ? (
+        <section className="panel mt-5 p-4 sm:p-5">
+          <p className="label">My time off</p>
+          <h3 className="mt-1 text-lg font-semibold text-harbor-midnight">Pending requests</h3>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {ownPendingTimeOff.map((request) => (
+              <article key={request.id} className="rounded-lg border border-harbor-ocean/10 bg-harbor-mist/40 p-4">
+                <p className="text-sm font-medium text-harbor-midnight">
+                  {formatLongDate(request.start_date)}
+                  {request.end_date !== request.start_date ? ` – ${formatLongDate(request.end_date)}` : ""}
+                </p>
+                <p className="mt-1 text-sm text-harbor-midnight/65">{getProgramLabel(request.program_name)}</p>
+                <RescindTimeOffRequestControl requestId={request.id} />
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="mt-5 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
         <div className="min-w-0 space-y-4">

@@ -2462,6 +2462,43 @@ export async function addOceanAcademyBlackoutAction(
   return { ok: true, message: "Ocean Academy blackout added to the calendar." };
 }
 
+export async function rescindPendingTimeOffRequestAction(
+  _previousState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const requestId = asString(formData.get("request_id"));
+  if (!requestId) {
+    return { ok: false, message: "This time off request could not be found." };
+  }
+
+  const user = await getUserForAction();
+  if (!isSupabaseConfigured()) {
+    return { ok: true, message: "Demo mode: pending time off request rescinded." };
+  }
+  if (!z.string().uuid().safeParse(requestId).success) {
+    return { ok: false, message: "This time off request could not be found." };
+  }
+  if (!hasSupabaseServiceRoleKey()) {
+    return { ok: false, message: "Request changes are temporarily unavailable. Please try again later." };
+  }
+
+  const { data, error } = await createSupabaseAdminClient()
+    .from("time_off_requests")
+    .update({ status: "cancelled" })
+    .eq("id", requestId)
+    .eq("user_id", user.id)
+    .eq("status", "pending_supervisor_approval")
+    .select("id");
+
+  if (error) return { ok: false, message: "Could not rescind this request. Please try again." };
+  if (!data?.length) {
+    return { ok: false, message: "Only your own pending request can be rescinded. Refresh to see its current status." };
+  }
+
+  revalidateDashboards();
+  return { ok: true, message: "Time off request rescinded." };
+}
+
 export async function updateTimeOffRequestStatusAction(
   _previousState: ActionState,
   formData: FormData

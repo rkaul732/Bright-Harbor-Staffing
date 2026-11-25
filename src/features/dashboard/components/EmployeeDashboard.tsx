@@ -22,7 +22,7 @@ import {
 import { EmployeeCoveragePostForm } from "@/features/shifts/components/ShiftPostForms";
 import { RequestShiftForm } from "@/features/shifts/components/ShiftActionForms";
 import { WorkerProfileForm } from "@/features/profiles/components/ProfileForms";
-import { TimeOffRequestForm } from "@/features/time-off/components/TimeOffForms";
+import { RescindTimeOffRequestControl, TimeOffRequestForm } from "@/features/time-off/components/TimeOffForms";
 import {
   MyCalendarBoard,
   type MyCalendarEvent
@@ -169,7 +169,7 @@ export function EmployeeDashboard({
             ]
           : [];
       }),
-    ...myTimeOffRequests.map((request) => ({
+    ...myTimeOffRequests.filter((request) => request.status !== "cancelled").map((request) => ({
       id: `time-off-${request.id}`,
       title: "Time off request",
       date: request.start_date,
@@ -201,9 +201,16 @@ export function EmployeeDashboard({
   ];
 
 
-  const recentTimeOffRequests = [...myTimeOffRequests]
-    .sort((first, second) => second.created_at.localeCompare(first.created_at))
-    .slice(0, 3);
+  const pendingTimeOffRequests = myTimeOffRequests
+    .filter((request) => request.status === "pending_supervisor_approval")
+    .sort((first, second) => second.created_at.localeCompare(first.created_at));
+  const recentTimeOffRequests = [
+    ...pendingTimeOffRequests,
+    ...myTimeOffRequests
+      .filter((request) => request.status !== "pending_supervisor_approval")
+      .sort((first, second) => second.created_at.localeCompare(first.created_at))
+      .slice(0, Math.max(0, 3 - pendingTimeOffRequests.length))
+  ];
   const recentCoveragePosts = [...myCoveragePosts]
     .sort((first, second) => second.created_at.localeCompare(first.created_at))
     .slice(0, 3);
@@ -337,9 +344,10 @@ function EmployeeRequestOverview({
   ).length;
   const approved = requests.filter((request) => request.status === "approved").length;
   const declined = requests.filter((request) => request.status === "declined").length;
+  const activeRequests = requests.filter((request) => request.status !== "cancelled");
   const upcoming =
-    requests.find((request) => request.end_date >= todayISO()) ??
-    [...requests].sort((first, second) => second.created_at.localeCompare(first.created_at))[0];
+    activeRequests.find((request) => request.end_date >= todayISO()) ??
+    [...activeRequests].sort((first, second) => second.created_at.localeCompare(first.created_at))[0];
 
   return (
     <section
@@ -471,7 +479,7 @@ function EmployeeRightMenu({
       {timeOffRequests.length > 0 ? (
         <EmployeeSideWidget
           title="Time off requests"
-          subtitle="Most recent requests"
+          subtitle="Pending requests and recent history"
           count={timeOffRequests.length}
         >
           <div className="grid gap-3">
@@ -623,6 +631,9 @@ function TimeOffCard({ request }: { request: TimeOffRequest }) {
           <span className="font-medium text-harbor-midnight">Admin comment:</span>{" "}
           {request.review_comment}
         </p>
+      ) : null}
+      {request.status === "pending_supervisor_approval" ? (
+        <RescindTimeOffRequestControl requestId={request.id} />
       ) : null}
     </article>
   );
